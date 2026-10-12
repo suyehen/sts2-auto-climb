@@ -104,8 +104,8 @@ class Store:
         if self.path.exists():
             previous=json.loads(self.path.read_text(encoding='utf-8-sig'))
             if previous.get('version')!=2:
-                from datetime import datetime,timezone
-                stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+                from autoslay.configuration import backup_stamp
+                stamp=backup_stamp(self.directory)
                 atomic(self.directory/'backups'/(stamp+'.json'),previous)
                 if self.secret_path.exists(): atomic(self.directory/'backups'/(stamp+'.credentials.dpapi.json'),json.loads(self.secret_path.read_text()))
         atomic(self.path,self.configuration())

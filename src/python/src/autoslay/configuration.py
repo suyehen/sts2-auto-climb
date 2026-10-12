@@ -4,7 +4,7 @@ import math
 import base64
 import os
 from copy import deepcopy
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from autoslay.paths import ROOT
 
@@ -12,6 +12,17 @@ FORMAT='autoslay-config'
 VERSION=2
 POLICIES=('run','combat','context','analysis','autonomy','relic-timing')
 SECRETS={'api_key','apikey','token','password','credentials','secret','authorization'}
+
+
+def backup_stamp(directory):
+    # Windows clocks may return identical timestamps for consecutive imports.
+    # Never overwrite an existing backup when the clock repeats or goes back.
+    moment=datetime.now(timezone.utc)
+    while True:
+        stamp=moment.strftime('%Y%m%dT%H%M%S%fZ')
+        if not any((directory/'backups'/(stamp+suffix)).exists() for suffix in ('.json','.credentials.dpapi.json')):
+            return stamp
+        moment+=timedelta(microseconds=1)
 
 
 def no_secrets(value):
@@ -165,7 +176,7 @@ def install(store,package,password=None,*,restored_secrets=None,restored_invalid
     package,credentials=unpack_package(package,password)
     new,migration=migrate_export(package)
     old=store.configuration()
-    stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    stamp=backup_stamp(store.directory)
     backup=store.directory/'backups'/(stamp+'.json')
     atomic(backup,old)
     original_secrets=json.loads(store.secret_path.read_text()) if store.secret_path.exists() else None

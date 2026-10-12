@@ -55,6 +55,21 @@ def test_wrong_password_and_tamper_leave_files_unchanged(store):
         assert (store.path.read_bytes(),store.secret_path.read_bytes())==before
 
 
+def test_repeated_clock_cannot_overwrite_backup(store,monkeypatch):
+    from datetime import datetime,timezone
+    class FrozenClock:
+        @staticmethod
+        def now(tz):return datetime(2026,10,12,tzinfo=timezone.utc)
+    monkeypatch.setattr(c,'datetime',FrozenClock)
+    package=c.export_package(store)
+    first=c.install(store,package)['backup_id']
+    old_backup=(store.directory/'backups'/(first+'.json')).read_bytes()
+    store.active='codex'
+    second=c.install(store,package)['backup_id']
+    assert first!=second and len(c.backups(store))==2
+    assert (store.directory/'backups'/(first+'.json')).read_bytes()==old_backup
+
+
 def test_legacy_migration_and_future_rejection(store):
     legacy=dict(version=1,active=store.active,profiles=[p.model_dump() for p in store.profiles.values()])
     migrated,info=c.migrate_export(legacy)
