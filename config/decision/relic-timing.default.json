@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "draw_value": 1.0,
+  "energy_value": 2.0,
+  "hp_cost": 1.0,
+  "turn_discount": 0.7,
+  "reserve_hp": 1,
+  "max_delay": 3,
+  "horizon": 3
+}

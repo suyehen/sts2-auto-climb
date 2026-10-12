@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "damage_weight": 1.0,
+  "block_weight": 1.5,
+  "permanent_strength_weight": 3.0,
+  "draw_option_weight": 0.0
+}

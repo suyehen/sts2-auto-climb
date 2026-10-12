@@ -1,0 +1,29 @@
+name: Source checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  portable-checks:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Install Python package
+        run: python -m pip install -e './src/python[test]'
+      - name: Configuration migration and credential tests
+        run: python -m pytest src/python/tests/test_configuration.py -q --basetemp=.runtime/ci-pytest
+      - name: Frontend tests
+        run: node --test src/web/tests/*.test.mjs
+      - name: C# command checks without game assemblies
+        run: dotnet run --project src/csharp/tests/CommandTests -c Release

@@ -1,0 +1,40 @@
+{
+  "schema_version": "mechanics/1.0",
+  "version": "1.0.0",
+  "game_version": "0.111.0",
+  "verification": "local_game_assembly_source_inspected; not live-tested in artificial scenarios",
+  "entries": [
+    {
+      "id": "hand_capacity_draw",
+      "title": "手牌上限与抽牌",
+      "rule": "手牌上限为10。普通抽牌在手牌满时停止，多余牌留在抽牌堆；抽牌堆耗尽时才按通常规则洗入弃牌堆。若抽牌触发效果改变手牌或结束战斗，每张牌后需重新判断。",
+      "source": "CardPile.MaxCardsInHand; CardPileCmd.DrawInternal; CheckIfDrawIsPossibleAndShowThoughtBubbleIfNot",
+      "implementation": "autoslay.simulation.card_flow.plan_draw; probability.card_flow.draw_forecast",
+      "limitations": "容量和洗牌概率按无抽牌触发钩子计算，改变费用、手牌、伤害等钩子需观察或补专属适配"
+    },
+    {
+      "id": "hand_capacity_generated",
+      "title": "生成/加入手牌溢出",
+      "rule": "向手牌加入牌时若手牌已满，该牌改放弃牌堆。多张按加入顺序分配空位。效果指定抽牌堆、弃牌堆、消耗堆时按指定目的地执行。生成或加入牌不是抽牌。",
+      "source": "CardPileCmd.Add; AddGeneratedCardsToCombat",
+      "implementation": "autoslay.simulation.card_flow.add_generated",
+      "limitations": "只对已知生成牌身份和目的地提供结算，不猜随机生成结果、不覆盖生成钩子"
+    },
+    {
+      "id": "draw_prevention",
+      "title": "无法抽牌及小提琴",
+      "rule": "NoDrawPower阻止效果抽牌，允许fromHandDraw的回合开始抽牌，并在拥有者回合结束移除。Fiddle在自己的回合阻止效果抽牌，正常回合开始抽牌增加2。它们不直接阻止生成牌。",
+      "source": "NoDrawPower.ShouldDraw/AfterSideTurnEnd; Fiddle.ShouldDraw/ModifyHandDraw",
+      "implementation": "autoslay.decision.normalize; simulation.card_flow.plan_draw",
+      "limitations": "下一场抽牌量需完整上下文，不能凭当前禁止抽牌标志推断未来"
+    },
+    {
+      "id": "persistent_periodic_relics",
+      "title": "周期遗物跨战斗计数",
+      "rule": "HappyFlower每3个玩家回合开始获得1能量；Pendulum每3个玩家回合的正常手牌抽取增加1；PollinousCore每4个玩家回合的正常手牌抽取增加2。计数跨战斗保留。战斗结束仅重置显示状态，不能据Status=Normal判断计数为0。动画可能暂时显示阈值，不应当成稳定计数。",
+      "source": "HappyFlower.AfterSideTurnStart/AfterCombatEnd; Pendulum.BeforeHandDraw/ModifyHandDraw/AfterCombatEnd; PollinousCore.BeforeHandDraw/ModifyHandDraw/AfterModifyingHandDraw/AfterCombatEnd",
+      "implementation": "autoslay.rules.periodic_relics; evaluation.relic_timing; planning.relic_timing",
+      "limitations": "逐个保存计数，联合抽牌按共享容量计算；未知计数不猜测；延迟击杀的完整损血和可行性需未来观察"
+    }
+  ]
+}

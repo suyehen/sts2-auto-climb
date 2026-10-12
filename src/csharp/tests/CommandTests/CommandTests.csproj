@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../bridge/Knowledge/RuntimeFields.cs" Link="RuntimeFields.cs" />
+    <Compile Include="../../bridge/Commands/CommandLedger.cs" Link="CommandLedger.cs" />
+    <Compile Include="../../bridge/Commands/RewardProgress.cs" Link="RewardProgress.cs" />
+    <Compile Include="../../bridge/Commands/MenuRules.cs" Link="MenuRules.cs" />
+    <Compile Include="../../bridge/Commands/MapRules.cs" Link="MapRules.cs" />
+    <Compile Include="../../bridge/Commands/EventRules.cs" Link="EventRules.cs" />
+    <Compile Include="../../bridge/Commands/SelectionRules.cs" Link="SelectionRules.cs" />
+    <Compile Include="../../bridge/Commands/ShopRules.cs" Link="ShopRules.cs" />
+    <Compile Include="../../bridge/Commands/PotionRules.cs" Link="PotionRules.cs" />
+    <Compile Include="../../bridge/Commands/CardPresentation.cs" Link="CardPresentation.cs" />
+    <Compile Include="../../bridge/Commands/CombatChoiceRules.cs" Link="CombatChoiceRules.cs" />
+    <Compile Include="../../bridge/Commands/RecoveryRules.cs" Link="RecoveryRules.cs" />
+  </ItemGroup>
+</Project>

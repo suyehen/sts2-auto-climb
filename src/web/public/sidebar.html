@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoSlay · 实时观察</title><link rel="stylesheet" href="sidebar.css"><script src="shared.js" defer></script><script type="module" src="sidebar.js"></script><script src="agent.js" defer></script></head>
+<body><header class="side-header"><div class="side-brand"><span class="brand">AutoSlay <small>实时观察</small></span><span id="link" class="connection-pill">正在连接</span></div><div class="side-location"><h1 id="location">等待游戏状态</h1><p id="stamp"></p></div><div class="controls"><label><input id="followSide" type="checkbox" checked>跟随实时</label><button id="resume" hidden>返回实时</button><button id="full" class="text-button">打开工作台 ↗</button><button id="mode-side" class="text-button" aria-pressed="false">工程视图</button></div></header>
+<div id="notice" role="status" hidden></div><main>
+<section class="card decision-focus"><div class="side-section-heading"><div><span class="eyebrow">DECISION</span><h2>当前决策</h2></div><span id="current" class="badge">等待分析</span></div><div id="candidates"></div></section>
+<details class="card side-disclosure" id="agent-disclosure"><summary>Agent 与决策后端 <span id="agent-state">等待状态</span></summary><section id="agent-controls" class="panel"></section></details>
+<details class="card side-disclosure" id="game-state"><summary>游戏状态 <span>生命 · 能量 · 金币</span></summary><div id="resources" class="resources"></div></details>
+<details class="card side-disclosure" id="timeline-disclosure"><summary>最近决策记录 <span id="recent-count">0 条</span></summary><div id="recent"></div></details>
+<section id="details-card" class="card" hidden><h2>工程检查器</h2><div id="details"></div></section></main></body></html>

@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "damage_weight": 1.0,
+  "block_weight": 1.2,
+  "draw_weight": 2.0,
+  "energy_weight": 4.0,
+  "strength_weight": 3.0,
+  "vulnerable_weight": 1.0,
+  "curse_weight": 8.0,
+  "hp_weight": 2.0,
+  "max_hp_weight": 1.0,
+  "gold_weight": 0.04,
+  "risk_weight": 0.5,
+  "opening_draw": 5,
+  "energy": 3,
+  "shop_nodes": 500,
+  "shop_time_ms": 300
+}

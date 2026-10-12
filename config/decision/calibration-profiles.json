@@ -1,0 +1,9 @@
+{
+  "game_version": "0.111.0",
+  "profiles": [
+    {"name": "baseline", "run": {}, "interactions": {}},
+    {"name": "draw_sensitive", "run": {"draw_weight": 3.0}, "interactions": {"draw_cheap_card_weight": 3.0}},
+    {"name": "strength_sensitive", "run": {"strength_weight": 4.0}, "interactions": {"strength_multihit_weight": 2.5}},
+    {"name": "defensive", "run": {"block_weight": 1.5, "hp_weight": 2.5}, "interactions": {}}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": "events/1.0",
+  "version": "1.0.0",
+  "game_version": "0.111.0",
+  "entries": {
+    "EVENT.ABYSSAL_BATHS": {
+      "model": "repeat_max_hp_then_damage",
+      "source": "MegaCrit.Sts2.Core.Models.Events/AbyssalBaths.cs; CreatureCmd.GainMaxHp",
+      "validation": "source_checked; live_transition_pending",
+      "gain_max_hp": 2,
+      "initial_damage": 3,
+      "damage_increment": 1,
+      "initial_exit_heal": 10,
+      "later_exit_heal": 0,
+      "gain_max_hp_also_heals": true,
+      "limitations": [
+        "HP/maxHP/relic hooks need compatible context",
+        "damage increases on every immerse; text page index is capped but damage is not"
+      ],
+      "source_sha256": "ebcb36c1df59090dfa8a0e935cf0e29923d5a183ea5f8371b47dcc0b777a5e8b"
+    }
+  },
+  "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9"
+}

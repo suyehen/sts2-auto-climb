@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "strength_multihit_weight": 1.5,
+  "draw_cheap_card_weight": 2.0,
+  "exhaust_block_weight": 1.0,
+  "deck_size_penalty": 0.12
+}

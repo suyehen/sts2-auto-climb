@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutoSlay action request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "run_id", "session_epoch", "expected_state_version", "action_id"],
+  "properties": {
+    "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "run_id": {"type": "string", "minLength": 1},
+    "session_epoch": {"type": "string", "minLength": 1},
+    "expected_state_version": {"type": "integer", "minimum": 0},
+    "action_id": {"type": "string", "minLength": 1},
+    "target_id": {"type": ["string", "null"]}
+  }
+}

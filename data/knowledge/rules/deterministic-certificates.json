@@ -1,0 +1,48 @@
+{
+  "schema_version": "deterministic-certificates/1.0",
+  "version": "1.0.0",
+  "game_version": "0.111.0",
+  "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "finish_safe_unplayable_cards": [
+    "CARD.ASCENDERS_BANE"
+  ],
+  "safe_event_exits": {
+    "EVENT.ABYSSAL_BATHS": [
+      "ABYSSAL_BATHS.pages.INITIAL.options.ABSTAIN",
+      "ABYSSAL_BATHS.pages.ALL.options.EXIT_BATHS"
+    ]
+  },
+  "audit_note": "Source reviewed: listed monsters have no resurrection or death phase; relics have no persistent combat counters or optional in-combat benefit. AbyssalBaths exit either heals or finishes; WillKillPlayer accounts for maxHP gain before damage. All other entities require proof and return to AI.",
+  "finish_safe_monsters": {
+    "MONSTER.LEAF_SLIME_M": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Monsters\\LeafSlimeM.cs",
+      "source_sha256": "d367b077e4ed71a8179cb9f68bbc614392b049d87f934e9e7186d5d966faabfd"
+    },
+    "MONSTER.LEAF_SLIME_S": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Monsters\\LeafSlimeS.cs",
+      "source_sha256": "6db6f1ccc681f86ca48584827b4276c9881297e3c5cb07ddf7516735d9779815"
+    },
+    "MONSTER.TWIG_SLIME_M": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Monsters\\TwigSlimeM.cs",
+      "source_sha256": "e47f44a602799d16fde7917d0135502a8c91c3307c03f57bf98b3300c5e996de"
+    },
+    "MONSTER.TWIG_SLIME_S": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Monsters\\TwigSlimeS.cs",
+      "source_sha256": "20df69868780ab61d8fd0e33aaeda150928ab98bc35c5276a2271563c4b46c0b"
+    }
+  },
+  "finish_safe_relics": {
+    "RELIC.BURNING_BLOOD": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics\\BurningBlood.cs",
+      "source_sha256": "31fba8ba9a3e64f48c28ea463851fdb33d5f210e181da3a1ee56a53f128020be"
+    },
+    "RELIC.BOOMING_CONCH": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics\\BoomingConch.cs",
+      "source_sha256": "2c918532e9ef8ef9ef8039640d4caddc1820d040dadd9bfc6ef96b020e6f6adb"
+    }
+  },
+  "event_source": {
+    "source_path": "MegaCrit.Sts2.Core.Models.Events\\AbyssalBaths.cs",
+    "source_sha256": "ebcb36c1df59090dfa8a0e935cf0e29923d5a183ea5f8371b47dcc0b777a5e8b"
+  }
+}

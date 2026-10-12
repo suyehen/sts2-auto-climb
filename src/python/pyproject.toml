@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoslay-mcp"
+version = "0.1.0"
+description = "Read-only Slay the Spire 2 bridge for Codex"
+requires-python = ">=3.12"
+dependencies = ["mcp>=1.20,<2", "httpx>=0.28,<1", "pydantic>=2.10,<3", "cryptography>=45,<51"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+assets = ["Pillow>=12,<13"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["autoslay*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+cache_dir = "../../.runtime/cache/pytest"
