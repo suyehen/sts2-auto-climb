@@ -15,7 +15,8 @@ public static partial class Bridge
     private sealed record MapCoordinate(int Column, int Row);
     private sealed record MapVisualPosition(float X, float Y);
     private sealed record MapNodeView(string NodeId, MapCoordinate Coordinate, string Type, string State,
-        bool Visited, bool Available, string? ActionId, string[] Children, MapVisualPosition VisualPosition);
+        bool Visited, bool Available, string? ActionId, string[] Children, MapVisualPosition VisualPosition,
+        string? IconAsset);
     private sealed record MapView(bool Open, bool Active, bool DecisionReady, string? ScreenId, int? ActIndex,
         long? Generation, MapCoordinate? CurrentPosition, MapCoordinate[] Visited, MapNodeView[] Nodes);
     private sealed record MapBinding(NMapScreen Screen, NMapPoint Node, MapCoord Coordinate,
@@ -70,7 +71,7 @@ public static partial class Bridge
                 point.Children.Where(c => coordinates.Contains(c.coord)).OrderBy(c => c.coord.col)
                     .Select(c => MapNodeId(run.CurrentActIndex, generation.Value, c.coord)).ToArray(),
                 // Actual game layout, including its seeded offsets; excludes hover/scroll transforms.
-                new(node.Position.X + node.Size.X / 2, node.Position.Y + node.Size.Y / 2)));
+                new(node.Position.X + node.Size.X / 2, node.Position.Y + node.Size.Y / 2), ReadMapIconAsset(node, run)));
             if (available)
             {
                 ready = true;
@@ -79,6 +80,30 @@ public static partial class Bridge
             }
         }
         return new(open, active, ready, Id(screen), run.CurrentActIndex, generation, current, visited, nodes.ToArray());
+    }
+
+    private static string? ReadMapIconAsset(NMapPoint node, RunState run)
+    {
+        // Read the texture actually assigned by the game (including revealed unknowns
+        // and Ancient portraits), rather than deriving a replacement from room type.
+        var icon = node.GetNodeOrNull<TextureRect>("%Icon")
+            ?? node.GetNodeOrNull<TextureRect>("Icon")
+            ?? node.GetNodeOrNull<TextureRect>("%PlaceholderImage");
+        var path = icon?.Texture?.ResourcePath;
+        // Model paths also cover atlas textures whose ResourcePath is empty.
+        if (string.IsNullOrEmpty(path) && node is NAncientMapPoint)
+            return "MAP.ANCIENT_NODE_" + run.Act.Ancient.Id.Entry.ToUpperInvariant();
+        if (string.IsNullOrEmpty(path) && node is NBossMapPoint)
+        {
+            var encounter = node.Point == run.Map.SecondBossMapPoint
+                ? run.Act.SecondBossEncounter : run.Act.BossEncounter;
+            if (encounter?.BossNodeSpineResource == null) path = encounter?.BossNodePath;
+        }
+        if (string.IsNullOrEmpty(path) || !path.StartsWith("res://images/", StringComparison.Ordinal))
+            return null; // Animated Spine boss nodes have no standalone texture.
+        var name = System.IO.Path.GetFileNameWithoutExtension(path).ToUpperInvariant();
+        return name.Length > 0 && name.All(c => char.IsAsciiLetterOrDigit(c) || c == '_')
+            ? "MAP." + name : null;
     }
 
     private static LegalAction[] MapActions() => MapBindings.Select(pair => new LegalAction(pair.Key, "choose_map_node", null, [], true)).ToArray();

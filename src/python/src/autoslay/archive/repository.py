@@ -130,6 +130,10 @@ class Repository:
                 if m.get('nodes') and m.get('act_index')==act:
                     name='generation_'+str(m.get('generation') if m.get('generation') is not None else 'unknown')+'.json'
                     atomic(folder/'maps'/('act_'+str(act).zfill(3))/name,dict(recorded_at=payload['recorded_at'],map=m))
+                    from autoslay.archive.map_icons import saved_icon_metadata
+                    artwork=saved_icon_metadata(m,meta.get('started_at'))
+                    if artwork:
+                        atomic(folder/'map_artwork'/('act_'+str(act).zfill(3))/name,artwork)
             category='decisions' if payload['kind']=='decision' else 'choices' if payload['kind'] in {'ai_choice','local_choice'} else 'actions' if payload['kind'].startswith('action_') else 'outcomes' if payload['kind'] in {'outcome_observed','local_outcome'} else 'events'
             relative=category+'/'+identity+'.json';atomic(folder/relative,stored)
             summary={k:v for k,v in payload.items() if k not in {'snapshot','report','ai_payload','ai_delivery'}}
@@ -264,6 +268,10 @@ class Repository:
         folder=self.folder(run_id);meta=self.manifest(run_id);acts={}
         for path in (folder/'maps').glob('act_*/*.json'):
             value=read(path);m=value['map'];key=str(m['act_index'])
+            from autoslay.archive.map_icons import apply_metadata
+            artwork=folder/'map_artwork'/path.parent.name/path.name
+            if artwork.exists():
+                m=apply_metadata(m,read(artwork));value=value|dict(map=m)
             act=acts.setdefault(key,dict(act_index=m['act_index'],maps=[],timeline=[]));act['maps'].append(value|dict(generation=m.get('generation')))
         entries=self.entries(run_id,limit=10000,skip_heartbeat=True)
         unlocated=[]

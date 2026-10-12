@@ -24,3 +24,5 @@ main{padding:16px 14px;max-width:760px;margin:auto}#notice{margin:12px 14px 0;pa
 #agent-quick-controls .agent-quick-copy{min-width:100%;flex:1}
 #agent-quick-controls .button-row{width:100%;display:flex;gap:8px}
 #agent-quick-controls .button-row button{flex:1}
+
+.agent-failure{border:1px solid #80515b;background:#2b1c23;border-radius:8px;padding:12px;margin-top:12px;flex-basis:100%;overflow-wrap:anywhere}.agent-failure>summary{cursor:pointer;color:#ef929d;font-size:12px}.agent-failure p{font-size:12px;line-height:1.7;margin:8px 0}.agent-failure[hidden]{display:none}

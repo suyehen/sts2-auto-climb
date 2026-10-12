@@ -92,5 +92,20 @@
     }
   },
   "finite_comparison_power_audit": "Enemy Vulnerable multiplies powered attack damage by 1.5; no other powers or multiplier-modifying relics are admitted. Duration tick is only at enemy turn end, outside the certified immediate-victory window.",
-  "finite_comparison_characters": ["CHARACTER.IRONCLAD"]
+  "finite_comparison_characters": [
+    "CHARACTER.IRONCLAD"
+  ],
+  "reward_inspection": {
+    "safe_relics": [
+      "RELIC.BURNING_BLOOD",
+      "RELIC.BOOMING_CONCH"
+    ],
+    "sources": {
+      "MegaCrit.Sts2.Core.Rewards/CardReward.cs": "c37b299cc0f701dff10c67a0d66ca7812a4b28475dc05aa0fef58045bbfc02c3",
+      "MegaCrit.Sts2.Core.Entities.CardRewardAlternatives/CardRewardAlternative.cs": "d275020328decd77104626e45ca1725b6af316cb30339694a3e6a634f342e199",
+      "MegaCrit.Sts2.Core.Models.Relics/BurningBlood.cs": "31fba8ba9a3e64f48c28ea463851fdb33d5f210e181da3a1ee56a53f128020be",
+      "MegaCrit.Sts2.Core.Models.Relics/BoomingConch.cs": "2c918532e9ef8ef9ef8039640d4caddc1820d040dadd9bfc6ef96b020e6f6adb"
+    },
+    "audit": "CardReward.OnSelect displays already populated options and waits for OptionSelected before obtaining a card or invoking an alternative. These relics do not modify reward alternatives. Only the final standard card reward of a combat is inspected; deck selection and skip remain AI decisions."
+  }
 }

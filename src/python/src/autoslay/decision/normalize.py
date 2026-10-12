@@ -3,7 +3,7 @@ from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
@@ -59,10 +59,11 @@ def normalize(snapshot: dict) -> CombatState:
                 warnings.append("UNKNOWN_LEGION_READINESS")
     enemies = []
     from autoslay.knowledge.behavior import load as load_behavior
+    from autoslay.rules.monsters import unmodeled_special_hooks
     behavior=load_behavior()
     monster_entries={e['entity_id']:e for e in behavior.get('entries',[]) if e['category']=='monster'} if behavior.get('game_assembly_sha256')==snapshot.get('game_assembly_sha256') else {}
     for e in s.get("enemies") or []:
-        hooks=set(monster_entries.get(e['entity_id'],{}).get('mechanics',{}))-{'AfterAddedToRoom'}
+        hooks=unmodeled_special_hooks(monster_entries.get(e['entity_id'],{}))
         if hooks:
             warnings.append('UNMODELED_MONSTER_SPECIAL_HOOKS:'+e['entity_id']+':'+','.join(sorted(hooks)))
         powers = {x["entity_id"]: x["amount"] for x in e.get("powers", [])}

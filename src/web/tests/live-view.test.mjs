@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {renderDecision,combatForecastPanel,autonomyPanel} from '../public/presentation.js';
+import {renderDecision,combatForecastPanel,autonomyPanel,actionName,candidateName} from '../public/presentation.js';
 
 class Element{
  constructor(tag){this.tag=tag;this.children=[];this.textContent='';this.open=false;}
@@ -11,6 +11,35 @@ class Element{
 }
 const text=node=>[node.textContent,...node.children.map(text)].join(' ');
 const visible=node=>[node.textContent,...node.children.filter(c=>node.tag!=='details'||node.open||c.tag==='summary').map(visible)].join(' ');
+
+test('reward candidates show the ranked card or skip with costs and effects in live and history views',()=>{
+ const old=globalThis.document;globalThis.document={createElement:tag=>new Element(tag)};
+ try{
+  const candidates=[{kind:'add',card:{name:'突破',energy_cost:1,description:'失去1点生命。对所有敌人造成9点伤害。'},delta_utility:.021},
+   {kind:'skip',card:null,delta_utility:0},
+   {kind:'add',card:{name:'头槌',energy_cost:1,description:'将弃牌堆中的一张牌放到抽牌堆顶部。'},delta_utility:null},
+   {kind:'add',card:{name:'全身撞击',energy_cost:1,description:'造成等同于你格挡的伤害。'},delta_utility:null}];
+  const record={report:{choices:{candidates}},snapshot:{state:{phase:'card_reward_selection'}}},before=JSON.stringify(record);
+  for(const live of [true,false]){
+   const host=new Element('div');renderDecision(host,record,'summary',null,null,{live});
+   const display=visible(host);
+   assert.match(display,/1 选择「突破」/);assert.match(display,/2 跳过抓牌/);
+   assert.match(display,/3 选择「头槌」/);assert.match(display,/4 选择「全身撞击」/);
+   assert.match(display,/1 点能量/);assert.match(display,/对所有敌人造成9点伤害/);
+   assert.doesNotMatch(display,/候选方案 [1-4]|undefined/);
+  }
+  assert.equal(JSON.stringify(record),before);
+ }finally{globalThis.document=old}
+});
+
+test('reward actions and removal or upgrade candidates retain their specific identities',()=>{
+ const s={state:{reward_screen:{cards:[{action_id:'choose',card:{name:'突破'}}],alternatives:[{action_id:'skip',option_id:'Skip',description:'跳过'}]}}};
+ assert.equal(actionName({action_id:'choose'},s),'选择「突破」');
+ assert.equal(actionName({action_id:'skip'},s),'跳过抓牌');
+ assert.equal(candidateName({kind:'remove',card:{name:'打击'}},s),'移除「打击」');
+ assert.equal(candidateName({kind:'upgrade',card:{name:'防御'}},s),'升级「防御」');
+ assert.equal(candidateName({kind:'add',card:{name:'突破',upgrade_level:1}},s),'选择「突破+」');
+});
 
 test('live decisions foreground predictions and hide duplicate game resources and detailed metrics',()=>{
  const old=globalThis.document;globalThis.document={createElement:tag=>new Element(tag)};

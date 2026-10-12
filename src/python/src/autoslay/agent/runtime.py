@@ -4,6 +4,7 @@ import json
 import time
 import re
 from uuid import uuid4
+from pydantic import ValidationError
 from autoslay.paths import ROOT
 from autoslay.bridge.client import fetch_state, set_control_mode, submit_action, get_action_status, ActionRequest
 from autoslay.decision.deterministic import assess, source
@@ -12,7 +13,8 @@ from autoslay.execution.deterministic import DeterministicExecutor
 from autoslay.execution.lock import dispatch_lock
 from autoslay.telemetry import runs, decisions
 from .config import Store, Profile, atomic
-from .contracts import validate
+from .contracts import validate, validate_plan, Decision
+from .plans import prepare, matches
 from .context import build
 from .providers import create, ProviderError
 
@@ -28,13 +30,20 @@ class Agent:
         self.deterministic = deterministic or DeterministicExecutor()
         self.task, self.generation, self.running = None, 0, False
         self.phase, self.error, self.last, self.recent = 'paused', None, None, []
+        self.model_wait = None
+        self.error_details = None
+        try:
+            self.error_details=json.loads((self.journal/'diagnostics/latest.json').read_text(encoding='utf-8'))
+            self.error=self.error_details['code']
+        except (OSError, ValueError, KeyError, TypeError):
+            self.error_details=None
         self.lock = asyncio.Lock()
         from .launch import LaunchCoordinator
         self.launch = LaunchCoordinator(self, self.journal/'launch')
 
     def status(self):
         return dict(running=self.running, phase=self.phase, error=self.error, generation=self.generation,
-                    last=self.last, launch_active=self.launch.active,
+                    last=self.last, model_wait=self.model_wait, error_details=self.error_details, launch_active=self.launch.active,
                     launch=self.launch.job, **self.store.public())
 
     async def pause(self):
@@ -46,6 +55,7 @@ class Agent:
             try: await self.task
             except asyncio.CancelledError: pass
         self.task = None
+        self.model_wait = None
         await self.control('paused')
         self.phase = 'paused'
 
@@ -162,8 +172,11 @@ class Agent:
     async def loop(self, generation):
         previous = None
         run_identity = None
+        snapshot = None
+        identity = None
         try:
             while self.running and generation == self.generation:
+                identity = None
                 self.phase = 'reading_state'
                 snapshot = await self.fetch()
                 if not snapshot.get('connected') or snapshot.get('error'): raise ValueError('GAME_DISCONNECTED')
@@ -209,40 +222,130 @@ class Agent:
                         dict(analysis_id=report['analysis_id'], request_id=identity,
                              provider=p.id, model=p.model, packet=packet))
                 start = time.monotonic()
-                raw, usage = await provider.decide(packet)
+                self.model_wait = dict(request_id=identity, started_at=time.time(),
+                                       timeout_seconds=p.timeout_seconds, phase=s.get('phase'), attempt=1, max_tokens=p.max_tokens)
+                if hasattr(provider,'on_retry'):
+                    def update_retry(progress):
+                        if self.model_wait and self.running and generation==self.generation:
+                            self.model_wait.update(progress)
+                    provider.on_retry=update_retry
+                try:
+                    plan, usage = await self.decide_plan(provider, packet, snapshot, generation, identity, report, p)
+                finally:
+                    self.model_wait = None
                 if not self.running or generation != self.generation: break
-                decision = validate(raw, snapshot)
-                self.last = dict(source=p.id, model=p.model, reason=decision.reason,
-                    action_id=decision.action_id, target_id=decision.target_id,
-                    model_ms=round((time.monotonic()-start)*1000), usage=usage)
-                if self.record:
-                    await asyncio.to_thread(runs.stage, 'ai_choice', snapshot,
-                        dict(analysis_id=report['analysis_id'], group='agent_explicit',
-                             steps=[dict(action_id=decision.action_id, target_id=decision.target_id)], **self.last))
-                self.phase = 'executing'
-                result = await self.dispatch(decision, snapshot, generation)
-                if result is None: continue
-                self.last['status'] = result['status']
-                self.recent.append(dict(action_id=decision.action_id, target_id=decision.target_id,
-                                        status=result['status'], reason=decision.reason))
-                self.recent = self.recent[-4:]
-                if self.record:
-                    after=await self.fetch()
-                    from autoslay.calibration.events import record_action
-                    comparison=await asyncio.to_thread(record_action,report,snapshot,after,decision.action_id,result)
-                    await asyncio.to_thread(runs.stage, 'agent_outcome', after,
-                        dict(analysis_id=report['analysis_id'],event_comparison=comparison, **result))
-                if result['status'] not in {'completed', 'awaiting_choice'}:
-                    raise ValueError('ACTION_'+result['status'].upper())
-                previous = token
+                if plan is None:continue
+                previous = await self.execute_plan(plan, snapshot, report, generation, p,
+                    identity, round((time.monotonic()-start)*1000), usage)
         except asyncio.CancelledError: raise
-        except ProviderError as exc: self.error = str(exc)
+        except ProviderError as exc:
+            self.save_error(str(exc), snapshot, identity, exc.details)
+        except (ValidationError, json.JSONDecodeError):
+            self.save_error('MODEL_INVALID_DECISION' if self.phase=='waiting_model' else 'INVALID_STATE_CONFIG_OR_ACTION', snapshot, identity)
         except (ValueError, OSError, KeyError, TypeError) as exc:
             code = str(exc)
-            self.error = code if re.fullmatch(r'[A-Z_]{1,80}', code) else 'INVALID_STATE_CONFIG_OR_ACTION'
-        except Exception: self.error = 'AGENT_ERROR'
+            self.save_error(code if re.fullmatch(r'[A-Z_0-9]{1,80}', code) else 'INVALID_STATE_CONFIG_OR_ACTION', snapshot, identity)
+        except Exception:
+            self.save_error('AGENT_ERROR', snapshot, identity)
         finally:
             if generation == self.generation:
                 self.running = False
                 await self.control('paused')
                 if self.phase != 'finished': self.phase = 'error' if self.error else 'paused'
+
+    async def decide_plan(self, provider, packet, snapshot, generation, identity, report, profile):
+        raw,usage=await provider.decide(packet)
+        try:
+            return validate_plan(raw,snapshot),usage
+        except ValueError as exc:
+            if str(exc)!='MULTI_ACTION_REQUIRES_COMBAT':raise
+        # No part of the rejected plan was submitted. Retry once only after
+        # verifying that the same visible state is still waiting for a choice.
+        fresh=await self.fetch()
+        if not self.running or generation!=self.generation or source(fresh)!=source(snapshot) or not fresh.get('ready') or fresh.get('busy'):
+            return None,usage
+        correction=dict(packet,validation_feedback=dict(code='MULTI_ACTION_REQUIRES_COMBAT',
+            instruction='Previous response was rejected and NO actions were executed. Return steps with exactly one currently legal action.'))
+        if self.model_wait:self.model_wait.update(validation_attempt=2,retry_reason='MULTI_ACTION_REQUIRES_COMBAT',started_at=time.time())
+        if self.record:
+            await asyncio.to_thread(runs.stage,'agent_packet',snapshot,dict(analysis_id=report['analysis_id'],
+                request_id=identity,provider=profile.id,model=profile.model,validation_attempt=2,packet=correction))
+        raw,retry_usage=await provider.decide(correction)
+        combined={k:usage.get(k,0)+retry_usage.get(k,0) for k in set(usage)|set(retry_usage)}
+        combined['request_attempts']=usage.get('request_attempts',1)+retry_usage.get('request_attempts',1)
+        combined['validation_attempts']=2
+        return validate_plan(raw,snapshot),combined
+
+    def save_error(self, code, snapshot, request_id, provider_details=None):
+        self.error=code
+        state=(snapshot or {}).get('state') or {}
+        profile=self.store.profiles.get(self.store.active)
+        details=dict(code=code, occurred_at=time.time(), stage=self.phase,
+                     provider=self.store.active, model=profile.model if profile else None,
+                     request_id=request_id, game_phase=state.get('phase'), turn=state.get('turn'))
+        if self.phase=='executing' and self.last:
+            details.update({k:self.last[k] for k in ['plan_step','plan_length','action_id','status'] if k in self.last})
+        if provider_details:details.update(provider_details)
+        self.error_details=details
+        try:
+            atomic(self.journal/'diagnostics/latest.json',details)
+            atomic(self.journal/('diagnostics/error-'+uuid4().hex+'.json'),details)
+            if self.record and snapshot:runs.stage('agent_error',snapshot,details)
+        except Exception:
+            # Diagnosis must never interfere with stopping the executor.
+            pass
+
+    async def execute_plan(self, plan, snapshot, report, generation, profile, identity, model_ms, usage):
+        prepared = prepare(plan, snapshot)
+        previous = None
+        current = snapshot
+        for index, (step, expected) in enumerate(prepared):
+            if not self.running or generation != self.generation:
+                break
+            if index:
+                current = await self.fetch()
+                if expected is None or not matches(expected, current, snapshot):
+                    self.last['plan_interruption'] = 'state_changed_or_observation_required'
+                    break
+                # A planned action may cease to be legal despite matching modeled resources.
+                try:
+                    validate(Decision(state_token=source(current)['state_sha256'],
+                        reason=plan.reason, **step.model_dump()).model_dump_json(), current)
+                except ValueError:
+                    self.last['plan_interruption'] = 'next_action_no_longer_legal'
+                    break
+            decision = Decision(state_token=source(current)['state_sha256'],
+                                reason=plan.reason, **step.model_dump())
+            self.last = dict(source=profile.id, model=profile.model, reason=plan.reason,
+                action_id=step.action_id, target_id=step.target_id, model_ms=model_ms, usage=usage,
+                plan_request_id=identity, plan_step=index+1, plan_length=len(prepared),
+                plan_steps=[s.model_dump() for s, _ in prepared])
+            self.phase = 'executing'
+            step_report = report
+            if self.record:
+                if index:
+                    step_report = await asyncio.to_thread(self.analyze, current)
+                if index == 0:
+                    await asyncio.to_thread(runs.stage, 'ai_choice', current,
+                        dict(analysis_id=report['analysis_id'], group='agent_explicit',
+                             steps=self.last['plan_steps'], **self.last))
+            result = await self.dispatch(decision, current, generation)
+            if result is None:
+                break
+            previous = source(current)
+            self.last['status'] = result['status']
+            self.recent.append(dict(action_id=step.action_id, target_id=step.target_id,
+                                    status=result['status'], reason=plan.reason))
+            self.recent = self.recent[-4:]
+            if self.record:
+                after = await self.fetch()
+                from autoslay.calibration.events import record_action
+                comparison = await asyncio.to_thread(record_action, step_report, current, after, step.action_id, result)
+                await asyncio.to_thread(runs.stage, 'agent_outcome', after,
+                    dict(analysis_id=step_report['analysis_id'], event_comparison=comparison,
+                         plan_request_id=identity, plan_step=index+1, **result))
+            if result['status'] not in {'completed', 'awaiting_choice'}:
+                raise ValueError('ACTION_'+result['status'].upper())
+            if result['status'] == 'awaiting_choice':
+                break
+        return previous

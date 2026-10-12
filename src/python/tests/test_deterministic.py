@@ -50,6 +50,42 @@ def test_only_end_turn_needs_no_damage_or_future_threat_assumption():
     s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:]
     assert assess({},s)['rule_id']=='forced_end_turn'
 
+
+def reward_to_open():
+    s=live();s['state'].update(phase='rewards',room_type='CombatRoom')
+    s['state']['reward_screen']=dict(screen_type='NRewardsScreen',rewards=[dict(
+        reward_id='reward',type='CardReward',supported=True,available=True,action_id='open')],cards=[])
+    s['state']['legal_actions']=[dict(action_id='open',type='claim_reward',allows_no_target=True),
+                               dict(action_id='proceed',type='proceed_rewards',allows_no_target=True)]
+    p=load_policy();p['enabled_rules']=['open_card_reward']
+    return s,p
+
+
+def test_open_card_reward_is_only_inspection_and_selection_requires_ai():
+    s,p=reward_to_open();r=assess({},s,p)
+    assert r['eligible'] and r['selected_steps']==[dict(action_id='open',target_id=None)]
+    assert r['evidence']['effect']=='open_options_only' and r['evidence']['ai_choice_required_after_open']
+    s['state']['phase']='card_reward_selection'
+    s['state']['legal_actions']=[dict(action_id='choose',type='choose_reward_card',allows_no_target=True),
+                               dict(action_id='skip',type='reward_alternative',allows_no_target=True)]
+    assert not assess({},s,p)['eligible']
+
+
+@pytest.mark.parametrize('change',['unknown_relic','other_reward','unsupported','unavailable','unexpected_action','target','power','wrong_room','changed_game','disabled'])
+def test_reward_inspection_does_not_bypass_unreviewed_choices(change):
+    s,p=reward_to_open();view=s['state']['reward_screen']
+    if change=='unknown_relic':s['state']['player']['relics']=[dict(entity_id='RELIC.UNKNOWN_REWARD_HOOK')]
+    if change=='other_reward':view['rewards'].append(dict(type='RelicReward',available=True))
+    if change=='unsupported':view['rewards'][0]['supported']=False
+    if change=='unavailable':view['rewards'][0]['available']=False
+    if change=='unexpected_action':s['state']['legal_actions'].append(dict(action_id='reroll',type='reroll',allows_no_target=True))
+    if change=='target':s['state']['legal_actions'][0]['allowed_target_ids']=['other']
+    if change=='power':s['state']['player']['creature']['powers']=[dict(entity_id='POWER.UNKNOWN')]
+    if change=='wrong_room':s['state']['room_type']='EventRoom'
+    if change=='changed_game':s['game_assembly_sha256']='changed'
+    if change=='disabled':p['enabled_rules']=[]
+    assert not assess({},s,p)['eligible']
+
 def test_unknown_action_blocks_automatic_end_turn():
     s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:]+[dict(action_id='custom',type='custom',allows_no_target=True)]
     assert not assess({},s)['eligible']

@@ -8,7 +8,7 @@ export const character=v=>({IRONCLAD:'铁甲战士',SILENT:'静默猎手',DEFECT
 export const phase=v=>({combat:'战斗',event:'事件',shop:'商店',rest_site:'休息处',treasure:'宝箱',map:'地图',card_reward_selection:'抓牌',card_selection:'选牌',main_menu:'主菜单',singleplayer_menu:'单人菜单',character_selection:'角色选择',game_over:'对局结束',no_run:'未进入对局',rewards:'领取奖励',reward:'领取奖励',outside_combat:'房间内'})[v]||'等待状态';
 export const result=v=>({win:'胜利',loss:'失败',abandoned:'已放弃',unknown:'未记录结果'})[v]||'尚未记录终局';
 export const room=v=>({Monster:'普通战斗',Elite:'精英战斗',Boss:'首领',RestSite:'休息处',Shop:'商店',Treasure:'宝箱',Unknown:'未知事件',Ancient:'远古之民',AncientMapPoint:'远古之民'})[v]||phase(v);
-export const stage=v=>({analysis_started:'正在计算',decision:'分析已完成',ai_choice:'AI 已作出选择',local_choice:'已作出确定性选择',local_outcome:'自动动作已结算',action_submitted:'正在执行',action_receipt:'等待结算',action_result:'动作已结算',outcome_observed:'结果已记录',snapshot:'状态快照',agent_packet:'已提交给决策模型',agent_outcome:'Agent 执行结果'})[v]||'对局记录';
+export const stage=v=>({analysis_started:'正在计算',decision:'分析已完成',ai_choice:'AI 已作出选择',local_choice:'已作出确定性选择',local_outcome:'自动动作已结算',action_submitted:'正在执行',action_receipt:'等待结算',action_result:'动作已结算',outcome_observed:'结果已记录',snapshot:'状态快照',agent_packet:'已提交给决策模型',agent_outcome:'Agent 执行结果',agent_error:'Agent 异常停止'})[v]||'对局记录';
 export const agentPhase=v=>({paused:'已暂停',reading_state:'读取游戏状态',calculating:'比较候选方案',waiting_model:'等待 AI 决策',executing:'正在执行',local_deterministic:'执行确定性策略',finished:'对局已结束',error:'运行已中止'})[v]||'等待状态';
 export const reason=v=>({PLAN_COMPLETED:'动作计划已完成',OBSERVATION_REQUIRED:'需要读取新状态后继续判断',STATE_CHANGED:'游戏状态已变化，需要重新判断',MODEL_TIMEOUT:'模型等待超时',UNKNOWN_EFFECT:'存在尚未支持的效果'})[v]||(/^[A-Z][A-Z0-9_]+$/.test(v||'')?'详细原因尚未提供中文解释':v||'');
 export const metricValue=(key,value)=>key.endsWith('probability')&&typeof value==='number'?(value*100).toFixed(1)+'%':fmt(value);
@@ -29,9 +29,26 @@ export function mechanismPanel(audit){const panel=el('details');panel.open=true;
  const models=el('details');models.append(el('summary','当前效果的建模情况'));for(const e of audit.entities||[])models.append(definitions([[e.name||e.entity_id,calculationTier(e.tier)]]));panel.append(models);return panel;
 }
 export function actionName(step,snapshot){const s=snapshot?.state||{},a=(s.legal_actions||[]).find(a=>a.action_id===step?.action_id),card=(s.player?.hand||[]).find(c=>'play_'+c.instance_id===step?.action_id),potion=(s.player?.potions||[]).find(c=>step?.action_id?.includes(c.instance_id)),target=(s.enemies||[]).find(e=>e.instance_id===step?.target_id),option=(s.event_screen?.options||[]).find(o=>o.action_id===step?.action_id);
+ const reward=(s.reward_screen?.cards||[]).find(o=>o.action_id===step?.action_id),alternative=(s.reward_screen?.alternatives||[]).find(o=>o.action_id===step?.action_id),claim=(s.reward_screen?.rewards||[]).find(o=>o.action_id===step?.action_id);
+ if(reward?.card?.name)return '选择「'+reward.card.name+'」';
+ if(alternative&&String(alternative.option_id).toLowerCase()==='skip')return '跳过抓牌';
+ if(alternative?.description)return alternative.description;
+ if(claim?.type==='CardReward')return '打开卡牌奖励';
  let name=card?.name||potion?.name||option?.title||option?.text||({end_turn:'结束回合',proceed_rewards:'离开奖励房间',choose_map_node:'前往选中的房间',choose_event_option:'选择事件选项',skip_card_reward:'跳过抓牌',confirm_selection:'确认选牌'})[a?.type||step?.action_id]||'执行当前选项';return name+(target?' → '+(target.name||'目标敌人'):'');}
+export function candidateName(candidate,snapshot,index=0){
+ const c=candidate;
+ if(c.kind==='skip')return '跳过抓牌';
+ const named=c.card?.name;
+ if(named){const name=named+(c.card.upgrade_level>0&&!named.endsWith('+')?'+':'');return (({add:'选择',remove:'移除',upgrade:'升级'})[c.kind]||'选择')+'「'+name+'」';}
+ if(c.title||c.name||c.label)return c.title||c.name||c.label;
+ if(c.steps)return c.steps.length?c.steps.map(a=>actionName(a,snapshot)).join(' → '):'保留资源，暂不继续出牌';
+ if(c.action_id)return actionName(c,snapshot);
+ const option=(snapshot?.state?.event_screen?.options||[]).find(o=>o.option_id===c.option_id);
+ return option?.title||option?.text||'候选方案 '+(index+1);
+}
 export function candidateGroups(report,snapshot,detailed=false){const out=el('div');const groups=[['战斗方案',report.combat?.candidates||report.shortlist],['抽牌与观察方案',report.combat?.observation_boundaries||report.observations],['抓牌、删牌与升级',report.choices?.candidates],['商店购买方案',report.shop?.candidates],['事件选择',report.event?.candidates],['事件后续路线',report.event_sequence?.candidates],['休息与升级',report.rest?.candidates],['地图路线',report.route?.candidates]];let count=0;
- for(const [title,list]of groups){if(!list?.length)continue;const group=el('div',undefined,'candidate-group');group.append(el('h3',title));for(const [i,c]of list.entries()){count++;const card=el('div',undefined,'candidate-card'),head=el('div',undefined,'candidate-heading');let name=c.title||c.name||c.label;if(!name){if(c.steps)name=c.steps.length?c.steps.map(a=>actionName(a,snapshot)).join(' → '):'保留资源，暂不继续出牌';else{const option=(snapshot?.state?.event_screen?.options||[]).find(o=>o.option_id===c.option_id);name=option?.title||option?.text||'候选方案 '+(i+1)}}head.append(el('span',i+1,'candidate-rank'),el('span',name,'candidate-name'));const score=c.delta_utility??c.utility??c.metrics?.heuristic_score;if(score!=null){const badge=el('strong',fmt(score),'candidate-score');badge.title='收益评分，不是胜率';head.append(badge)}card.append(head);
+ for(const [title,list]of groups){if(!list?.length)continue;const group=el('div',undefined,'candidate-group');group.append(el('h3',title));for(const [i,c]of list.entries()){count++;const card=el('div',undefined,'candidate-card'),head=el('div',undefined,'candidate-heading');const name=candidateName(c,snapshot,i);head.append(el('span',i+1,'candidate-rank'),el('span',name,'candidate-name'));const score=c.delta_utility??c.utility??c.metrics?.heuristic_score;if(score!=null){const badge=el('strong',fmt(score),'candidate-score');badge.title='收益评分，不是胜率';head.append(badge)}card.append(head);
+  if(c.card){const cost=c.card.costs_x?'X 点能量':typeof c.card.energy_cost==='number'&&c.card.energy_cost>=0?c.card.energy_cost+' 点能量':'费用未记录';card.append(el('p',cost+(c.card.costs_star_x?' · X 点星星':c.card.star_cost>0?' · '+c.card.star_cost+' 点星星':''),'hint'));if(c.card.description)card.append(el('p',c.card.description,'result-description'));}
   const strip=el('div',undefined,'metric-strip');for(const [key,v]of Object.entries(c.metrics||{})){if(!metrics[key]||v==null||typeof v==='object')continue;const span=el('span',metrics[key]);span.append(el('strong',metricValue(key,v)));strip.append(span)}card.append(strip);if(c.reason)card.append(el('p',reason(c.reason),'result-description'));
   if(title==='事件后续路线'){for(const fact of eventForecastFacts(c))card.append(el('p',fact,'result-description'));if(c.branches){const d=el('details');d.open=detailed;d.append(el('summary','随机结果与后续选项逐步推演'));for(const fact of eventBranchFacts(c))d.append(el('p',fact,'result-description'));card.append(d)}}
   if(detailed){card.append(table(c.metrics||c),table(c),table(c.components||c.component_deltas));if(c.state_trace){const d=el('details');d.append(el('summary','逐步伤害与资源变化'));for(const step of c.state_trace){d.append(el('p',actionName(step.action,snapshot),'result-description'),el('small','执行前'),table(step.before),el('small','执行后'),table(step.after))}card.append(d)}}group.append(card)}out.append(group)}

@@ -29,7 +29,7 @@ vLLM 等本地 OpenAI 兼容服务也可以新建 `local` 类型配置。当前�
 
 Base URL 不含 `/chat/completions`，适配器会补齐该路径。服务要求 `/v1` 时需把 `/v1` 写在 Base URL 中。DeepSeek 预置 `https://api.deepseek.com`、`deepseek-flash`、JSON 模式，模型名和地址都允许更新。
 
-支持三种输出模式：JSON、严格 JSON Schema、文本 JSON。DeepSeek 预设 JSON；不支持 JSON 参数的兼容服务可选择文本 JSON。三个模式都要求本地严格验证动作、目标和状态令牌，不能通过文本执行系统命令。拒绝、截断、空响应、工具调用、非法动作会暂停 Agent，不会悄悄切换后端或重复调用。
+支持三种输出模式：JSON、严格 JSON Schema、文本 JSON。DeepSeek 预设 JSON；不支持 JSON 参数的兼容服务可选择文本 JSON。三个模式都要求本地严格验证动作、目标和状态令牌，不能通过文本执行系统命令。拒绝、空响应、工具调用、非法动作会暂停 Agent。官方 DeepSeek 接口支持有限推理重试：最多 3 次请求；输出截断时至多一次将生成额度翻倍，最高 131072 token；超时、连接失败、429、5xx 或 aborted/insufficient_system_resource 等临时故障等待后重试。重试不会提交任何游戏动作，也不会拼接截断 JSON；完整结果仍需状态和动作校验，暂停会取消等待与后续重试。其他兼容服务保持单次请求。
 
 “读取可用模型”只调用选定服务的 `/models`，不发起推理，不操作游戏。先保存配置再读取。厂商不支持模型列表时可以手填。
 
@@ -68,3 +68,15 @@ Codex 第一版使用官方非交互 `codex exec` 接口，便于隔离用户 MC
 复现入口：`src/python/tools/runtime/probe_agent_backend.py --expect-provider codex`。它会实际调用当前后端、使用相应额度，固定状态与结果存于 `.runtime/logs/agent-probes/`，不会导入游戏执行器或发送游戏动作。默认模型测试未记录 token 用量。
 
 参考：[OpenAI 认证](https://learn.chatgpt.com/docs/auth)、[Codex 开发者命令](https://learn.chatgpt.com/docs/developer-commands)、[DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
+
+## 单次请求预算与整局运行
+
+DeepSeek 预设单次生成上限 65536 token、每次请求最长等待 300 秒。输入 token 不包含在 max_tokens 中；输入与生成总量仍受模型上下文窗口约束。思考模式下推理也消耗生成预算，64K 是额度上限，不是固定用量。现有自定义配置不自动覆盖。
+
+每次 Chat Completions 只发送一个新构建的消息，没有累积 assistant/user 聊天历史。消息包含当前可见状态（包括牌组、资源、合法动作）、计算结果、相关规则和最多最近 4 个动作结果。跨回合所需状态由游戏快照和本地模型保存。
+
+上下文构建器按 180000 UTF-8 字节限制消息中的数据包：超预算时依次省略行为参考、百科参考和计算报告，保留完整当前状态与合法动作；这是结构化裁剪，不是模型生成的聊天摘要，也不是精确 token 计数。若当前状态本身超预算则停止并报告。整局长短不会让消息历史无限增长，但完整游玩仍依赖游戏机制覆盖、模型合法输出和执行状态校验，不能只靠加大 token 上限保证通关。
+
+预算依据：[DeepSeek 官方 Chat Completions 文档](https://api-docs.deepseek.com/api/create-chat-completion/)，核对于 2026-10-13。
+
+2026-10-13：输出 schema 随当前阶段生成。战斗最多 16 步；奖励、选牌、事件、地图、商店等非战斗界面 steps.maxItems=1。非战斗多步回复仍会被校验拒绝，在未执行任何动作、状态仍相同且 Agent 未暂停时允许一次带校验反馈的纠正请求；不会直接截取第一步执行，二次不合法会停止并记录原因。

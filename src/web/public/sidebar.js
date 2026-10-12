@@ -1,17 +1,18 @@
-import {controlView} from './agent-state.js';
+import {controlView,decisionActivity} from './agent-state.js';
 import {renderSidebarCombat} from './sidebar-combat.js';
-import {el,character,phase,stage,agentPhase,stat,empty,renderDecision,raw} from './presentation.js';
-const O=window.Observer,$=s=>document.querySelector(s);let data=null,pending=null,busy=false,engineering=false,record=null;
+import {el,character,phase,stage,stat,empty,renderDecision,raw} from './presentation.js';
+const O=window.Observer,$=s=>document.querySelector(s);let data=null,pending=null,busy=false,engineering=false,record=null,agentStatus=null,lastRenderKey=null;
 try{engineering=localStorage.getItem('autoslay-display-mode')==='engineering'}catch{}
 try{const open=localStorage.getItem('autoslay-decision-open');if(open!==null)$('#decision-disclosure').open=open==='true'}catch{}
 $('#decision-disclosure').addEventListener('toggle',()=>{try{localStorage.setItem('autoslay-decision-open',String($('#decision-disclosure').open))}catch{}});
 function mode(){document.body.classList.toggle('engineering',engineering);$('#mode-side').textContent=engineering?'返回普通视图':'切换到工程视图';$('#mode-side').setAttribute('aria-pressed',engineering);$('#details-card').hidden=!engineering;render()}
-function render(){if(!data)return;const s=data.snapshot?.state||{},p=s.player||{},c=p.creature||{},a=data.archive;
+function renderCurrent(){const text=decisionActivity(agentStatus,data?.latest?.kind?stage(data.latest.kind):'等待分析');if($('#current').textContent!==text)$('#current').textContent=text}
+function render(){if(!data)return;renderCurrent();const key=JSON.stringify([data.connected,data.snapshot?.session_epoch,data.snapshot?.state_version,data.snapshot?.state,data.decision_id,record?.event_id,data.archive?.last_choice,data.latest?.event_id,data.recent?.map(e=>e.event_id),data.pending,engineering,$('#followSide').checked]);if(key===lastRenderKey)return;lastRenderKey=key;const s=data.snapshot?.state||{},p=s.player||{},c=p.creature||{},a=data.archive;
  $('#link').textContent=data.connected?'游戏已连接':'游戏未连接';$('#link').classList.toggle('connected',!!data.connected);$('#location').textContent=character(p.character)+' · '+phase(s.phase);$('#stamp').textContent=(s.map?.act_index!=null?'第 '+(s.map.act_index+1)+' 幕 · ':'')+'楼层 '+(s.floor??'未记录');
  $('#notice').textContent=!$('#followSide').checked?'画面已冻结，返回实时可继续跟随。':!data.connected&&data.decision?'显示最近一次决策；游戏连接后会继续更新。':data.pending?'部分记录正在等待归档。':'';
  $('#notice').hidden=!$('#notice').textContent;$('#resume').hidden=$('#followSide').checked;
  $('#resources').replaceChildren(...[['生命',c.hp!=null?c.hp+' / '+c.max_hp:'未记录'],['能量',p.energy],['金币',p.gold],['格挡',c.block],['手牌',p.hand?.length],['进阶',s.ascension]].map(([k,v])=>stat(k,v)));
- $('#current').textContent=data.latest?.kind?stage(data.latest.kind):'等待分析';const r=data.decision_id&&record?.event_id===data.decision_id?record:{report:data.decision,snapshot:data.decision_snapshot||data.snapshot};const choice=a?.last_choice?.analysis_id===data.decision_id?a.last_choice:null;
+ const r=data.decision_id&&record?.event_id===data.decision_id?record:{report:data.decision,snapshot:data.decision_snapshot||data.snapshot};const choice=a?.last_choice?.analysis_id===data.decision_id?a.last_choice:null;
  if(r.report){renderDecision($('#candidates'),r,'metrics',choice,null,{live:true});if(data.connected&&r.report.source?.state_version!==data.snapshot?.state_version)$('#candidates').prepend(el('p','以下为最近一次决策；执行前会重新核对状态。','decision-note'))}else $('#candidates').replaceChildren(empty('等待下一次决策','候选方案、预期收益与判断依据会显示在这里。'));window.dispatchEvent(new CustomEvent('autoslay:game',{detail:{connected:data.connected}}));
  renderSidebarCombat($('#enemy-intents'),$('#decision-forecast'),r,data.snapshot);
  $('#enemy-count').textContent=s.phase==='combat'?(s.enemies||[]).filter(e=>e.hp==null||e.hp>0).length+' 个存活':'等待战斗';
@@ -20,7 +21,7 @@ function render(){if(!data)return;const s=data.snapshot?.state||{},p=s.player||{
  if(engineering)$('#details').replaceChildren(raw('完整决策记录',r),raw('最新游戏状态',data.snapshot),raw('对局和执行记录',data));
  if(window.chrome?.webview)window.chrome.webview.postMessage({kind:'observer_status',connected:data.connected,phase:s.phase,archive_id:a?.archive_id||null,state_version:data.snapshot?.state_version,decision_id:data.decision_id||null});
 }
-async function refresh(){if(busy)return;busy=true;try{const value=await O.api('/api/live');if($('#followSide').checked){data=value;if(data.decision_id&&record?.event_id!==data.decision_id){try{record=await O.api('/api/event?id='+encodeURIComponent(data.decision_id))}catch{record=null}}pending=null;render()}else{pending=value;$('#notice').hidden=false;$('#notice').textContent='画面已冻结，返回实时可继续跟随。'}}catch{$('#link').textContent='观察台连接中断';$('#link').classList.remove('connected');$('#notice').hidden=false;$('#notice').textContent='本地服务暂时不可用，正在重试。'}finally{busy=false}}
-window.addEventListener('autoslay:agent-unavailable',()=>{$('#agent-state').textContent='Agent 未连接'});
-window.addEventListener('autoslay:agent',e=>{const a=e.detail;$('#agent-state').textContent=controlView(a,null).label;if(data?.connected&&$('#followSide').checked&&a.running)$('#current').textContent=agentPhase(a.phase)});
+async function refresh(){if(busy)return;busy=true;try{const value=await O.api('/api/live');if($('#followSide').checked){data=value;if(data.decision_id&&record?.event_id!==data.decision_id){try{record=await O.api('/api/event?id='+encodeURIComponent(data.decision_id))}catch{record=null}}pending=null;render()}else{pending=value;$('#notice').hidden=false;$('#notice').textContent='画面已冻结，返回实时可继续跟随。'}}catch{lastRenderKey=null;$('#link').textContent='观察台连接中断';$('#link').classList.remove('connected');$('#notice').hidden=false;$('#notice').textContent='本地服务暂时不可用，正在重试。'}finally{busy=false}}
+window.addEventListener('autoslay:agent-unavailable',()=>{agentStatus=null;$('#agent-state').textContent='Agent 未连接';if($('#followSide').checked)renderCurrent()});
+window.addEventListener('autoslay:agent',e=>{agentStatus=e.detail;$('#agent-state').textContent=controlView(agentStatus,null).label;if($('#followSide').checked)renderCurrent()});
 $('#mode-side').onclick=()=>{engineering=!engineering;try{localStorage.setItem('autoslay-display-mode',engineering?'engineering':'human')}catch{}mode()};$('#full').onclick=()=>{const l=data?.archive?.location||{};O.openFull(data?.archive?.archive_id,{act:l.act_index,node:l.node_key,visit:l.visit_id,decision:data?.decision_id})};$('#resume').onclick=()=>{$('#followSide').checked=true;if(pending){data=pending;record=null;pending=null;render()}refresh()};$('#followSide').onchange=()=>{if($('#followSide').checked)refresh();else render()};mode();refresh();setInterval(refresh,2500);

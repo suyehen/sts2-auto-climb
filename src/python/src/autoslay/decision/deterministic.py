@@ -120,6 +120,31 @@ def event_survival(snapshot,actions,cert):
     return None,['event_has_unresolved_alternatives']
 
 
+def open_card_reward(snapshot,actions,cert):
+    s=snapshot['state'];view=s.get('reward_screen') or {};player=s.get('player') or {}
+    reviewed=cert.get('reward_inspection') or {}
+    if not reviewed or any(r.get('entity_id') not in reviewed['safe_relics'] for r in player.get('relics') or []):
+        return None,['reward_open_hooks_not_certified']
+    if (player.get('creature') or {}).get('powers') or s.get('room_type')!='CombatRoom':
+        return None,['reward_open_context_not_certified']
+    rewards=view.get('rewards') or []
+    if view.get('screen_type')!='NRewardsScreen' or len(rewards)!=1:
+        return None,['reward_order_requires_review']
+    reward=rewards[0]
+    if reward.get('type')!='CardReward' or reward.get('supported') is not True or reward.get('available') is not True:
+        return None,['not_available_standard_card_reward']
+    claims=[a for a in actions if a.get('type')=='claim_reward']
+    if (len(claims)!=1 or claims[0].get('action_id')!=reward.get('action_id')
+            or any(a.get('type') not in {'claim_reward','proceed_rewards'} for a in actions)
+            or operations(claims)!=[dict(action_id=reward['action_id'],target_id=None)]):
+        return None,['reward_actions_not_certified']
+    return dict(rule_id='open_card_reward',reason='直接打开普通卡牌奖励查看选项；此动作不选牌、不跳过、不改变牌组，选项出现后再决策。',
+                steps=[dict(action_id=reward['action_id'],target_id=None)],
+                evidence=dict(reward_id=reward.get('reward_id'),effect='open_options_only',
+                              next_phase='card_reward_selection',ai_choice_required_after_open=True,
+                              certificate_version=cert['version'])),[]
+
+
 def score_review(report):
     """Diagnostic only: neither ties nor an uncalibrated gap authorize actions."""
     candidates=(report.get('combat') or {}).get('candidates') or report.get('shortlist') or []
@@ -171,7 +196,8 @@ def assess(report,snapshot,policy=None):
                     steps=[dict(action_id=chosen,target_id=None)],evidence=dict(min_select=minimum,card_count=len(cards),selected_count=sum(c.get('selected') is True for c in cards)))
     if proof is None and s.get('phase')=='combat' and 'forced_end_turn' in enabled and len(ops)==1 and actions[0].get('type')=='end_turn':
         proof=dict(rule_id='forced_end_turn',reason='没有可执行的牌、药水或其他回合内操作，只能结束回合。',steps=ops,evidence=dict(operation_count=1))
-    rules=[('certain_combat_finish','combat',finish),('eliminate_certain_death','event',event_survival)]
+    rules=[('certain_combat_finish','combat',finish),('eliminate_certain_death','event',event_survival),
+           ('open_card_reward','rewards',open_card_reward)]
     for identity,phase,rule in rules:
         if proof is None and s.get('phase')==phase and identity in enabled:
             proof,reasons=rule(snapshot,actions,cert);result['checks'].append(dict(rule_id=identity,blockers=reasons))

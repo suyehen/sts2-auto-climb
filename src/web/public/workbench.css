@@ -78,3 +78,30 @@
 .autonomy-proof>details{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .autonomy-proof>details>summary{cursor:pointer}
 #play-controls{max-width:1000px;padding:32px}.play-intro h2{font-size:28px;margin:12px 0}.play-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:28px 0}.play-form label{display:flex;flex-direction:column;gap:10px;color:var(--muted)}.play-form select,.play-form input{width:100%;min-height:44px}.play-form [hidden]{display:none}.play-save{padding:16px 20px;border-radius:12px;background:rgba(128,145,175,.09);margin:20px 0}.play-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:24px}.play-actions button{min-height:46px}.play-progress{border-top:1px solid var(--line);padding-top:22px;margin-top:24px}.play-progress strong{font-size:18px}.play-progress p{line-height:1.6}.play-reasons p{margin:10px 0}.play-intro .muted{line-height:1.7}.play-form select:focus-visible,.play-form input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:850px){.play-form{grid-template-columns:1fr}#play-controls{padding:22px}.play-actions{align-items:stretch;flex-direction:column}}
+
+/* History follows game turns and decision requests rather than event types. */
+#room-timeline{max-height:760px;padding:0 3px 12px 0}
+.history-round{border:1px solid #3d4351;border-left:4px solid #9f8ccc;border-radius:10px;background:#171b25;margin:0 0 22px;padding:15px}
+.history-round.between{border-left-color:#bd9e68;background:#1d1b20}
+.history-round-heading{display:flex;align-items:center;gap:12px;cursor:pointer}
+.history-round[open]>.history-round-heading{padding-bottom:12px;border-bottom:1px solid #353a48;margin-bottom:14px}
+.history-round-heading>.muted{margin-left:auto}
+.history-round-heading h4{font-size:16px;margin:0;color:#e5dcf9}.history-round.between h4{color:#e3c99f}
+.history-room-label{font-size:11px;color:var(--muted);margin:0 0 12px}
+.history-decision{padding:0;margin:12px 0;background:#20242e;border-color:#3c4050;overflow:hidden}
+.history-decision>summary{display:flex;align-items:center;gap:8px;padding:13px 12px;background:#282b38}
+.history-decision-source{margin-left:auto;text-align:right}
+.history-decision>summary strong{font-size:13px;color:#e2d9f6}.history-decision-source{font-size:10px;color:#b9b1cc}
+.history-choice-reason{margin:13px 12px;font-size:12px;line-height:1.8;color:#c9c4d7}
+.history-decision-part{padding:10px 10px 6px;border:0;border-top:1px solid #353a48;border-radius:0;margin:0;background:transparent}.history-decision-part>summary{font-size:11px;color:#b5afca}.history-decision-part[open]>summary{margin-bottom:7px}
+.history-decision-part .activity-entry{padding:9px 6px;gap:9px}.history-decision-part .activity-body p{font-size:10px}
+.history-state-records{background:transparent;border:0;border-top:1px dashed #3b4250;padding:9px 0;margin:14px 0 0}.history-state-records>summary{font-size:11px;color:#929bab}
+.node-native-icon{pointer-events:none}.node-icon-unrecorded{font-size:9px!important;fill:#d7c9a4!important}
+.history-panel>summary{display:flex;align-items:center;gap:12px;cursor:pointer}.history-panel>summary h2{margin:0}.history-panel>summary .eyebrow{display:none}.history-panel[open]>summary{margin-bottom:18px}
+#history-detail details>summary{list-style:none}
+#history-detail details>summary::-webkit-details-marker{display:none}
+#history-detail details>summary::before{content:'›';display:inline-block;flex-shrink:0;width:12px;margin-right:6px;color:var(--muted);font-size:16px;line-height:1;transform-origin:50% 50%}
+#history-detail details[open]>summary::before{transform:rotate(90deg)}
+#history-detail details>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+
+.agent-failure{border:1px solid #80515b;background:#2b1c23;border-radius:8px;padding:12px;margin-top:12px;flex-basis:100%;overflow-wrap:anywhere}.agent-failure>summary{cursor:pointer;color:#ef929d;font-size:12px}.agent-failure p{font-size:12px;line-height:1.7;margin:8px 0}.agent-failure[hidden]{display:none}

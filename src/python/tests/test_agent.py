@@ -5,7 +5,7 @@ from copy import deepcopy
 from unittest.mock import AsyncMock
 import httpx
 import pytest
-from autoslay.agent.config import Store, Profile, protect
+from autoslay.agent.config import Store, Profile, protect, defaults
 from autoslay.agent.contracts import validate, Decision
 from autoslay.agent.context import build
 from autoslay.agent.providers import APIProvider, CodexProvider, ProviderError
@@ -16,6 +16,12 @@ from test_deterministic import live
 
 def cipher(value, decrypt=False):
     return value[7:] if decrypt else b'sealed:'+value
+
+
+def test_deepseek_thinking_budget_default_and_generic_profiles():
+    profiles={p.id:p for p in defaults()}
+    assert profiles['deepseek'].max_tokens==65536 and profiles['deepseek'].timeout_seconds==300
+    assert profiles['custom'].max_tokens==4096
 
 
 def payload(s, **changes):
@@ -106,7 +112,7 @@ def test_compatible_api_wire_format(kind,mode):
 
 
 @pytest.mark.parametrize('response,code',[
-    (dict(choices=[dict(finish_reason='length',message=dict(content='{}'))]),'INCOMPLETE'),
+    (dict(choices=[dict(finish_reason='length',message=dict(content='{}'))]),'OUTPUT_LIMIT'),
     (dict(choices=[dict(finish_reason='stop',message=dict(content=''))]),'EMPTY'),
     (dict(choices=[dict(finish_reason='stop',message=dict(content='{}',tool_calls=[{}]))]),'TOOL_CALL'),
     ({},'INVALID_RESPONSE')])
@@ -126,6 +132,93 @@ def test_api_error_is_sanitized_and_not_retried():
         with pytest.raises(ProviderError,match='^MODEL_HTTP_401$'):
             await APIProvider(p,'test',httpx.MockTransport(handler)).decide({})
         assert len(calls)==1
+    asyncio.run(run())
+
+
+def test_deepseek_truncated_output_retries_with_larger_budget_and_no_chat_history():
+    async def run():
+        calls=[];progress=[]
+        def handler(request):
+            body=json.loads(request.content);calls.append(body)
+            assert len(body['messages'])==1 and body['messages'][0]['role']=='user'
+            if len(calls)==1:
+                return httpx.Response(200,json=dict(choices=[dict(finish_reason='length',message=dict(content='invalid partial JSON'))],usage={'completion_tokens':65536}))
+            return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content='{}'))],usage={'completion_tokens':30}))
+        p=Profile(id='deepseek',label='DeepSeek',kind='api',base_url='https://api.deepseek.com',model='deepseek-flash',max_tokens=65536)
+        provider=APIProvider(p,'test',httpx.MockTransport(handler));provider.on_retry=progress.append
+        raw,usage=await provider.decide({'state_token':'current'})
+        assert raw=='{}' and usage['completion_tokens']==65566 and usage['request_attempts']==2
+        assert [c['max_tokens'] for c in calls]==[65536,131072]
+        assert progress[0]['attempt']==2 and progress[0]['retry_reason']=='MODEL_OUTPUT_LIMIT'
+        assert calls[0]['messages']==calls[1]['messages']
+        await provider.decide({'state_token':'next'})
+        assert calls[-1]['max_tokens']==65536
+    asyncio.run(run())
+
+
+def test_deepseek_retry_is_bounded_cancelable_and_does_not_retry_auth(monkeypatch):
+    async def run():
+        p=Profile(id='deepseek',label='DeepSeek',kind='api',base_url='https://api.deepseek.com',model='deepseek-flash')
+        calls=[]
+        def handler(r):calls.append(r);return httpx.Response(503)
+        sleep=AsyncMock();monkeypatch.setattr('autoslay.agent.providers.asyncio.sleep',sleep)
+        with pytest.raises(ProviderError,match='MODEL_HTTP_503') as err:
+            await APIProvider(p,'test',httpx.MockTransport(handler)).decide({})
+        assert len(calls)==3 and sleep.await_count==2 and err.value.details['attempts']==3
+        sleep.side_effect=asyncio.CancelledError
+        calls.clear()
+        with pytest.raises(asyncio.CancelledError):
+            await APIProvider(p,'test',httpx.MockTransport(handler)).decide({})
+        assert len(calls)==1
+        calls.clear()
+        def denied(r):calls.append(r);return httpx.Response(401)
+        with pytest.raises(ProviderError,match='MODEL_HTTP_401'):
+            await APIProvider(p,'test',httpx.MockTransport(denied)).decide({})
+        assert len(calls)==1
+    asyncio.run(run())
+
+
+def test_many_independent_requests_continue_until_game_over(tmp_path):
+    async def run():
+        calls=[]
+        def handler(request):
+            body=json.loads(request.content);calls.append(body)
+            assert len(body['messages'])==1 and body['messages'][0]['role']=='user'
+            return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content=payload(s)))],usage={'completion_tokens':100}))
+        profile=Profile(id='deepseek',label='DeepSeek',kind='api',base_url='https://api.deepseek.com',model='deepseek-flash',max_tokens=65536)
+        agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:APIProvider(profile,'test',httpx.MockTransport(handler)))
+        async def dispatch(request):
+            s['state_version']+=1
+            if len(calls)==20:s['state']['phase']='game_over'
+            return dict(status='completed')
+        agent.submit=AsyncMock(side_effect=dispatch)
+        await agent.command('/start',{})
+        await asyncio.wait_for(agent.task,10)
+        assert len(calls)==20 and agent.submit.await_count==20
+        assert agent.phase=='finished' and agent.error is None and not agent.running
+        assert all(c['max_tokens']==65536 for c in calls)
+    asyncio.run(run())
+
+
+def test_output_limit_diagnostics_survive_restart_without_response_text(tmp_path):
+    async def run():
+        response=dict(choices=[dict(finish_reason='length',message=dict(content='private-response'))],
+                      usage=dict(completion_tokens=4096,secret='never-store'))
+        profile=Profile(id='local',label='local',kind='local',base_url='http://127.0.0.1:1234/v1',model='test')
+        provider=APIProvider(profile,transport=httpx.MockTransport(lambda r:httpx.Response(200,json=response)))
+        agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:provider)
+        await agent.command('/start',{})
+        await asyncio.wait_for(agent.task,3)
+        d=agent.status()['error_details']
+        assert agent.error=='MODEL_OUTPUT_LIMIT' and d['stage']=='waiting_model'
+        assert d['finish_reason']=='length' and d['usage']=={'completion_tokens':4096}
+        assert d['request_id'] and 'plan_step' not in d
+        assert submit.await_count==0 and control.call_args.args==('paused',)
+        stored=(agent.journal/'diagnostics/latest.json').read_text()
+        assert 'private-response' not in stored and 'never-store' not in stored
+        await agent.unresolved()
+        restarted=Agent(agent.store,journal=agent.journal,record=False)
+        assert restarted.status()['error_details']==d and not restarted.running
     asyncio.run(run())
 
 
@@ -151,7 +244,11 @@ def test_switch_cancels_pending_model_without_dispatch(tmp_path):
         agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:Provider())
         await agent.command('/start',{})
         await asyncio.wait_for(entered.wait(),3)
+        waiting=agent.status()['model_wait']
+        assert waiting['request_id'] and waiting['started_at']>0 and waiting['timeout_seconds']==120
+        assert agent.status()['model_wait']==waiting
         result=await agent.command('/switch',dict(id='deepseek'))
+        assert result['model_wait'] is None
         assert cancelled.is_set() and result['active']=='deepseek' and not result['running']
         assert submit.await_count==0 and control.call_args.args==('paused',)
         assert Store(agent.store.directory,cipher).active=='deepseek'
@@ -172,6 +269,44 @@ def test_stale_result_never_dispatches(tmp_path):
         before=deepcopy(s);d=validate(payload(before),before);s['state_version']+=1
         assert await agent.dispatch(d,before,1) is None
         assert submit.await_count==0
+    asyncio.run(run())
+
+
+def test_reward_options_open_locally_before_requesting_ai(tmp_path,monkeypatch):
+    from test_deterministic import reward_to_open
+    import autoslay.decision.deterministic as rules
+    async def run():
+        entered=asyncio.Event();calls=[];opened=[]
+        class Provider:
+            async def decide(self,packet):
+                calls.append(packet)
+                assert packet['visible_state']['state']['phase']=='card_reward_selection'
+                entered.set()
+                await asyncio.Event().wait()
+        class Local:
+            async def execute(self,request_id):
+                proof=rules.assess({},s)
+                assert proof['rule_id']=='open_card_reward'
+                opened.extend(proof['selected_steps'])
+                s['state_version']+=1
+                s['state']['phase']='card_reward_selection'
+                s['state']['reward_screen']['cards']=[dict(card=dict(entity_id='CARD.STRIKE_IRONCLAD'))]
+                s['state']['legal_actions']=[dict(action_id='choose',type='choose_reward_card',allows_no_target=True),
+                                           dict(action_id='skip',type='reward_alternative',allows_no_target=True)]
+                return dict(status='completed')
+        agent,s,_,submit=make_agent(tmp_path,factory=lambda p,k:Provider(),deterministic=Local())
+        reward,policy=reward_to_open();s.clear();s.update(reward)
+        monkeypatch.setattr(rules,'load_policy',lambda:policy)
+        agent.analyze=lambda snap:dict(source=source(snap),phase=snap['state']['phase'],analysis_id='reward-test')
+        await agent.command('/start',{})
+        try:
+            await asyncio.wait_for(entered.wait(),3)
+            assert opened==[dict(action_id='open',target_id=None)] and len(calls)==1
+            assert agent.status()['model_wait']['phase']=='card_reward_selection'
+            assert submit.await_count==0
+        finally:
+            await agent.command('/pause',{})
+        assert agent.status()['model_wait'] is None
     asyncio.run(run())
 
 
@@ -289,5 +424,8 @@ def test_codex_command_isolated_and_cancel_cleanup(tmp_path,monkeypatch):
         with pytest.raises(asyncio.CancelledError):await task
         assert captured['killed'] and '--ignore-user-config' in captured['args']
         assert '--ephemeral' in captured['args'] and 'read-only' in captured['args']
+        assert 'model_provider="autoslay_http"' in captured['args']
+        assert any('supports_websockets=false' in arg and 'requires_openai_auth=true' in arg
+                   for arg in captured['args'])
         assert 'OPENAI_API_KEY' not in captured['kw']['env']
     asyncio.run(run())

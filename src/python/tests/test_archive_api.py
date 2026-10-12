@@ -40,7 +40,7 @@ def test_origin_guard_and_sse_cursor(service):
 def test_dashboard_modules_and_bounded_local_catalog(service):
     _,url=service
     for asset,kind in [('workspace.js','text/javascript'),('presentation.js','text/javascript'),
-                       ('map.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('combat-forecast.js','text/javascript')]:
+                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('combat-forecast.js','text/javascript')]:
         with urlopen(url+'/'+asset) as response:
             assert response.status==200
             assert response.headers['Content-Type'].startswith(kind)
@@ -62,10 +62,10 @@ def test_classified_catalog_and_local_portrait_routes(service):
     assert all(e['classification']['scope']=='ironclad' for e in page['entries'])
     assert {e['entity_id'] for e in page['entries']}.isdisjoint(e['entity_id'] for e in next_page['entries'])
     assert all(e['variants'] for e in page['entries'])
-    for path in ['/assets/cards/CARD.BRIGHTEST_FLAME.webp','/assets/potions/POTION.FIRE_POTION.webp','/assets/relics/RELIC.BURNING_BLOOD.webp']:
+    for path in ['/assets/cards/CARD.BRIGHTEST_FLAME.webp','/assets/potions/POTION.FIRE_POTION.webp','/assets/relics/RELIC.BURNING_BLOOD.webp','/assets/map/MAP.MAP_MONSTER.webp']:
         with urlopen(url+path) as response:
             assert response.headers['Content-Type'].startswith('image/webp')
             assert response.read(4)==b'RIFF'
-    for path,status in [('/assets/cards/portraits.json',400),('/assets/cards/..%2Fportraits.json',400),('/assets/cards/POTION.FIRE_POTION.webp',400),('/assets/cards/CARD.DOES_NOT_EXIST.webp',404)]:
+    for path,status in [('/assets/cards/portraits.json',400),('/assets/cards/..%2Fportraits.json',400),('/assets/cards/POTION.FIRE_POTION.webp',400),('/assets/cards/CARD.DOES_NOT_EXIST.webp',404),('/assets/map/MAP...%2Foutside.webp',400),('/assets/map/CARD.STRIKE_IRONCLAD.webp',400)]:
         with pytest.raises(HTTPError) as exc:urlopen(url+path)
         assert exc.value.code==status

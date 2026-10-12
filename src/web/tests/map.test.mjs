@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {geometry,coordinate} from '../public/map.js';
+import {geometry,coordinate,mapIcon} from '../public/map.js';
 import {reason,metricValue,gameText} from '../public/presentation.js';
+
+test('map icons use extracted game textures and never invented boss or ancient artwork',()=>{
+ assert.equal(mapIcon({type:'Monster'}),'/assets/map/MAP.MAP_MONSTER.webp');
+ assert.equal(mapIcon({type:'RestSite'}),'/assets/map/MAP.MAP_REST.webp');
+ assert.equal(mapIcon({type:'Boss'}),null);
+ assert.equal(mapIcon({type:'Ancient',icon_asset:'MAP.ANCIENT_NODE_NEOW'}),'/assets/map/MAP.ANCIENT_NODE_NEOW.webp');
+ assert.equal(mapIcon({type:'Boss',icon_asset:'../outside'}),null);
+});
 
 test('native layout preserves game offsets instead of inventing grid positions',()=>{
  const nodes=[{coordinate:{column:0,row:0},visual_position:{x:20,y:200}},{coordinate:{column:1,row:1},visual_position:{x:160,y:-20}}];

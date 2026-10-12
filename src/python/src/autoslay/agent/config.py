@@ -29,7 +29,7 @@ class Profile(BaseModel):
     model: str = Field(default='', max_length=200)
     output_mode: Literal['json', 'schema', 'text'] = 'json'
     timeout_seconds: int = Field(default=120, ge=5, le=600)
-    max_tokens: int = Field(default=4096, ge=256, le=32768)
+    max_tokens: int = Field(default=4096, ge=256, le=131072)
     reasoning_effort: Literal['', 'none', 'low', 'medium', 'high', 'max'] = ''
     key_env: str = Field(default='', pattern=r'^[A-Za-z_][A-Za-z0-9_]*$|^$')
     codex_executable: str = 'codex'
@@ -52,7 +52,7 @@ def defaults():
     return [
         Profile(id='codex', label='本机 Codex 登录', kind='codex'),
         Profile(id='deepseek', label='DeepSeek', kind='api', base_url='https://api.deepseek.com',
-                model='deepseek-flash', key_env='DEEPSEEK_API_KEY'),
+                model='deepseek-flash', key_env='DEEPSEEK_API_KEY', max_tokens=65536, timeout_seconds=300),
         Profile(id='openai', label='OpenAI API', kind='api', base_url='https://api.openai.com/v1',
                 output_mode='schema', key_env='OPENAI_API_KEY'),
         Profile(id='ollama', label='本地 Ollama', kind='local', base_url='http://127.0.0.1:11434/v1'),
