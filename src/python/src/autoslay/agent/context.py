@@ -16,6 +16,7 @@ def build(snapshot, report, recent=(), max_bytes=180_000):
         elif isinstance(value, list):
             for child in value: visit(child)
     visit(state)
+    visit(((report or {}).get('combat') or {}).get('lookahead',{}))
     # Narrative is useful for the encyclopedia; decisions use options and hover tips.
     event=(state.get('state') or {}).get('event_screen')
     if event:event.pop('description',None)

@@ -59,7 +59,7 @@ def make_server(port=PORT,directory=None):
                     match=re.fullmatch(r'/assets/(cards|potions|relics|monsters)/((CARD|POTION|RELIC|MONSTER)\.[A-Z0-9_]+\.webp)',route)
                     if not match or {'cards':'CARD','potions':'POTION','relics':'RELIC','monsters':'MONSTER'}[match[1]]!=match[3]:raise ValueError('Invalid image')
                     self.send((ROOT/'data/knowledge/assets'/match[1]/match[2]).read_bytes(),kind='image/webp');return
-                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/shared.js','/agent.js','/workspace.js','/presentation.js','/map.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/configuration.js'}:
+                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/workspace.js','/presentation.js','/map.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
                     name='index.html' if route=='/' else route[1:]
                     kind={'html':'text/html','js':'text/javascript','css':'text/css'}[name.rsplit('.',1)[1]]+'; charset=utf-8'
                     self.send((ASSETS/name).read_bytes(),kind=kind); return
@@ -85,6 +85,14 @@ def make_server(port=PORT,directory=None):
                         limit=int(query.get('limit',['100'])[0])));return
                 if self.command=='GET' and route=='/api/agent/status':
                     data,code=agent_request('/status');self.send(data,code);return
+                if self.command=='GET' and route=='/api/play/state':
+                    data,code=agent_request('/play/state',{'request_id':query.get('request_id',[None])[0]});self.send(data,code);return
+                if self.command=='POST' and route=='/api/play/start':
+                    length=int(self.headers.get('Content-Length','0'))
+                    if not 0<length<=30000 or self.headers.get('Transfer-Encoding'):raise ValueError('Invalid body')
+                    body=json.loads(self.rfile.read(length))
+                    if not isinstance(body,dict):raise ValueError('Invalid body')
+                    data,code=agent_request('/play/start',body);self.send(data,code);return
                 if self.command=='POST' and route in {'/api/config/export','/api/config/preview','/api/config/import','/api/config/backups','/api/config/restore'}:
                     length=int(self.headers.get('Content-Length','0'))
                     if not 0<length<=250000 or self.headers.get('Transfer-Encoding'):raise ValueError('Invalid config size')

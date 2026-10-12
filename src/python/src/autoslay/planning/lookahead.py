@@ -1,6 +1,6 @@
 """Bounded stochastic continuation under explicit future-intent scenarios.
 
-Uses only public pile composition. It never consults hidden order or enemy move scripts.
+Uses public piles and version-matched local behavior graphs, never hidden RNG/order.
 Unknown branch mass is reported instead of assigning it zero value.
 """
 from collections import Counter
@@ -16,7 +16,7 @@ from autoslay.knowledge.templates import canonical
 from autoslay.planning.search import search, SearchBudget
 from autoslay.evaluation.combat import CombatEvaluator
 
-VERSION='1.1.0'
+VERSION='1.2.0'
 
 class ScenarioRules(IroncladRules):
     def card(self,card,state):
@@ -77,9 +77,15 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
     seed=settings.get('seed',42); draws=settings.get('draws',5); energy=settings.get('energy',3)
     if any(type(v) is not int for v in (horizon,limit,total_ms,seed,draws,energy)) or not (1<=horizon<=3 and 1<=limit<=32 and 1<=total_ms<=3000 and 0<=draws<=10 and 0<=energy<=10):
         raise ValueError('Invalid bounded lookahead settings')
-    scenarios=scenarios or [dict(name='repeat_visible_attack_scenario',future_attacks={e.instance_id:list(e.attacks) for e in initial.enemies})]
+    from autoslay.rules.monsters import MonsterRules
+    model=None
+    if scenarios is None:
+        model=MonsterRules(snapshot,entries)
+        initial=model.prepare(initial)
+        scenarios=[dict(name='local_game_behavior_model',kind='behavior_graph')]
     if not 1<=len(scenarios)<=4: raise ValueError('At most four explicit scenarios')
     for scenario in scenarios:
+        if model is not None:continue
         if not isinstance(scenario,dict) or not isinstance(scenario.get('name'),str) or not isinstance(scenario.get('future_attacks'),dict):
             raise ValueError('Named scenario with explicit future_attacks required')
         if any(e.hp>0 and e.instance_id not in scenario['future_attacks'] for e in initial.enemies):
@@ -87,6 +93,11 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
         for hits in scenario.get('future_attacks',{}).values():
             if not isinstance(hits,list) or len(hits)>100 or any(type(h) is not int or not 0<=h<=10000 for h in hits): raise ValueError('Invalid scenario attacks')
     started=perf_counter(); templates=templates_for(snapshot,entries); observations=set(); methods=set(); nodes=0
+    if model is not None:
+        for identity in model.generated_ids:
+            if identity in templates:continue
+            try:templates[identity]=replace(canonical(dict(entity_id=identity,upgrade_level=0),entries)[0],canonical=True)
+            except ValueError:observations.add('unknown_generated_card_template:'+identity)
     def expired(): return (perf_counter()-started)*1000>=total_ms
     def terminal(state):
         won=state.combat_won or all(e.hp<=0 for e in state.enemies)
@@ -119,24 +130,40 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
         if state.hp<=0 or state.combat_won: return dict(covered_probability=1,conditional_metrics=terminal(state))
         if any(c.instance_id in sim.unsupported and c.entity_id!='CARD.ASCENDERS_BANE' for c in state.hand):
             observations.add('unsupported_remaining_card_end_turn_hooks'); return None
-        loss=CombatEvaluator().evaluate(state,Transition(state),())['projected_hp_loss']
-        state=replace(state,hp=max(0,state.hp-loss))
-        if state.hp<=0 or ply>=horizon: return dict(covered_probability=1,conditional_metrics=terminal(state))
-        if state.effect_draw_blocked or any(e.weak for e in state.enemies):
+        if state.warnings:
+            observations.add('combat_interactions_unmodeled');return None
+        discarded=add_to_composition(state.discard_composition,[c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE'])
+        exhausted=add_to_composition(state.exhausted_composition,[c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE'])
+        state=replace(state,hand=(),discard_composition=discarded,exhausted_composition=exhausted)
+        if model is not None:
+            try:enemy_outcomes=model.step(state,limit,select_next=ply<horizon)
+            except (UnsupportedEffect,SyntaxError,KeyError) as exc:
+                observations.add(str(exc));return None
+        else:
+            loss=CombatEvaluator().evaluate(state,Transition(state),())['projected_hp_loss']
+            enemy_outcomes=[(1.0,replace(state,hp=max(0,state.hp-loss)),[])]
+        outcomes=[]
+        for probability,after,_ in enemy_outcomes:
+            if after.hp<=0 or ply>=horizon:
+                outcomes.append((probability,dict(covered_probability=1,conditional_metrics=terminal(after))))
+            else:outcomes.append((probability,next_player_turn(after,ply,scenario)))
+        return combine(outcomes)
+    def next_player_turn(state,ply,scenario):
+        if state.effect_draw_blocked or (model is None and any(e.weak for e in state.enemies)):
             observations.add('future_draw_prevention_or_weak_duration_unmodeled'); return None
         relics=state.periodic_relics; extra_draw=extra_energy=0
         if relics:
             if any(r.counter is None for r in relics): observations.add('unknown_periodic_counter'); return None
             relics,extra_draw,extra_energy=advance(relics)
-        discarded=add_to_composition(state.discard_composition,[c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE'])
-        exhausted=add_to_composition(state.exhausted_composition,[c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE'])
-        state=replace(state,hand=(),block=0,energy=energy+extra_energy,discard_composition=discarded,exhausted_composition=exhausted,
+        weak_turns=state.weak_turns if model is not None else max(0,state.weak_turns-1)
+        frail_turns=state.frail_turns if model is not None else max(0,state.frail_turns-1)
+        state=replace(state,hand=(),block=0,energy=energy+extra_energy,
             base_strength=state.base_strength+state.strength_delta-state.temporary_strength,strength_delta=0,temporary_strength=0,
             colossus=False,legion_ready=False,periodic_relics=relics,turn=(state.turn or 0)+1,
-            weak_turns=max(0,state.weak_turns-1),frail_turns=max(0,state.frail_turns-1),
-            player_weak=state.weak_turns>1,player_frail=state.frail_turns>1,
-            enemies=tuple(replace(e,block=0,vulnerable=max(0,e.vulnerable-1),
-                attacks=tuple(scenario.get('future_attacks',{}).get(e.instance_id,[]))) for e in state.enemies))
+            weak_turns=weak_turns,frail_turns=frail_turns,
+            player_weak=weak_turns>0,player_frail=frail_turns>0,
+            enemies=tuple(replace(e,vulnerable=max(0,e.vulnerable-1),
+                attacks=e.attacks if model is not None else tuple(scenario['future_attacks'].get(e.instance_id,[]))) for e in state.enemies))
         branches,method=draw_branches(state,draws+extra_draw,templates,limit,seed+ply); methods.add(method)
         outcomes=[]
         for probability,branch in branches:
@@ -163,19 +190,26 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
         for index,candidate in enumerate(records[:3]):
             scenario_results=[]
             for scenario in scenarios:
+                if model is not None:model.trace=[]
                 local=initial; sim=CombatSimulator(initial); transition=Transition(initial); operations=[]
                 try:
                     for step in candidate['steps']:
                         before=local; operations.append(Operation(**step)); transition=sim.apply(local,operations[-1]); local=transition.state
                     result=continue_transition(sim,before if operations else initial,transition,operations,1,scenario) if not expired() else None
                 except (ValueError,KeyError,StopIteration) as exc: observations.add(str(exc)); result=None
-                scenario_results.append(dict(name=scenario['name'],result=result))
+                scenario_results.append(dict(name=scenario['name'],result=result,
+                    enemy_turns=list(model.trace) if model is not None else [],
+                    coverage_kind='local_behavior_adapters' if model is not None else 'explicit_attack_only_scenario'))
             output.append(dict(group=group,index=index,steps=candidate['steps'],scenarios=scenario_results))
     return dict(module_version=VERSION,horizon=horizon,candidates=output,elapsed_ms=(perf_counter()-started)*1000,
         nodes=nodes,budget_exhausted=expired(),draw_methods=sorted(methods),unmodeled=sorted(observations),
         scenarios=scenarios,execution_authorized=False,
-        assumptions=['uniform unknown draw order; ordinary discard reshuffle; no hidden enemy move data',
-                     'future attacks are caller scenarios or repeated visible attacks, not predictions of actual next moves',
+        enemy_model=dict(module_version=VERSION if model is None else '1.0.0',mode='local_behavior_graph' if model is not None else 'explicit_attack_scenario',
+                         version_matches=model.compatible if model is not None else None,
+                         source_issues=sorted(model.notes) if model is not None else [],
+                         entries=model.audit(initial)) if model is not None else dict(mode='explicit_attack_scenario'),
+        assumptions=['uniform unknown draw order; ordinary discard reshuffle; no hidden RNG or future move selection',
+                     'version-matched local behavior adapters; unsupported transitions lose coverage' if model is not None else 'caller-specified future attacks; nonattack effects are outside this explicit scenario',
                      'default future energy 3 / draw 5; unsupported hooks and ambiguous upgraded variants lose coverage',
                      'sampled draw fractions are seeded empirical estimates, not exact probabilities'],
         limitations=['conditional survived/finished fractions apply only to the stated scenario, not calibrated win probability',

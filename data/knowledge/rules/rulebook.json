@@ -1,6 +1,6 @@
 {
   "schema_version": "rules/1.0",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "game_version": "0.111.0",
   "entries": {
     "CARD.ARMAMENTS": {
@@ -2126,6 +2126,24 @@
       "exhaust": false,
       "review_gap": "source_recognized; require rule review and transition validation",
       "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.SLIMED": {
+      "category": "card",
+      "reference_sha256": "dab4da693e40b006d24d9506dda9b1e63d4ce523702173615c7e14ded83d904c",
+      "validation": "verified_adapter",
+      "source": "Pinned local Slimed.cs: cost 1, Status, target None, draw CanonicalVars.Cards=1, Exhaust keyword; existing draw/exhaust simulator primitives. Complex interaction coverage remains conditional.",
+      "source_sha256": "024372f85032a09464fa15bc5b2113f79e4b89a6f4f415182007901ebd4d37a8",
+      "effects": [
+        {
+          "operation": "draw",
+          "amount": {
+            "visible": "draw"
+          },
+          "repeats": 1
+        }
+      ],
+      "exhaust": true,
+      "unplayable": false
     }
   },
   "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9"

@@ -29,12 +29,16 @@ class Agent:
         self.task, self.generation, self.running = None, 0, False
         self.phase, self.error, self.last, self.recent = 'paused', None, None, []
         self.lock = asyncio.Lock()
+        from .launch import LaunchCoordinator
+        self.launch = LaunchCoordinator(self, self.journal/'launch')
 
     def status(self):
         return dict(running=self.running, phase=self.phase, error=self.error, generation=self.generation,
-                    last=self.last, **self.store.public())
+                    last=self.last, launch_active=self.launch.active,
+                    launch=self.launch.job, **self.store.public())
 
     async def pause(self):
+        await self.launch.cancel()
         self.running = False
         self.generation += 1
         if self.task and self.task is not asyncio.current_task():
@@ -48,6 +52,8 @@ class Agent:
     async def command(self, route, body):
         async with self.lock:
             if route == '/status': return self.status()
+            if route == '/play/state': return await self.launch.state(body.get('request_id'))
+            if route == '/play/start': return await self.launch.accept(body)
             if route.startswith('/config/'):
                 from autoslay.configuration import export_package,preview,install,backups,restore
                 if route=='/config/export': return export_package(self.store,body.get('ui'),body.get('mode','standard'),body.get('password'))
@@ -102,14 +108,16 @@ class Agent:
                 except (httpx.HTTPError, KeyError, TypeError, ValueError):
                     return dict(models=[], error='MODEL_LIST_UNAVAILABLE')
             elif route == '/start':
+                if self.launch.active and asyncio.current_task() is not self.launch.task:
+                    raise ValueError('AGENT_ALREADY_ACTIVE')
                 if self.running: return self.status()
+                await self.launch.recover()
                 p = self.store.profiles[self.store.active]
                 if not p.model and p.kind != 'codex' or p.kind == 'api' and not self.store.key(p):
                     raise ValueError('PROVIDER_NOT_CONFIGURED')
                 snapshot = await self.fetch()
                 if not snapshot.get('connected') or snapshot.get('error'): raise ValueError('GAME_NOT_CONNECTED')
-                # New-run setup remains explicit via existing tools. This button runs the current state.
-                if (snapshot.get('state') or {}).get('phase') in {'main_menu', 'no_run', 'game_over'}:
+                if (snapshot.get('state') or {}).get('phase') in {'main_menu', 'singleplayer_menu', 'character_selection', 'no_run', 'game_over'}:
                     raise ValueError('ENTER_OR_CONTINUE_RUN_FIRST')
                 self.error = None
                 result = await self.control('auto')

@@ -5,7 +5,7 @@ from pathlib import Path
 from autoslay.paths import ROOT
 from autoslay.decision.cache import digest
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 RULEBOOK_PATH = ROOT/'data/knowledge/rules/rulebook.json'
 CATALOG_PATH = ROOT/'data/knowledge/catalog/encyclopedia.json'
 OPERATIONS = {'damage','dismantle','block','draw','energy','strength','temporary_strength',
@@ -17,6 +17,19 @@ VISIBLE_FIELDS = {'damage','block','draw','energy','strength','vulnerable','lose
 def entry_fingerprint(entry):
     # Names alone are cosmetic. Descriptions, variants, variables and targeting are semantic.
     return digest({k:v for k,v in entry.items() if k not in {'name'}})
+
+
+def reference_matches(rule, entry):
+    if rule['reference_sha256'] == entry_fingerprint(entry):
+        return True
+    # The exporter added ownership facets to relics. Prove the *entire* previous
+    # entry is unchanged, instead of updating reviewed hashes or ignoring effects.
+    # Cards keep pool identity in their rule provenance. Binary/version checks
+    # still happen in status() before this narrowly scoped metadata migration.
+    if entry.get('category') == 'relic' and isinstance(entry.get('pools'), list) and entry.get('pool') in entry['pools']:
+        previous = {k:v for k,v in entry.items() if k not in {'pool', 'pools'}}
+        return rule['reference_sha256'] == entry_fingerprint(previous)
+    return False
 
 def validate_rulebook(data):
     if data.get('schema_version')!='rules/1.0' or not isinstance(data.get('game_version'),str):
@@ -66,7 +79,7 @@ class Rulebook:
             return 'game_implementation_changed'
         if rule['validation']!='verified_adapter': return 'pending_review'
         if not entry: return 'reference_missing'
-        if rule['reference_sha256']!=entry_fingerprint(entry): return 'reference_changed'
+        if not reference_matches(rule, entry): return 'reference_changed'
         return 'compatible'
 
     def require(self,identity,category):

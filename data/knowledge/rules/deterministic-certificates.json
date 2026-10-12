@@ -1,6 +1,6 @@
 {
   "schema_version": "deterministic-certificates/1.0",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "game_version": "0.111.0",
   "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "finish_safe_unplayable_cards": [
@@ -41,8 +41,56 @@
       "source_sha256": "2c918532e9ef8ef9ef8039640d4caddc1820d040dadd9bfc6ef96b020e6f6adb"
     }
   },
+  "resource_upper_bound_monsters": {
+    "MONSTER.LEAF_SLIME_M": "d367b077e4ed71a8179cb9f68bbc614392b049d87f934e9e7186d5d966faabfd",
+    "MONSTER.LEAF_SLIME_S": "6db6f1ccc681f86ca48584827b4276c9881297e3c5cb07ddf7516735d9779815",
+    "MONSTER.TWIG_SLIME_M": "e47f44a602799d16fde7917d0135502a8c91c3307c03f57bf98b3300c5e996de",
+    "MONSTER.TWIG_SLIME_S": "20df69868780ab61d8fd0e33aaeda150928ab98bc35c5276a2271563c4b46c0b"
+  },
+  "resource_upper_bound_audit": "Pinned source move handlers for these four slimes only attack or add Slimed to combat piles. No player healing, max-HP gain, gold, permanent deck changes or beneficial resource grants. Finish-safe relic review excludes persistent counters; BurningBlood is the fixed, capped 6-HP victory heal.",
   "event_source": {
     "source_path": "MegaCrit.Sts2.Core.Models.Events\\AbyssalBaths.cs",
     "source_sha256": "ebcb36c1df59090dfa8a0e935cf0e29923d5a183ea5f8371b47dcc0b777a5e8b"
-  }
+  },
+  "finite_comparison_cards": {
+    "CARD.STRIKE_IRONCLAD": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/StrikeIronclad.cs",
+      "source_sha256": "3c5191ab089af002359f93bf79332b6451abae703b4d6086705699319aa2f466",
+      "reference_sha256": "d874954d90113e0a487169c06c3e356415355ea58b44ddc85deb2f794008d6b4"
+    },
+    "CARD.BASH": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Bash.cs",
+      "source_sha256": "08b525f8938ef8f1fa307ea1b71252cffe1a970de36336f1f1492a9e91d77b73",
+      "reference_sha256": "4ad93ccbc1a146316c0eb4f1909e4e42cbf0edc68db78cbb844531797e75490d"
+    },
+    "CARD.DEFEND_IRONCLAD": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/DefendIronclad.cs",
+      "source_sha256": "f2707481e0be1a5e856cab0dc788fb520e80fe3dff9c0a0f53869b857b8c7740",
+      "reference_sha256": "890bda09e88ecf52fd920f6d5e29ab336323fb4f919bb93ca1ee5cd32f8624fd"
+    },
+    "CARD.HEMOKINESIS": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Hemokinesis.cs",
+      "source_sha256": "0f5457981c21bbdec5952914876b4ba8315bd1b76dea62579903e2e63cd8f8f6",
+      "reference_sha256": "c6a4c76fca1a22540703764909d87f64ed5a2f8d5a0d14d9ecd30702f9303e7b"
+    },
+    "CARD.TWIN_STRIKE": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/TwinStrike.cs",
+      "source_sha256": "58a9bb04401b2bf8f88e5ff129988bb48581dfc7bff16e1ea714a5ce2bfc0c92",
+      "reference_sha256": "bdccf5f7b85fe1b4daf8eb3e09f485927f20b3602709a91beafc9317d0579c06"
+    },
+    "CARD.THUNDERCLAP": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Thunderclap.cs",
+      "source_sha256": "92e409552b04099b97ae91a49471ca3e28fbedf393c8a754a36f30f84989e797",
+      "reference_sha256": "5fcb586fb89727e6707ef593122410e4390f6760e59644df36a412da901be732"
+    }
+  },
+  "finite_comparison_card_audit": "Reviewed entire pinned OnPlay and OnUpgrade handlers: fixed visible damage/block/vulnerable/self-HP loss only; no draw, generated cards, persistent growth, variable state-dependent amounts or additional play hooks. Generic simulator support alone is not a comparison certificate.",
+  "finite_comparison_enemy_powers": {
+    "POWER.VULNERABLE_POWER": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Powers/VulnerablePower.cs",
+      "source_sha256": "61b6893cdd2c66d71bf99d2ef5ede347865185825f22625e8e6bd9b828c2da5d"
+    }
+  },
+  "finite_comparison_power_audit": "Enemy Vulnerable multiplies powered attack damage by 1.5; no other powers or multiplier-modifying relics are admitted. Duration tick is only at enemy turn end, outside the certified immediate-victory window.",
+  "finite_comparison_characters": ["CHARACTER.IRONCLAD"]
 }

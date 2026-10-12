@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build/Deploy-Bridge.ps1 -GamePa
 
 ## 日常使用
 
-双击 `launch/start_agent.cmd`，打开服务、独立实时侧窗和系统默认浏览器工作台。默认保持暂停：在「Agent 管理」配置后端，开始或继续一局，再点击「自动游玩当前局」。
+双击 `launch/start_agent.cmd`，打开服务、独立实时侧窗和系统默认浏览器工作台。默认保持暂停：在「Agent 管理」配置后端，再到首页「开始游玩」选择新局或继续存档。职业默认铁甲战士，进阶默认该职业已解锁的最高难度；点击后会自动启动游戏、处理菜单并启动 Agent，无需在游戏里点击继续或开始。已有存档必须明确勾选替换才能开始新局；当前对局可直接接管。
 
 - 本机 Codex：需本机可用的 Codex CLI 及已有登录；会使用账号共享额度。
 - API／本地模型：在工作台填写服务地址和模型，API 密钥仅保存在本机。

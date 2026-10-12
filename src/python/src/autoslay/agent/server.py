@@ -1,4 +1,4 @@
-"""Authenticated loopback control; starts paused and never launches the game."""
+"""Authenticated loopback control; starts paused, launch requires an explicit command."""
 import asyncio
 import hmac
 import json

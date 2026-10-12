@@ -20,3 +20,4 @@ include = ["autoslay*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 cache_dir = "../../.runtime/cache/pytest"
+markers = ["local_knowledge: requires locally exported game knowledge, never performs live gameplay"]

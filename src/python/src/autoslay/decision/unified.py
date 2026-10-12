@@ -32,7 +32,7 @@ from autoslay.decision.mechanisms import attach as attach_mechanisms
 from autoslay.knowledge.behavior import load as load_behavior
 from autoslay.evaluation.event_adapters import VERSION as EVENT_ADAPTER_VERSION
 
-VERSION='1.5.0'
+VERSION='1.6.0'
 CACHE=AnalysisCache()
 
 def relevant_entities(value):
@@ -88,6 +88,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     key=digest(dict(state=s,game=snapshot['game_version'],context=context,scenarios=scenarios,adaptive=adaptive,
                     run_policy=asdict(policy),combat_policy=asdict(combat_policy),interactions=asdict(interactions),context_version=CONTEXT_VERSION,knowledge=knowledge_hash,
                     version=VERSION,combat=COMBAT_SERVICE_VERSION,simulation=SIMULATION_VERSION,contract=CONTRACT_VERSION,
+                    monster_source=digest(load_behavior()) if phase=='combat' else None,
                     combat_evaluation=COMBAT_EVALUATION_VERSION,rules=rulebook.fingerprint,lookahead=LOOKAHEAD_VERSION,
                     event_rules=digest(event_rules()),
                     event_adapter=EVENT_ADAPTER_VERSION,

@@ -1,13 +1,10 @@
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
-using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
-using Microsoft.Win32;
 
 namespace AutoSlay.Observer;
 
@@ -18,9 +15,6 @@ public sealed class ObserverWindow : Window
     private readonly string root;
     private readonly string settingsPath;
     private readonly TextBlock notice = new() { Text = "正在连接观察台…", Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
-    private double expandedWidth = 420;
-    private bool folded;
-    private readonly CheckBox pinned = new() { Content = "置顶", Margin = new Thickness(6), VerticalAlignment = VerticalAlignment.Center };
 
     private sealed record Settings(double Left, double Top, double Width, double Height, bool Pinned, double FontScale = 1);
     private double fontScale = 1;
@@ -50,25 +44,7 @@ public sealed class ObserverWindow : Window
             }
         }
         catch (Exception) { notice.Text = "窗口设置无法读取，已恢复默认布局。"; }
-        pinned.IsChecked = Topmost;
-        pinned.Checked += (_, _) => Topmost = true; pinned.Unchecked += (_, _) => Topmost = false;
         var dock = new DockPanel();
-        var tools = new WrapPanel { Margin = new Thickness(3) };
-        Button Action(string title, Action action)
-        {
-            var b = new Button { Content = title, Margin = new Thickness(3), Padding = new Thickness(5, 3, 5, 3) };
-            b.Click += (_, _) => action(); tools.Children.Add(b); return b;
-        }
-        tools.Children.Add(pinned);
-        Action("贴左", () => { Left = SystemParameters.WorkArea.Left; Top = SystemParameters.WorkArea.Top; });
-        Action("贴右", () => { Left = SystemParameters.WorkArea.Right - ActualWidth; Top = SystemParameters.WorkArea.Top; });
-        Action("折叠", () => { folded = !folded; if (folded) { expandedWidth = Width; web.Visibility = Visibility.Collapsed; Height = 280; } else { web.Visibility = Visibility.Visible; Width = expandedWidth; Height = Math.Min(820, SystemParameters.WorkArea.Height); } });
-        Action("字号−", () => { fontScale = Math.Max(.8, fontScale - .1); web.ZoomFactor = fontScale; });
-        Action("字号＋", () => { fontScale = Math.Min(1.6, fontScale + .1); web.ZoomFactor = fontScale; });
-        Action("完整页面", () => OpenBrowser(BaseUrl + "/"));
-        Action("打开记录", async () => await OpenArchive());
-        Action("重连", async () => await Initialize());
-        DockPanel.SetDock(tools, Dock.Top); dock.Children.Add(tools);
         DockPanel.SetDock(notice, Dock.Bottom); dock.Children.Add(notice);dock.Children.Add(web); Content = dock;
         Loaded += async (_, _) => await Initialize();
         Closing += (_, _) => SaveSettings();
@@ -134,7 +110,7 @@ public sealed class ObserverWindow : Window
         }
         catch (Exception ex)
         {
-            notice.Text = "观察窗加载失败，可点击重连。" + ex.Message;
+            notice.Text = "观察窗加载失败，请重新打开观察窗口。" + ex.Message;
             var log = Path.Combine(root, ".runtime", "logs", "observer-error.log");
             Directory.CreateDirectory(Path.GetDirectoryName(log)!);
             File.AppendAllText(log, DateTimeOffset.UtcNow + " " + ex + Environment.NewLine);
@@ -143,29 +119,12 @@ public sealed class ObserverWindow : Window
 
     private static void OpenBrowser(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 
-    private async Task OpenArchive()
-    {
-        var dialog = new OpenFileDialog { Title = "选择对局 manifest.json", Filter = "对局清单|manifest.json" };
-        if (dialog.ShowDialog(this) != true) return;
-        try
-        {
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("X-Autoslay-ReadOnly", "1");
-            var body = new StringContent(JsonSerializer.Serialize(new { path = Path.GetDirectoryName(dialog.FileName) }), Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(BaseUrl + "/api/archive/open-folder", body);
-            response.EnsureSuccessStatusCode();
-            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            OpenBrowser(BaseUrl + "/?archive=" + Uri.EscapeDataString(doc.RootElement.GetProperty("archive_id").GetString()!));
-        }
-        catch (Exception ex) { notice.Text = "打开归档失败：" + ex.Message; }
-    }
-
     private void SaveSettings()
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            var value = new Settings(Left, Top, folded ? expandedWidth : Width, Height, Topmost, fontScale);
+            var value = new Settings(Left, Top, Width, Height, Topmost, fontScale);
             File.WriteAllText(settingsPath, JsonSerializer.Serialize(value));
         }
         catch (IOException) { /* Window closure never changes game control. */ }

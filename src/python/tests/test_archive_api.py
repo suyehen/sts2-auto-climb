@@ -40,7 +40,7 @@ def test_origin_guard_and_sse_cursor(service):
 def test_dashboard_modules_and_bounded_local_catalog(service):
     _,url=service
     for asset,kind in [('workspace.js','text/javascript'),('presentation.js','text/javascript'),
-                       ('map.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript')]:
+                       ('map.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('combat-forecast.js','text/javascript')]:
         with urlopen(url+'/'+asset) as response:
             assert response.status==200
             assert response.headers['Content-Type'].startswith(kind)

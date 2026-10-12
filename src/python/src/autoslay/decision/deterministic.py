@@ -1,6 +1,7 @@
 """Proof-based shortcuts. Scores and model confidence are never execution proofs."""
 from autoslay.configuration import decision_config
 import json
+from math import isfinite
 from autoslay.paths import ROOT
 from autoslay.decision.cache import digest
 from autoslay.decision.normalize import normalize
@@ -9,7 +10,7 @@ from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge.events import resource_hook_warnings
 from autoslay.decision.outcomes import Outcome,compare
 
-VERSION='1.0.0'
+VERSION='1.1.0'
 POLICY_PATH=ROOT/'config/decision/autonomy.default.json'
 CERTIFICATES=ROOT/'data/knowledge/rules/deterministic-certificates.json'
 ADMIN={'return_to_main_menu','quit_game'}
@@ -35,13 +36,14 @@ def certificates(snapshot):
         return None
     return cert
 
-def finish(snapshot,actions,cert):
+def finish_model(snapshot,actions,cert,allowed_effects,allowed_enemy_powers=frozenset()):
     s=snapshot['state'];p=s['player'];reasons=[]
     for r in p.get('relics') or []:
         if r['entity_id'] not in cert['finish_safe_relics']: reasons.append('uncertified_relic_or_counter:'+r['entity_id'])
     for e in s.get('enemies') or []:
         if e['entity_id'] not in cert['finish_safe_monsters']: reasons.append('uncertified_enemy_death_or_phase:'+e['entity_id'])
-    if any(c.get('powers') for c in [p['creature'],*(s.get('enemies') or [])]): reasons.append('combat_power_requires_review')
+    if p['creature'].get('powers') or any(power['entity_id'] not in allowed_enemy_powers
+        for enemy in s.get('enemies') or [] for power in enemy.get('powers') or []): reasons.append('combat_power_requires_review')
     creatures=[p['creature'],*(s.get('enemies') or [])]
     if any('hidden_power_ids' not in c or c['hidden_power_ids'] for c in creatures): reasons.append('hidden_power_coverage_missing_or_unreviewed')
     for c in [*(p.get('deck') or []),*(p.get('hand') or [])]:
@@ -49,27 +51,37 @@ def finish(snapshot,actions,cert):
             reasons.append('card_modifiers_missing_or_unreviewed:'+c['entity_id'])
     if p.get('potions'): reasons.append('potion_alternative_requires_comparison')
     if any(a.get('type') not in {'play_card','end_turn'} for a in actions): reasons.append('unmodeled_action_alternative')
-    if reasons: return None,reasons
+    if reasons: return None,None,reasons
     try:
         model=normalize(snapshot);sim=CombatSimulator(model)
-        if model.warnings: return None,list(model.warnings)
+        if model.warnings: return None,None,list(model.warnings)
         # A growth card in the draw pile can make deliberately delaying victory valuable.
         for c in p.get('deck') or []:
             rule=sim.rules.rulebook.require(c['entity_id'],'card')
             if rule.get('unplayable') and c['entity_id'] not in cert['finish_safe_unplayable_cards']:
-                return None,['deck_end_effect_not_certified:'+c['entity_id']]
-            if any(e['operation'] not in {'damage','unpowered_damage','block','unpowered_block','vulnerable','weak_boundary'} for e in rule.get('effects',[])):
-                return None,['deck_has_optional_resource_or_growth_effect:'+c['entity_id']]
+                return None,None,['deck_end_effect_not_certified:'+c['entity_id']]
+            if any(e['operation'] not in allowed_effects for e in rule.get('effects',[])):
+                return None,None,['deck_has_optional_resource_or_growth_effect:'+c['entity_id']]
         # Certify ALL held cards, including presently unaffordable optional growth/heal/draw.
         for c in p.get('hand') or []:
             rule=sim.rules.rulebook.require(c['entity_id'],'card')
             if rule.get('unplayable'):
-                if c['entity_id'] not in cert['finish_safe_unplayable_cards']: return None,['unplayable_end_effect_not_certified:'+c['entity_id']]
+                if c['entity_id'] not in cert['finish_safe_unplayable_cards']: return None,None,['unplayable_end_effect_not_certified:'+c['entity_id']]
             else:
                 compiled=sim.compiled.get(c['instance_id'])
-                if compiled is None: return None,['unmodeled_held_card:'+c['entity_id']]
-                if any(e.kind not in {'damage','unpowered_damage','block','unpowered_block','vulnerable','weak_boundary'} for e in compiled.effects):
-                    return None,['optional_draw_heal_growth_or_resource_effect:'+c['entity_id']]
+                if compiled is None: return None,None,['unmodeled_held_card:'+c['entity_id']]
+                if any(e.kind not in allowed_effects for e in compiled.effects):
+                    return None,None,['optional_draw_heal_growth_or_resource_effect:'+c['entity_id']]
+        return model,sim,[]
+    except (ValueError,KeyError,TypeError) as exc: return None,None,['mechanics_incomplete:'+str(exc)]
+
+
+def finish(snapshot,actions,cert):
+    allowed={'damage','unpowered_damage','block','unpowered_block','vulnerable','weak_boundary'}
+    model,sim,reasons=finish_model(snapshot,actions,cert,allowed)
+    if reasons:return None,reasons
+    p=snapshot['state']['player']
+    try:
         candidates=[]
         victory_heal=6 if any(r['entity_id']=='RELIC.BURNING_BLOOD' for r in p.get('relics',[])) else 0
         for op in operations(actions):
@@ -107,11 +119,25 @@ def event_survival(snapshot,actions,cert):
             fatal_options=[o['option_id'] for o in fatal],safe_text_key=safe[0]['text_key'],certificate_version=cert['version'])),[]
     return None,['event_has_unresolved_alternatives']
 
+
+def score_review(report):
+    """Diagnostic only: neither ties nor an uncalibrated gap authorize actions."""
+    candidates=(report.get('combat') or {}).get('candidates') or report.get('shortlist') or []
+    values=[c.get('metrics',{}).get('heuristic_score') for c in candidates]
+    values=[v for v in values if type(v) in (int,float) and isfinite(v)]
+    if len(values)<2:return None
+    ranked=sorted(values,reverse=True)
+    return dict(leading_score=ranked[0],runner_up_score=ranked[1],score_gap=ranked[0]-ranked[1],
+        tied_leaders=sum(v==ranked[0] for v in ranked),compared_candidate_count=len(values),
+        automatic_gap_selection=False,error_bound=None,
+        reason='收益分是启发式估算；同分不证明结果等价，分差尚无校准误差界，不能单独用于跳过 AI。')
+
 def assess(report,snapshot,policy=None):
     policy=load_policy() if policy is None else policy
     if policy.get('complex_strategy_enabled'): raise ValueError('Complex autonomous strategy is not implemented; keep disabled')
     result=dict(module_version=VERSION,policy_version=policy['version'],eligible=False,mode='ai_required',reasons=[],
-        selected_steps=None,execution_authorized=False,source=source(snapshot),rule_id=None,evidence={},checks=[])
+        selected_steps=None,execution_authorized=False,source=source(snapshot),rule_id=None,evidence={},checks=[],
+        score_review=score_review(report))
     def reject(reason,mode='ai_required'):
         result['reasons'].append(reason);result['mode']=mode;return result
     if not policy.get('deterministic_enabled',False): return reject('deterministic_disabled')
@@ -149,6 +175,11 @@ def assess(report,snapshot,policy=None):
     for identity,phase,rule in rules:
         if proof is None and s.get('phase')==phase and identity in enabled:
             proof,reasons=rule(snapshot,actions,cert);result['checks'].append(dict(rule_id=identity,blockers=reasons))
+    comparison_rules=enabled&{'equivalent_outcomes','dominant_outcome','common_first_step'}
+    if proof is None and s.get('phase')=='combat' and comparison_rules:
+        from autoslay.decision.terminal_comparison import prove
+        proof,reasons=prove(snapshot,actions,cert,comparison_rules)
+        result['checks'].append(dict(rule_id='complete_outcome_comparison',blockers=reasons))
     if proof: result.update(eligible=True,mode='local_deterministic',rule_id=proof['rule_id'],reason=proof['reason'],selected_steps=proof['steps'],evidence=proof['evidence'])
     else: result['reasons']=['no_complete_proof']+[b for check in result['checks'] for b in check['blockers']]
     return result

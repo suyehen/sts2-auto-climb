@@ -61,6 +61,7 @@ def test_dashboard_configuration_routes_guard_and_proxy(tmp_path,monkeypatch):
             assert calls[-1]==('/config/'+route,{'mode':'standard'})
         assert b'config-controls' in urlopen(url+'/').read()
         assert b'autoslay-config' in urlopen(url+'/configuration.js').read()
+        assert b'controlView' in urlopen(url+'/agent-state.js').read()
     finally:
         srv.shutdown();srv.server_close();thread.join()
 
@@ -81,4 +82,32 @@ def test_dashboard_switch_proxy_and_assets(tmp_path,monkeypatch):
             html=urlopen(url+path).read().decode()
             assert 'agent-controls' in html and 'agent.js' in html
         assert b'api_key' in urlopen(url+'/agent.js').read()
+        sidebar=urlopen(url+'/sidebar.html').read().decode()
+        assert 'id="decision-disclosure" open' in sidebar
+        assert 'id="enemy-intents"' in sidebar and 'id="decision-forecast"' in sidebar
+        assert b'renderSidebarCombat' in urlopen(url+'/sidebar.js').read()
+        with urlopen(url+'/sidebar-combat.js') as response:
+            assert response.headers.get_content_type()=='text/javascript'
+            assert b'candidateIntentFacts' in response.read()
+    finally:srv.shutdown();srv.server_close();thread.join()
+
+
+def test_dashboard_launch_routes_are_guarded_and_preserve_request_identity(tmp_path,monkeypatch):
+    calls=[]
+    def fake(route,body=None):
+        calls.append((route,body));return dict(job=None,agent=dict(running=False)),200
+    monkeypatch.setattr(dashboard,'agent_request',fake)
+    srv=dashboard.make_server(0,tmp_path/'archive');thread=threading.Thread(target=srv.serve_forever,daemon=True);thread.start()
+    url='http://127.0.0.1:'+str(srv.server_port)
+    body=dict(request_id='play-123',mode='continue',profile_id='codex')
+    try:
+        with pytest.raises(HTTPError) as exc:post(url+'/api/play/start',body)
+        assert exc.value.code==403 and not calls
+        json.load(post(url+'/api/play/start',body,{'X-Autoslay-ReadOnly':'1'}))
+        assert calls[-1]==('/play/start',body)
+        json.load(urlopen(Request(url+'/api/play/state?request_id=play-123',headers={'X-Autoslay-ReadOnly':'1'})))
+        assert calls[-1]==('/play/state',{'request_id':'play-123'})
+        assert b'play-controls' in urlopen(url+'/').read()
+        assert b'playView' in urlopen(url+'/play.js').read()
+        assert b'launchPhases' in urlopen(url+'/play-state.js').read()
     finally:srv.shutdown();srv.server_close();thread.join()

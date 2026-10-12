@@ -19,7 +19,7 @@ from autoslay.planning import relic_timing
 from autoslay.evaluation.relic_timing import OpeningContext, TimingPolicy
 from autoslay.paths import ROOT
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 
 def load_policy(path: Path) -> combat_eval.CombatPolicy:
@@ -93,7 +93,7 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
                   limitations=["read-only candidates; Codex chooses actions from a fresh legal catalog",
                                "search is bounded and does not prove optimal play",
                                "draw continuations are scenario estimates with explicit coverage" if lookahead_settings is not None else "draw prefixes have no estimated continuation value yet",
-                               "forecast covers current visible attacks, not complete enemy-turn scripts",
+                               "current-turn metrics cover visible attacks; lookahead separately executes supported local monster adapters and reports unknown branches",
                                "random exhaustion, upgrades, nonattack exhaustion and newly applied Weak stop at observation boundaries",
                                "remaining Beating Remnant allowance is hidden; self-HP loss stops at observation, attack forecast uses a conservative upper bound",
                                "Permafrost power-card trigger is unsupported; known non-power cards have no trigger",

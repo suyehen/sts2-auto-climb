@@ -3,7 +3,7 @@ from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
@@ -58,7 +58,13 @@ def normalize(snapshot: dict) -> CombatState:
             if relic.get("counter") is None and not legion:
                 warnings.append("UNKNOWN_LEGION_READINESS")
     enemies = []
+    from autoslay.knowledge.behavior import load as load_behavior
+    behavior=load_behavior()
+    monster_entries={e['entity_id']:e for e in behavior.get('entries',[]) if e['category']=='monster'} if behavior.get('game_assembly_sha256')==snapshot.get('game_assembly_sha256') else {}
     for e in s.get("enemies") or []:
+        hooks=set(monster_entries.get(e['entity_id'],{}).get('mechanics',{}))-{'AfterAddedToRoom'}
+        if hooks:
+            warnings.append('UNMODELED_MONSTER_SPECIAL_HOOKS:'+e['entity_id']+':'+','.join(sorted(hooks)))
         powers = {x["entity_id"]: x["amount"] for x in e.get("powers", [])}
         for power in powers.keys() - KNOWN_ENEMY_POWERS:
             warnings.append("UNMODELED_ENEMY_POWER:" + e["instance_id"] + ":" + power)
@@ -75,7 +81,10 @@ def normalize(snapshot: dict) -> CombatState:
         enemies.append(Enemy(e["instance_id"], e["entity_id"], e["hp"], e["block"],
                              powers.get("POWER.VULNERABLE_POWER", 0), powers.get("POWER.HARD_TO_KILL_POWER"),
                              tuple(attacks), tuple(sorted(powers)), tuple(uncertain), bool(powers.get("POWER.MINION_POWER")),
-                             powers.get("POWER.STRENGTH_POWER", 0), powers.get("POWER.WEAK_POWER", 0) > 0))
+                             powers.get("POWER.STRENGTH_POWER", 0), powers.get("POWER.WEAK_POWER", 0) > 0,
+                             max_hp=e.get('max_hp',0),weak_turns=powers.get('POWER.WEAK_POWER',0),
+                             runtime_fields=tuple(sorted((k,v) for k,v in (e.get('runtime_state') or {}).get('fields',{}).items()
+                                                        if type(v) in {int,bool,str}))))
     actions = {a["action_id"]: a for a in s.get("legal_actions", [])}
     potions = []
     for potion in p.get("potions", []):

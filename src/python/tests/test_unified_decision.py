@@ -28,6 +28,8 @@ def battle(cards=(),draw=(('CARD.STRIKE_IRONCLAD',1),('CARD.DEFEND_IRONCLAD',6))
 
 def snapshot(cards): return {'state':{'player':{'deck':cards}}}
 
+def toy_scenario(): return [dict(name='synthetic_attack_only',future_attacks={'enemy':[2]})]
+
 def test_draw_three_of_seven_keeps_exact_probability_and_card_count(entries):
     templates=templates_for(snapshot([raw('STRIKE_IRONCLAD'),raw('DEFEND_IRONCLAD')]),entries)
     branches,method=draw_branches(battle(),3,templates,8,42)
@@ -64,7 +66,7 @@ def test_draw_prefix_continuation_finishes_with_one_in_seven(entries):
     s=battle([shrug],enemy_hp=6)
     data=snapshot([raw('SHRUG_IT_OFF'),raw('STRIKE_IRONCLAD'),raw('DEFEND_IRONCLAD')])
     report=evaluate_lookahead(data,s,[],[{'steps':[dict(action_id='play_shrug',target_id=None)]}],entries,
-                              dict(horizon=1,branches=8,time_ms=1000))
+                              dict(horizon=1,branches=8,time_ms=1000),toy_scenario())
     result=report['candidates'][0]['scenarios'][0]['result']
     assert result['covered_probability']==pytest.approx(1)
     assert result['conditional_metrics']['finished']==pytest.approx(1/7)
@@ -75,7 +77,7 @@ def test_potion_draw_continuation_finishes_with_three_in_seven(entries):
     potion=Potion('p','POTION.SWIFT_POTION','Draw 3 cards.','use_p',('player',))
     state=replace(battle(enemy_hp=6),potions=(potion,))
     report=evaluate_lookahead(snapshot([raw('STRIKE_IRONCLAD'),raw('DEFEND_IRONCLAD')]),state,[],
-         [{'steps':[dict(action_id='use_p',target_id='player')]}],entries,dict(horizon=1,branches=8,time_ms=1000))
+         [{'steps':[dict(action_id='use_p',target_id='player')]}],entries,dict(horizon=1,branches=8,time_ms=1000),toy_scenario())
     result=report['candidates'][0]['scenarios'][0]['result']
     assert result['covered_probability']==pytest.approx(1)
     assert result['conditional_metrics']['finished']==pytest.approx(3/7)
@@ -95,7 +97,7 @@ def test_two_turn_finishing_scenario(entries):
     strike=Card('strike','CARD.STRIKE_IRONCLAD',1,'AnyEnemy','Deal 6 damage.')
     s=battle([strike],draw=(('CARD.STRIKE_IRONCLAD',1),),enemy_hp=12)
     report=evaluate_lookahead(snapshot([raw('STRIKE_IRONCLAD')]),s,[{'steps':[dict(action_id='play_strike',target_id='enemy')]}],[],entries,
-                              dict(horizon=2,branches=8,time_ms=1000,draws=1))
+                              dict(horizon=2,branches=8,time_ms=1000,draws=1),toy_scenario())
     result=report['candidates'][0]['scenarios'][0]['result']
     assert result['covered_probability']==1 and result['conditional_metrics']['finished']==1
     assert result['conditional_metrics']['hp_loss']==2

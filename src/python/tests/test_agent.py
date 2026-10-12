@@ -78,6 +78,15 @@ def test_context_relevant_catalog_not_full_and_byte_budget():
     with pytest.raises(ValueError,match='CONTEXT_BUDGET'):build(s,{},max_bytes=10)
 
 
+def test_generated_monster_cards_are_referenced_in_agent_packet():
+    s=live()
+    forecast=dict(enemy_model={},candidates=[dict(scenarios=[dict(enemy_turns=[dict(
+        generated_cards=[dict(entity_id='CARD.SLIMED',amount=2,pile='discard')])])])])
+    result=build(s,dict(source={},phase='combat',combat={'lookahead':forecast}))
+    assert any(e['entity_id']=='CARD.SLIMED' for e in result['reference_entries'])
+    assert result['calculator']['combat_forecast']
+
+
 @pytest.mark.parametrize('kind,mode', [('api','json'),('api','schema'),('local','text')])
 def test_compatible_api_wire_format(kind,mode):
     async def run():
@@ -199,6 +208,37 @@ def test_ai_loop_one_decision_and_no_repeat_on_unchanged_state(tmp_path):
         await agent.command('/pause',{})
         assert len(calls)==1 and agent.submit.await_count==1
         assert agent.last['source']=='codex' and not agent.running
+    asyncio.run(run())
+
+
+def test_pause_resume_reanalyzes_current_state_and_archives_new_report(tmp_path,monkeypatch):
+    async def run():
+        calls=[];archived=[];entered=asyncio.Queue();cancelled=[]
+        class Provider:
+            async def decide(self,packet):
+                calls.append(packet)
+                entered.put_nowait(len(calls))
+                try: await asyncio.Event().wait()
+                finally: cancelled.append(len(calls))
+        agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:Provider())
+        agent.record=True
+        def analyze(snap):
+            return dict(source=source(snap),phase='combat',analysis_id='resume-'+str(snap['state_version']))
+        agent.analyze=analyze
+        monkeypatch.setattr('autoslay.agent.runtime.decisions.archive',lambda report,snap:archived.append((deepcopy(report),deepcopy(snap))))
+        monkeypatch.setattr('autoslay.agent.runtime.runs.stage',lambda *args:None)
+        await agent.command('/start',{})
+        assert await asyncio.wait_for(entered.get(),3)==1
+        await agent.command('/pause',{})
+        assert cancelled==[1] and agent.task is None
+        s['state_version']+=1
+        await agent.command('/start',{})
+        assert await asyncio.wait_for(entered.get(),3)==2
+        await agent.command('/pause',{})
+        assert len(archived)==2 and submit.await_count==0
+        assert archived[1][0]['source']==source(s)
+        assert calls[1]['source']['state_version']==s['state_version']
+        assert calls[0]['source']['state_version']!=calls[1]['source']['state_version']
     asyncio.run(run())
 
 

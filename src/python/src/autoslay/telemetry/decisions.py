@@ -94,8 +94,20 @@ def archive_tool_result(result,snapshot,kind,options=None):
 def packet(report):
     return dict(source=report['source'],phase=report['phase'],units='heuristic scores and conditional forecasts; not win probability',
                 candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','rest','route') if k in report},
-                coverage=(report.get('combat') or {}).get('coverage'),autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),
+                coverage=(report.get('combat') or {}).get('coverage'),combat_forecast=forecast_packet((report.get('combat') or {}).get('lookahead')),
+                autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),
                 limitations=report.get('limitations'),knowledge=report.get('knowledge_compatibility'))
+
+
+def forecast_packet(value):
+    if value is None:return None
+    result=strip_details(value)
+    for candidate in result.get('candidates',[]):
+        for scenario in candidate.get('scenarios',[]):
+            turns=scenario.get('enemy_turns',[])
+            scenario['enemy_turns']=turns[:8]
+            scenario['additional_turn_records_local']=max(0,len(turns)-8)
+    return result
 
 
 def event_sequence_packet(value):

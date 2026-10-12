@@ -1,5 +1,6 @@
 /* Human-readable projections. The source objects remain intact for engineering inspection. */
 import {eventForecastFacts,eventBranchFacts} from './event-forecast.js';
+import {combatForecastFacts} from './combat-forecast.js';
 export function gameText(value){return String(value).replace(/(\[img\]([^\[]+)\[\/img\])(?:\1)*/g,(match,whole,path,offset,source)=>{const images=[...match.matchAll(/\[img\]([^\[]+)\[\/img\]/g)];const unit=images[0][1].includes('energy_icon')?'能量':images[0][1].includes('star_icon')?'星星':'图标';return (images.length===1&&/[0-9X]/.test(source[offset-1]||'')?'':images.length)+'点'+unit;}).replace(/\[\/?(?:gold|blue|red|green|purple|orange|white|gray|grey|pink|yellow|b|i)\]/g,'');}
 export const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=tag==='pre'?text:gameText(text);if(cls)n.className=cls;return n};
 export const fmt=v=>v==null?'未记录':typeof v==='boolean'?(v?'是':'否'):typeof v==='number'?(Number.isInteger(v)?String(v):v.toFixed(2)):String(v);
@@ -36,6 +37,79 @@ export function candidateGroups(report,snapshot,detailed=false){const out=el('di
   if(detailed){card.append(table(c.metrics||c),table(c),table(c.components||c.component_deltas));if(c.state_trace){const d=el('details');d.append(el('summary','逐步伤害与资源变化'));for(const step of c.state_trace){d.append(el('p',actionName(step.action,snapshot),'result-description'),el('small','执行前'),table(step.before),el('small','执行后'),table(step.after))}card.append(d)}}group.append(card)}out.append(group)}
  if(!count)out.append(empty('尚无候选分析','未计算的收益与概率不会按零处理。'));return out;
 }
+export function combatForecastPanel(forecast,snapshot={}){
+ const panel=el('details',undefined,'combat-forecast');panel.id='combat-forecast-panel';panel.append(el('summary','怪物行动、分支与计算范围'));
+ const scope=el('details',undefined,'forecast-scope');scope.id='combat-forecast-scope';scope.append(el('summary','计算范围与未覆盖内容'));
+ const modeled=forecast.enemy_model?.mode==='local_behavior_graph';
+ scope.append(definitions([['推演窗口',(forecast.horizon??'未知')+' 回合'],['行为模型',modeled?'本地怪物行动图':'指定攻击场景'],['计算预算',forecast.budget_exhausted?'已耗尽，部分分支未计算':'未标记耗尽']]));
+ scope.append(el('p',modeled?'后续分支按各方案出牌后的状态计算。':'指定攻击场景不能当作怪物真实后续行为。','hint'));
+ if(forecast.unmodeled?.length||forecast.enemy_model?.source_issues?.length)scope.append(el('p','存在未支持的行为、状态或交互，缺失部分没有按零伤害计算。','decision-note'));
+ scope.append(el('p','分支概率依赖对应状态；窗口内条件结果不代表整场战斗胜率。','hint'));panel.append(scope);
+ for(const candidate of forecast.candidates||[]){
+  const label=(candidate.group==='observation_boundaries'?'抽牌方案':'战斗方案')+' '+(candidate.index+1);
+  const plan=el('details',undefined,'forecast-plan');plan.id=`forecast-${candidate.group}-${candidate.index}`;plan.append(el('summary',label));
+  const steps=candidate.steps||[];plan.append(el('p',steps.length?steps.map(step=>actionName(step,snapshot)).join(' → '):'保留资源，暂不继续出牌','forecast-actions'));
+  for(const [index,scenario] of (candidate.scenarios||[]).entries()){
+   const section=el('section',undefined,'forecast-scenario');
+   if(candidate.scenarios.length>1)section.append(el('h3','场景 '+(index+1)+' · '+scenario.name));
+   const result=scenario.result;
+   section.append(el('h4','窗口内计算结果'));
+   if(result?.conditional_metrics&&result.covered_probability>0){
+    section.append(table({covered_probability:result.covered_probability,hp_loss:result.conditional_metrics.hp_loss,remaining_primary_enemy_hp:result.conditional_metrics.remaining_enemy_hp}));
+    if(result.covered_probability<1)section.append(el('p','尚有未覆盖分支；以上结果仅适用于已计算部分。','decision-note'));
+   }else section.append(el('p','后续结果未知，不能据此判断安全。','decision-note'));
+   section.append(el('h4','怪物行动分支'));
+   const enemies=new Map();
+   for(const row of modeled?scenario.enemy_turns||[]:[]){
+    if(!enemies.has(row.instance_id))enemies.set(row.instance_id,[]);
+    const rows=enemies.get(row.instance_id);if(!rows.some(r=>JSON.stringify(r)===JSON.stringify(row)))rows.push(row);
+   }
+   for(const [id,rows] of enemies){
+    const enemy=el('details',undefined,'forecast-enemy');enemy.id=`${plan.id}-scenario-${index}-enemy-${id}`;
+    enemy.append(el('summary',rows[0].name||snapshot.state?.enemies?.find(e=>e.instance_id===id)?.name||'敌人'));
+    const turns=new Map();for(const row of rows){if(!turns.has(row.turn))turns.set(row.turn,[]);turns.get(row.turn).push(row)}
+    for(const [turn,branches] of turns){
+     const round=el('section',undefined,'forecast-turn');round.append(el('h4',turn==null?'回合未记录':'第 '+turn+' 回合'));
+     for(const [branchIndex,row] of branches.entries()){
+      const branch=el('div',undefined,'forecast-branch');branch.append(el('strong','分支 '+(branchIndex+1)),el('p',(row.move_title||row.move||'当前行动')+' → '+(row.next_move_title||row.next_move||'后续未预测'),'forecast-transition'));
+      const hits=row.next_attacks,attack=hits==null?'未预测':hits.length?hits.map(fmt).join(' + ')+' = '+fmt(hits.reduce((sum,v)=>sum+v,0))+' 点':'不包含攻击';
+      branch.append(definitions([['出牌后怪物生命',row.enemy_hp],['下一招攻击',attack],['该状态下转移概率',metricValue('probability',row.probability)]]));
+      for(const card of row.generated_cards||[])branch.append(el('p',`生成 ${card.amount} 张${card.name||'状态牌'} → ${card.pile==='discard'?'弃牌堆':'抽牌堆'}`,'hint'));
+      round.append(branch);
+     }
+     enemy.append(round);
+    }
+    section.append(enemy);
+   }
+   if(!enemies.size)section.append(el('p',modeled?'本场景未记录怪物行动；不能据此推断没有后续威胁。':'此场景没有真实怪物后续行动预测。','hint'));
+   plan.append(section);
+  }
+  panel.append(plan);
+ }
+ if(!forecast.candidates?.length)panel.append(el('p','暂无候选方案推演。','hint'));
+ return panel;
+}
+export function autonomyPanel(autonomy,snapshot={}){
+ const panel=el('details',undefined,'autonomy-proof');panel.id='autonomy-proof';
+ panel.append(el('summary',autonomy.eligible?'本地决策依据 · 未调用 AI':'评分比较与 AI 分流'));
+ const evidence=autonomy.evidence||{},review=autonomy.score_review;
+ if(autonomy.eligible){
+  const names={forced_action:'必须推进的唯一动作',forced_end_turn:'只能结束回合',mandatory_card_selection:'必须选择全部候选牌',certain_combat_finish:'确定立即结束战斗',eliminate_certain_death:'排除明确致死选项',equivalent_outcomes:'完整结果等价',dominant_outcome:'战后资源严格支配',common_first_step:'最佳路线的共同首步'};
+  panel.append(definitions([['分流规则',names[autonomy.rule_id]||autonomy.rule_id],['下一步',(autonomy.selected_steps||[]).map(s=>actionName(s,snapshot)).join(' → ')],['AI 调用','跳过']]));
+  if(evidence.search)panel.append(definitions([['路线搜索完整',evidence.search.complete],['已搜索状态',evidence.search.nodes],['可结束战斗的路线',evidence.finish_count],['最佳等价路线',evidence.equivalent_best_count],['被严格支配的路线',evidence.dominated_finish_count],['战后生命',evidence.hp_after_victory]]));
+  if(evidence.selected_continuation?.length)panel.append(el('p','证明使用的路线：'+evidence.selected_continuation.map(step=>actionName(step,snapshot)).join(' → '),'result-description'));
+  if(evidence.search)panel.append(el('p','仅执行下一步，结算后重新读取状态和证明。比较范围为已核验的本回合结束战斗场景。','hint'));
+  for(const [index,finish] of (evidence.compared_finishes||[]).entries()){
+   const row=el('details');row.id='autonomy-finish-'+index;row.append(el('summary','结束路线 '+(index+1)));
+   row.append(el('p',finish.steps.map(step=>actionName(step,snapshot)).join(' → '),'result-description'),definitions([['战后生命',finish.persistent_outcome?.hp],['所选路线与此路线比较',({equal:'结果等价',dominates:'所选路线更好'})[finish.relation_to_selected]||'尚未确定']]));panel.append(row);
+  }
+ }else panel.append(el('p',autonomy.mode==='wait'?'当前暂停或状态未就绪，等待新状态后再判断。':'没有完整的确定性证明，需要 AI 综合判断。','result-description'));
+ if(review){
+  panel.append(definitions([['最高收益分',review.leading_score],['第二高收益分',review.runner_up_score],['收益分差',review.score_gap],['最高分并列方案',review.tied_leaders]]));
+  panel.append(el('p',review.reason,'hint'));
+ }
+ return panel;
+}
 export function renderDecision(host,record,tab='summary',choice=null,evidence=null,options={}){const disclosures=options.live?disclosureState(host):null;host.replaceChildren();if(!record){host.append(empty('选择一条记录','在时间线中点击决策或状态，查看对应房间的详细信息。'));return}
  const r=record.report||{},snapshot=record.snapshot||{},s=snapshot.state||{};
  if(tab==='evidence'){for(const observation of evidence?.observations||[]){const c=observation.event_comparison;if(!c)continue;const d=el('details');d.open=true;d.append(el('summary','事件选择：预测与实测对照'));for(const [key,label]of [['hp','生命'],['max_hp','生命上限'],['gold','金币']])d.append(definitions([[label+'预测变化',c.predicted_change?.[key]],[label+'实际变化',c.actual_change?.[key]],[label+'实际减预测',c.residual?.[key]],[label+'是否在模型结果范围内',c.within_modeled_support?.[key]]]));d.append(el('p','仅核对本次选择；随机结果偏离平均值不代表规则有误，权重不会自动修改。','result-description'));host.append(d)}}
@@ -43,6 +117,8 @@ export function renderDecision(host,record,tab='summary',choice=null,evidence=nu
  const p=s.player||{},c=p.creature||{};if(!options.live)host.append(definitions([['房间',phase(r.phase||s.phase)],['当时生命',c.hp!=null?c.hp+' / '+c.max_hp:'未记录'],['当时能量',p.energy],['当时金币',p.gold]]));
  if(choice?.reason)host.append(el('p',choice.reason,'decision-note'));
  if(r.autonomy?.eligible)host.append(el('p','这一步已通过确定性检查，可以直接执行，无需等待 AI。','decision-note'));
+ if(r.autonomy?.eligible||r.autonomy?.score_review)host.append(autonomyPanel(r.autonomy,snapshot));
+ if(r.combat?.lookahead){const facts=combatForecastFacts(r.combat.lookahead,snapshot),summary=el('div',undefined,'combat-forecast-summary');summary.append(el('h3',r.combat.lookahead.horizon+' 回合推演'));for(const fact of facts.filter(f=>/^(战斗方案|抽牌方案)/.test(f)))summary.append(el('p',fact,'result-description'));host.append(summary);const panel=combatForecastPanel(r.combat.lookahead,snapshot);panel.open=tab==='metrics'&&!options.live;host.append(panel)}
  if(options.live)host.append(candidateGroups(r,snapshot,false));
  if(r.mechanism_audit){const panel=mechanismPanel(r.mechanism_audit);if(options.live)panel.open=false;host.append(panel)}
  if(r.event_runtime_validation){const v=r.event_runtime_validation;const d=el('details');d.append(el('summary','事件实时读取核对'),definitions([['资料版本一致',v.source_matches],['已读取动态字段数量',v.observed_field_count],['未读取的字段',v.missing_fields?.join('、')||'无']]));for(const [name,value]of Object.entries(v.variables||{}))d.append(definitions([[name,value]]));host.append(d)}

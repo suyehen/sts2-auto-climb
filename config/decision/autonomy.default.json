@@ -1,7 +1,7 @@
 {
   "version": "2.0.0",
   "deterministic_enabled": true,
-  "enabled_rules": ["forced_action", "forced_end_turn", "mandatory_card_selection", "certain_combat_finish", "eliminate_certain_death"],
+  "enabled_rules": ["forced_action", "forced_end_turn", "mandatory_card_selection", "certain_combat_finish", "eliminate_certain_death", "equivalent_outcomes", "dominant_outcome", "common_first_step"],
   "complex_strategy_enabled": false,
   "minimum_probability_coverage": 1.0,
   "require_future_threat_coverage": true,

@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-CONTRACT_VERSION = "1.5.0"
+CONTRACT_VERSION = "1.6.0"
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,12 @@ class Enemy:
     minion: bool = False
     strength: int = 0
     weak: bool = False
+    max_hp: int = 0
+    weak_turns: int = 0
+    move_state: str | None = None
+    move_history: tuple[str, ...] = ()
+    history_complete: bool = False
+    runtime_fields: tuple[tuple[str, int | bool | str], ...] = ()
 
 
 @dataclass(frozen=True)
