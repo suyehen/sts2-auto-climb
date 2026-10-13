@@ -114,6 +114,13 @@ public static partial class Bridge
             var completion = ReadUiField<TaskCompletionSource<int?>?>(choiceScreen, "_completionSource");
             var available = idle && completion != null && !completion.Task.IsCompleted;
             var row = ReadUiField<Control>(choiceScreen, "_cardRow");
+            var holders = row.GetChildren().OfType<NGridCardHolder>()
+                .Where(h => h.CardModel != null && !h.IsQueuedForDeletion()).ToArray();
+            // Alternatives can enable before the card intro animation finishes.
+            // Do not expose Skip as the sole choice during that transition.
+            var cardsReady = holders.All(h =>
+                ReadUiField<bool>(h, "_isClickable") && h.IsVisibleInTree());
+            available = available && cardsReady;
             foreach (var holder in row.GetChildren().OfType<NGridCardHolder>())
             {
                 if (holder.CardModel == null || holder.IsQueuedForDeletion()) continue;

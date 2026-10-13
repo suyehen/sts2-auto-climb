@@ -8,8 +8,8 @@ export const character=v=>({IRONCLAD:'铁甲战士',SILENT:'静默猎手',DEFECT
 export const phase=v=>({combat:'战斗',event:'事件',shop:'商店',rest_site:'休息处',treasure:'宝箱',map:'地图',card_reward_selection:'抓牌',card_selection:'选牌',main_menu:'主菜单',singleplayer_menu:'单人菜单',character_selection:'角色选择',game_over:'对局结束',no_run:'未进入对局',rewards:'领取奖励',reward:'领取奖励',outside_combat:'房间内'})[v]||'等待状态';
 export const result=v=>({win:'胜利',loss:'失败',abandoned:'已放弃',unknown:'未记录结果'})[v]||'尚未记录终局';
 export const room=v=>({Monster:'普通战斗',Elite:'精英战斗',Boss:'首领',RestSite:'休息处',Shop:'商店',Treasure:'宝箱',Unknown:'未知事件',Ancient:'远古之民',AncientMapPoint:'远古之民'})[v]||phase(v);
-export const stage=v=>({analysis_started:'正在计算',decision:'分析已完成',ai_choice:'AI 已作出选择',local_choice:'已作出确定性选择',local_outcome:'自动动作已结算',action_submitted:'正在执行',action_receipt:'等待结算',action_result:'动作已结算',outcome_observed:'结果已记录',snapshot:'状态快照',agent_packet:'已提交给决策模型',agent_outcome:'Agent 执行结果',agent_error:'Agent 异常停止'})[v]||'对局记录';
-export const agentPhase=v=>({paused:'已暂停',reading_state:'读取游戏状态',calculating:'比较候选方案',waiting_model:'等待 AI 决策',executing:'正在执行',local_deterministic:'执行确定性策略',finished:'对局已结束',error:'运行已中止'})[v]||'等待状态';
+export const stage=v=>({analysis_started:'正在计算',decision:'分析已完成',ai_choice:'AI 已作出选择',local_choice:'已作出确定性选择',local_outcome:'自动动作已结算',action_submitted:'正在执行',action_receipt:'等待结算',action_result:'动作已结算',outcome_observed:'结果已记录',snapshot:'状态快照',agent_packet:'已提交给决策模型',agent_outcome:'Agent 执行结果',agent_request:'模型请求状态',agent_error:'Agent 异常停止'})[v]||'对局记录';
+export const agentPhase=v=>({paused:'已暂停',reading_state:'读取游戏状态',calculating:'比较候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'正在执行',local_deterministic:'执行确定性策略',finished:'对局已结束',error:'运行已中止'})[v]||'等待状态';
 export const reason=v=>({PLAN_COMPLETED:'动作计划已完成',OBSERVATION_REQUIRED:'需要读取新状态后继续判断',STATE_CHANGED:'游戏状态已变化，需要重新判断',MODEL_TIMEOUT:'模型等待超时',UNKNOWN_EFFECT:'存在尚未支持的效果'})[v]||(/^[A-Z][A-Z0-9_]+$/.test(v||'')?'详细原因尚未提供中文解释':v||'');
 export const metricValue=(key,value)=>key.endsWith('probability')&&typeof value==='number'?(value*100).toFixed(1)+'%':fmt(value);
 export function disclosureState(host){return new Map(Array.from(host.querySelectorAll?.('details')||[],d=>[d.id||d.querySelector('summary')?.textContent,d.open]))}
@@ -18,6 +18,19 @@ export const metrics={projected_hp_loss:'预计失血',effective_hp_damage:'有�
 Object.assign(metrics,{permanent_strength_gain:'永久力量增益',requested_draw:'请求抽牌数',remaining_hand_size:'剩余手牌数',projected_hp_loss_is_upper_bound:'失血预测是否仅为上限',hand_limit:'手牌上限',effect_draw_blocked:'效果抽牌是否被禁止',turn:'回合数',stars:'星星',base_strength:'基础力量',strength_delta:'力量变化',temporary_strength:'临时力量',hp_loss_reduction:'失血减免',turn_hp_loss_cap:'本回合失血上限',damage_weight:'伤害权重',block_weight:'格挡权重',draw_weight:'抽牌权重',energy_weight:'能量权重',strength_weight:'力量权重',vulnerable_weight:'易伤权重',curse_weight:'诅咒权重',hp_weight:'生命权重',max_hp_weight:'生命上限权重',gold_weight:'金币权重',risk_weight:'风险权重',opening_draw:'首回合抽牌',permanent_strength_weight:'永久力量权重',draw_option_weight:'抽牌机会权重',strength_multihit_weight:'力量与多段攻击协同',draw_cheap_card_weight:'抽牌与低费牌协同',exhaust_block_weight:'消耗与格挡协同',deck_size_penalty:'卡组厚度负担'});
 export function empty(title,text){const n=el('div',undefined,'empty-state');n.append(el('div','◇','empty-symbol'),el('strong',title),el('p',text));return n}
 export function stat(label,value,note){const n=el('div',undefined,'stat-card');n.append(el('span',label),el('strong',fmt(value)));if(note)n.append(el('small',note));return n}
+export function decisionSourceStats(manifest){
+ const counts=manifest?.counts;
+ if(!counts)return {local:null,ai:null,total:null,localRate:null,aiRate:null};
+ const local=counts.local_choice??0,ai=counts.ai_choice??0,total=local+ai;
+ return {local,ai,total,localRate:total?local/total:null,aiRate:total?ai/total:null};
+}
+export function renderDecisionStats(host,manifest){
+ const stats=decisionSourceStats(manifest),grid=el('div',undefined,'decision-stats-grid');
+ for(const [label,count,rate] of [['本地决策率',stats.local,stats.localRate],['AI 决策率',stats.ai,stats.aiRate]]){
+  grid.append(stat(label,rate===null?'—':(rate*100).toFixed(1)+'%',count===null?'数量未记录':count+' 次'));
+ }
+ host.replaceChildren(grid,el('p',stats.total===null?'暂无本局选择统计':stats.total===0?'本局尚未记录决策选择':'本局已记录 '+stats.total+' 次选择 · 占比按本地 + AI 选择计算','decision-stats-note'));
+}
 export function definitions(rows){const n=el('div');for(const [key,value]of rows){const r=el('div',undefined,'definition-row');r.append(el('span',key),el('strong',fmt(value)));n.append(r)}return n}
 export function table(value){const t=el('table',undefined,'human-table');for(const [k,v]of Object.entries(value||{})){if(!metrics[k]||typeof v==='object'&&v!==null)continue;const r=el('tr');r.append(el('th',metrics[k]),el('td',metricValue(k,v)));t.append(r)}return t}
 export function raw(title,value){const d=el('details');d.append(el('summary',title),el('pre',JSON.stringify(value,null,2)));return d}
@@ -127,8 +140,44 @@ export function autonomyPanel(autonomy,snapshot={}){
  }
  return panel;
 }
+export function observedEffectsPanel(facts){
+ const panel=el('details');panel.open=true;
+ panel.append(el('summary','Agent 实际执行效果与收益'));
+ const labels={deck:'牌组',relics:'遗物',potions:'药水',hand:'手牌',exhaust:'消耗堆'};
+ const fields={upgrade_level:'升级等级',enchantment_id:'附魔',affliction_id:'附着效果',description:'效果说明',energy_cost:'能量费用'};
+ for(const fact of facts){
+  if(fact.status!=='observed'){
+   for(const note of fact.notes||[])panel.append(el('p',note,'hint'));
+   continue;
+  }
+  for(const [key,value]of Object.entries(fact.resources||{})){
+   if(value.change!==0)panel.append(definitions([[metrics[key]||key,fmt(value.before)+' → '+fmt(value.after)+'（'+(value.change>0?'+':'')+fmt(value.change)+'）']]));
+  }
+  for(const [key,value]of Object.entries(fact.collections||{})){
+   for(const item of value.added||[]){
+    panel.append(el('p',labels[key]+'新增：'+(item.name||item.entity_id)+(item.count>1?' × '+item.count:'')));
+    if(item.description)panel.append(el('p',item.description,'hint'));
+   }
+   for(const item of value.removed||[])panel.append(el('p',labels[key]+'移出：'+(item.name||item.entity_id)));
+   for(const item of value.modified||[]){
+    panel.append(el('p',(item.name||item.entity_id)+'已修改'));
+    for(const [field,change]of Object.entries(item.changes||{}))panel.append(el('p',(fields[field]||field)+'：'+fmt(change.before)+' → '+fmt(change.after),'hint'));
+   }
+  }
+  for(const creature of fact.creatures||[]){
+   const name=creature.name||(creature.instance_id==='player'?'玩家':'敌人');
+   if(creature.removed)panel.append(el('p',name+'离开战场；击杀归因需结合动作确认。','hint'));
+   if(creature.instance_id!=='player'&&creature.hp_before!=null&&creature.hp_after!=null&&creature.hp_before!==creature.hp_after)
+    panel.append(el('p',name+' · 生命：'+fmt(creature.hp_before)+' → '+fmt(creature.hp_after)));
+   for(const power of creature.powers||[])panel.append(el('p',name+' · '+(power.name||power.entity_id)+'：'+fmt(power.before)+' → '+fmt(power.after)));
+  }
+  for(const note of fact.notes||[])panel.append(el('p',note,'hint'));
+ }
+ return panel;
+}
 export function renderDecision(host,record,tab='summary',choice=null,evidence=null,options={}){const disclosures=options.live?disclosureState(host):null;host.replaceChildren();if(!record){host.append(empty('选择一条记录','在时间线中点击决策或状态，查看对应房间的详细信息。'));return}
  const r=record.report||{},snapshot=record.snapshot||{},s=snapshot.state||{};
+ if(evidence?.executed_effects?.length)host.append(observedEffectsPanel(evidence.executed_effects));
  if(tab==='evidence'){for(const observation of evidence?.observations||[]){const c=observation.event_comparison;if(!c)continue;const d=el('details');d.open=true;d.append(el('summary','事件选择：预测与实测对照'));for(const [key,label]of [['hp','生命'],['max_hp','生命上限'],['gold','金币']])d.append(definitions([[label+'预测变化',c.predicted_change?.[key]],[label+'实际变化',c.actual_change?.[key]],[label+'实际减预测',c.residual?.[key]],[label+'是否在模型结果范围内',c.within_modeled_support?.[key]]]));d.append(el('p','仅核对本次选择；随机结果偏离平均值不代表规则有误，权重不会自动修改。','result-description'));host.append(d)}}
  if(tab==='evidence'){const grid=el('div',undefined,'evidence-layout');const intended=el('div',undefined,'evidence-cell'),actual=el('div',undefined,'evidence-cell');intended.append(el('h3','当时选择了什么'),el('p',evidence?.choice?.reason||choice?.reason||'尚未记录选择理由。'));actual.append(el('h3','实际发生了什么'));const outcomes=evidence?.observations||[];if(!outcomes.length)actual.append(el('p','暂无与这次决策匹配的结果记录。'));for(const o of outcomes){if(o.note)actual.append(el('p',o.note,'result-description'));actual.append(table(o.actual||o.observed||o));}const plans=evidence?.plans||[];for(const p of plans)actual.append(el('p',({completed:'执行完成',stopped:'已停止',running:'执行中'})[p.status]||'计划已记录'));grid.append(intended,actual);host.append(grid);return}
  const p=s.player||{},c=p.creature||{};if(!options.live)host.append(definitions([['房间',phase(r.phase||s.phase)],['当时生命',c.hp!=null?c.hp+' / '+c.max_hp:'未记录'],['当时能量',p.energy],['当时金币',p.gold]]));

@@ -220,3 +220,26 @@ def test_draw_report_does_not_invent_reshuffle_probability():
     boundary = report["observation_boundaries"][0]
     assert boundary["draw_analysis"]["supported"] is False
     assert "reshuffle" in boundary["draw_analysis"]["reason"]
+
+@pytest.mark.parametrize('flag',['costs_x','costs_star_x'])
+def test_variable_cost_is_reported_without_crashing_or_fixed_cost_simulation(flag):
+    from test_deterministic import live
+    from autoslay.decision.unified import analyze_decision
+    from autoslay.agent.context import build
+    from autoslay.agent.contracts import validate_plan
+    from autoslay.decision.deterministic import source,assess
+    from autoslay.agent.plans import prepare
+    s=live();s['state']['enemies'][0]['hp']=100
+    held=s['state']['player']['hand'][0];held[flag]=True;held['energy_cost']=0
+    model=normalize(s);sim=CombatSimulator(model)
+    assert held['instance_id'] in sim.unsupported
+    assert not any(a.action_id=='play_'+held['instance_id'] for a in sim.actions(model))
+    assert not assess({},s)['eligible']
+    report=analyze_decision(s,use_cache=False)
+    assert held['instance_id'] in report['combat']['coverage']['unsupported_cards']
+    packet=build(s,report)
+    assert packet['visible_state']['state']['player']['hand'][0][flag]
+    action=next(a for a in s['state']['legal_actions'] if a['action_id']=='play_'+held['instance_id'])
+    raw=json.dumps(dict(state_token=source(s)['state_sha256'],reason='需依据可见信息决策',steps=[dict(action_id=action['action_id'],target_id=action['allowed_target_ids'][0] if action['allowed_target_ids'] else None)]))
+    plan=validate_plan(raw,s)
+    assert len(prepare(plan,s))==1

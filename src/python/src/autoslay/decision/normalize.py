@@ -3,7 +3,7 @@ from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.4.1"
+VERSION = "1.4.3"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
@@ -12,13 +12,10 @@ KNOWN_ENEMY_POWERS = {"POWER.VULNERABLE_POWER", "POWER.STRENGTH_POWER", "POWER.H
 
 
 def card_view(value: dict) -> Card:
-    if value.get("costs_x"):
-        raise ValueError("X-cost cards require a dedicated adapter")
-    if value.get('costs_star_x'):
-        raise ValueError('Star-X cost requires a dedicated adapter')
     return Card(value["instance_id"], value["entity_id"], value["energy_cost"],
                 value["target_type"], value["description"], value.get("upgrade_level", 0), value.get("type"),
-                star_cost=value.get('star_cost',-1))
+                star_cost=value.get('star_cost',-1),costs_x=bool(value.get('costs_x')),
+                costs_star_x=bool(value.get('costs_star_x')))
 
 
 def normalize(snapshot: dict) -> CombatState:

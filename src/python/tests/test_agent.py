@@ -266,7 +266,7 @@ def test_stale_result_never_dispatches(tmp_path):
                 return raw,{}
         agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:Provider())
         agent.running=True;agent.generation=1
-        before=deepcopy(s);d=validate(payload(before),before);s['state_version']+=1
+        before=deepcopy(s);d=validate(payload(before),before);s['state_version']+=1;s['state']['enemies'][0]['hp']-=1
         assert await agent.dispatch(d,before,1) is None
         assert submit.await_count==0
     asyncio.run(run())
@@ -428,4 +428,70 @@ def test_codex_command_isolated_and_cancel_cleanup(tmp_path,monkeypatch):
         assert any('supports_websockets=false' in arg and 'requires_openai_auth=true' in arg
                    for arg in captured['args'])
         assert 'OPENAI_API_KEY' not in captured['kw']['env']
+    asyncio.run(run())
+
+@pytest.mark.parametrize('fault',[None,'hp','epoch','assembly','schema','paused','busy','disconnected'])
+def test_version_only_rebind_rechecks_all_safety_fields(tmp_path,fault):
+    async def run():
+        agent,s,_,submit=make_agent(tmp_path)
+        agent.running=True;agent.generation=1
+        before=deepcopy(s);decision=validate(payload(before),before);s['state_version']+=2
+        if fault=='hp':s['state']['enemies'][0]['hp']-=1
+        if fault=='epoch':s['session_epoch']='another'
+        if fault=='assembly':s['game_assembly_sha256']='another'
+        if fault=='schema':s['schema_version']='another'
+        if fault=='paused':s['state']['control_mode']='paused'
+        if fault=='busy':s['busy']=True
+        if fault=='disconnected':s['connected']=False
+        result=await agent.dispatch(decision,before,1)
+        if fault:
+            assert result is None and submit.await_count==0
+        else:
+            assert result['state_rebound'] is True and submit.await_count==1
+            assert submit.call_args.args[0].expected_state_version==s['state_version']
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('recover',[True,False])
+def test_deepseek_empty_final_retries_and_preserves_safe_counters(monkeypatch,recover):
+    async def run():
+        monkeypatch.setattr('autoslay.agent.providers.asyncio.sleep',AsyncMock())
+        calls=[]
+        def handler(request):
+            calls.append(request)
+            content='{}' if recover and len(calls)>1 else None
+            return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content=content,reasoning_content='private reasoning'))],usage=dict(completion_tokens=10,completion_tokens_details=dict(reasoning_tokens=8,secret='private'))))
+        p=Profile(id='deepseek',label='DeepSeek',kind='api',base_url='https://api.deepseek.com',model='deepseek-flash')
+        provider=APIProvider(p,'test',httpx.MockTransport(handler))
+        if recover:
+            raw,usage=await provider.decide({})
+            assert raw=='{}' and usage==dict(completion_tokens=20,reasoning_tokens=16,request_attempts=2)
+            assert len(calls)==2
+        else:
+            with pytest.raises(ProviderError,match='MODEL_EMPTY_RESPONSE') as err:await provider.decide({})
+            assert len(calls)==3 and err.value.details['total_usage']==dict(completion_tokens=30,reasoning_tokens=24)
+            assert err.value.details['finish_reason']=='stop'
+            assert 'private' not in json.dumps(err.value.details)
+    asyncio.run(run())
+
+
+def test_reward_transition_waits_before_analysis_or_model(tmp_path):
+    async def run():
+        entered=asyncio.Event();analyses=[]
+        class Provider:
+            async def decide(self,packet):
+                entered.set();await asyncio.Event().wait()
+        agent,s,_,submit=make_agent(tmp_path,factory=lambda *_:Provider())
+        s['state'].update(phase='card_reward_selection',reward_screen=dict(screen_id='reward',cards=[dict(available=False,action_id=None)]),legal_actions=[dict(action_id='skip',type='reward_alternative',allows_no_target=True)])
+        agent.analyze=lambda snap:analyses.append(snap) or dict(source=source(snap),phase='card_reward_selection',analysis_id='test')
+        await agent.command('/start',{})
+        await asyncio.sleep(.05)
+        assert agent.phase=='waiting_reward_cards' and not analyses and not entered.is_set() and submit.await_count==0
+        s['state']['reward_screen']['cards'][0].update(available=True,action_id='choose')
+        s['state']['legal_actions'].append(dict(action_id='choose',type='choose_reward_card',allows_no_target=True))
+        await asyncio.wait_for(entered.wait(),3)
+        await agent.pause()
+        assert len(analyses)==1 and submit.await_count==0
+        events=[json.loads(p.read_text()) for p in (agent.journal/'requests').glob('*.json')]
+        assert any(e['status']=='cancelled' for e in events)
     asyncio.run(run())

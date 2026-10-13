@@ -37,13 +37,35 @@ def test_origin_guard_and_sse_cursor(service):
         value=json.loads(stream.readline().decode()[6:]);assert value['events'][0]['event_id']=='test_api'
         assert value['cursor']==repo.latest_cursor()
 
+
+def test_evidence_matches_local_and_ai_results_to_their_analysis(service):
+    repo,url=service
+    s=snapshot()
+    for identity in ('flow_local','flow_ai'):
+        repo.store(dict(event_id=identity,kind='decision',snapshot=s,
+                        report=dict(analysis_id=identity,source={})))
+    for event_id,kind,detail in [
+        ('flow_local_choice','local_choice',dict(analysis_id='flow_local',ai_called=False,steps=[dict(action_id='end_turn')])),
+        ('flow_local_result','local_outcome',dict(analysis_id='flow_local',status='completed',actual=dict(hp=42))),
+        ('flow_ai_choice','ai_choice',dict(analysis_id='flow_ai',reason='保留资源')),
+        ('flow_ai_result','agent_outcome',dict(analysis_id='flow_ai',status='failed')),
+    ]:
+        repo.store(dict(event_id=event_id,kind=kind,snapshot=s,details=detail))
+    local=json.load(get(url+'/api/evidence?id=flow_local'))
+    assert local['choice']['ai_called'] is False
+    assert [o['status'] for o in local['observations']]==['completed']
+    ai=json.load(get(url+'/api/evidence?id=flow_ai'))
+    assert ai['choice']['reason']=='保留资源'
+    assert [o['status'] for o in ai['observations']]==['failed']
+
 def test_dashboard_modules_and_bounded_local_catalog(service):
     _,url=service
     for asset,kind in [('workspace.js','text/javascript'),('presentation.js','text/javascript'),
-                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('combat-forecast.js','text/javascript')]:
+                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('combat-forecast.js','text/javascript'),('services.js','text/javascript')]:
         with urlopen(url+'/'+asset) as response:
             assert response.status==200
             assert response.headers['Content-Type'].startswith(kind)
+            assert "connect-src 'self' http://127.0.0.1:18770" in response.headers['Content-Security-Policy']
     all_data=json.load(get(url+'/api/catalog'))
     assert len(all_data['entries'])==100 and all_data['total']>100
     from urllib.parse import quote

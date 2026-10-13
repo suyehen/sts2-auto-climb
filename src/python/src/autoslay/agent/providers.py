@@ -67,7 +67,7 @@ class APIProvider:
                 return raw,usage
             except ProviderError as exc:
                 for k,v in exc.details.get('usage',{}).items():consumed[k]=consumed.get(k,0)+v
-                temporary=str(exc) in {'MODEL_TIMEOUT','MODEL_UNAVAILABLE','MODEL_HTTP_429','MODEL_GENERATION_INTERRUPTED'} or bool(re.fullmatch(r'MODEL_HTTP_5\d\d',str(exc)))
+                temporary=str(exc) in {'MODEL_TIMEOUT','MODEL_UNAVAILABLE','MODEL_HTTP_429','MODEL_GENERATION_INTERRUPTED','MODEL_EMPTY_RESPONSE'} or bool(re.fullmatch(r'MODEL_HTTP_5\d\d',str(exc)))
                 grow=str(exc)=='MODEL_OUTPUT_LIMIT' and not enlarged and budget<131072
                 if not recover or attempt==3 or not (grow or temporary):
                     if attempt>1:exc.details.update(attempts=attempt,total_usage=consumed)
@@ -102,20 +102,22 @@ class APIProvider:
                             if len(chunks) > 2_000_000: raise ProviderError('MODEL_RESPONSE_TOO_LARGE')
             data = json.loads(chunks)
             choice = data['choices'][0]
+            usage = {k: v for k, v in (data.get('usage') or {}).items()
+                     if k in {'prompt_tokens', 'completion_tokens', 'total_tokens'} and type(v) is int and v >= 0}
+            reasoning=(data.get('usage') or {}).get('completion_tokens_details') or {}
+            if type(reasoning.get('reasoning_tokens')) is int and reasoning['reasoning_tokens'] >= 0:
+                usage['reasoning_tokens']=reasoning['reasoning_tokens']
             if choice['finish_reason'] != 'stop':
                 finish=choice['finish_reason']
                 details=dict(finish_reason=finish if finish in {'length','content_filter','tool_calls','function_call','insufficient_system_resource','aborted'} else 'other',
                              max_tokens=max_tokens)
-                details['usage']={k:v for k,v in (data.get('usage') or {}).items()
-                                  if k in {'prompt_tokens','completion_tokens','total_tokens'} and type(v) is int}
+                details['usage']=usage
                 raise ProviderError('MODEL_OUTPUT_LIMIT' if finish=='length' else 'MODEL_GENERATION_INTERRUPTED' if finish in {'insufficient_system_resource','aborted'} else 'MODEL_RESPONSE_INCOMPLETE',details)
             msg = choice['message']
             if msg.get('refusal') or msg.get('tool_calls'): raise ProviderError('MODEL_REFUSAL_OR_TOOL_CALL')
             if not isinstance(msg.get('content'), str) or not msg['content'].strip():
-                raise ProviderError('MODEL_EMPTY_RESPONSE')
+                raise ProviderError('MODEL_EMPTY_RESPONSE',dict(finish_reason='stop',max_tokens=max_tokens,usage=usage))
             # Persist only standardized integer usage counters, never arbitrary response fields.
-            usage = {k: v for k, v in (data.get('usage') or {}).items()
-                     if k in {'prompt_tokens', 'completion_tokens', 'total_tokens'} and type(v) is int}
             return msg['content'], usage
         except (httpx.TimeoutException, TimeoutError): raise ProviderError('MODEL_TIMEOUT') from None
         except httpx.RequestError: raise ProviderError('MODEL_UNAVAILABLE') from None

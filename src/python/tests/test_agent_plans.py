@@ -57,7 +57,9 @@ def test_reward_multistep_reply_is_corrected_once_before_any_dispatch(tmp_path,o
         class Provider:
             async def decide(self,packet):
                 calls.append(packet)
-                if len(calls)==1 and outcome=='state_changed':s['state_version']+=1
+                if len(calls)==1 and outcome=='state_changed':
+                    s['state_version']+=1
+                    s['state']['legal_actions'].pop()
                 if len(calls)==1 and outcome=='paused':agent.running=False
                 steps=[{'action_id':'collect_a','target_id':None}]
                 if len(calls)==1 or outcome=='invalid_again':steps.append({'action_id':'collect_b','target_id':None})

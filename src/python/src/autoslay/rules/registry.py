@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from autoslay.decision.contracts import Card, CombatState, UnsupportedEffect
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 GAME_VERSION = "0.111.0"
 
 
@@ -72,6 +72,9 @@ class KnowledgeRules:
         return tuple(effects)
 
     def card(self, card: Card, state: CombatState) -> CardRule:
+        if card.costs_x or card.costs_star_x:
+            raise UnsupportedEffect('Star-X cost requires a dedicated adapter' if card.costs_star_x
+                                    else 'X-cost cards require a dedicated adapter')
         try:
             rule = self.rulebook.require(card.entity_id, "card")
             if rule.get("unplayable"):

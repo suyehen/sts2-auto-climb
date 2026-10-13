@@ -1,5 +1,5 @@
 /* One status projection for every Agent control surface. */
-export const phaseNames={paused:'已暂停',reading_state:'读取游戏状态',calculating:'计算候选方案',waiting_model:'等待 AI 决策',executing:'执行游戏动作',local_deterministic:'执行确定性策略',finished:'本局已结束',error:'异常停止'};
+export const phaseNames={paused:'已暂停',reading_state:'读取游戏状态',calculating:'计算候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'执行游戏动作',local_deterministic:'执行确定性策略',finished:'本局已结束',error:'异常停止'};
 export function decisionActivity(status,fallback='等待分析'){
  if(!status?.running)return fallback;
  if(status.phase==='executing'&&status.last?.plan_length>1)return '执行动作计划 · 第 '+status.last.plan_step+'/'+status.last.plan_length+' 步';
@@ -9,16 +9,19 @@ export function modelWaitDetail(status,now=Date.now()){
  const request=status?.model_wait;
  if(!status?.running||status.phase!=='waiting_model'||!request)return '';
  const seconds=Math.max(0,Math.floor((now-request.started_at*1000)/1000));
- return (request.validation_attempt>1?'正在纠正决策格式 · 第 '+request.validation_attempt+' 次尝试 · ':request.attempt>1?'正在重试 · 第 '+request.attempt+' 次请求 · ':'')+'本次已等待 '+seconds+' 秒，最长 '+request.timeout_seconds+' 秒';
+ const total=request.overall_started_at?Math.max(0,Math.floor((now-request.overall_started_at*1000)/1000)):seconds;
+ return (request.validation_attempt>1?'正在纠正决策格式 · 第 '+request.validation_attempt+' 次尝试 · ':request.attempt>1?'正在重试 · 第 '+request.attempt+' 次请求 · ':'')+'本次已等待 '+seconds+' 秒，最长 '+request.timeout_seconds+' 秒'+(total>seconds?' · 累计 '+total+' 秒':'');
 }
 export const agentErrors={MODEL_TIMEOUT:'模型等待超时，Agent 已停止。可以调整最长等待时间或切换后端后重试。',CODEX_LOGIN_OR_REQUEST_FAILED:'本机 Codex 登录或请求失败，请检查登录状态。',CODEX_NOT_INSTALLED:'未找到本机 Codex 程序。',MODEL_UNAVAILABLE:'模型服务无法连接。',INVALID_STATE_CONFIG_OR_ACTION:'游戏状态、配置或动作校验未通过，Agent 已停止。'};
 Object.assign(agentErrors,{
+ SERVICE_MAINTENANCE:'后台服务正在维护，完成后再启动 Agent。',
  MODEL_GENERATION_INTERRUPTED:'模型服务中途终止生成，有限重试仍未恢复。请稍后重试。',
  MODEL_RESPONSE_INCOMPLETE:'模型回复未正常结束，本次回复没有用于执行。可重试；若反复发生，请检查输出长度上限。',
  MODEL_OUTPUT_LIMIT:'模型输出达到长度上限，决策回复被截断。请提高输出长度上限，或降低推理强度后重试。',
  MODEL_INVALID_DECISION:'模型返回的 JSON 或决策字段不符合要求，本次回复没有用于执行。请检查结构化输出设置后重试。',
  MODEL_INVALID_RESPONSE:'模型接口返回的数据格式无法读取。请检查服务兼容性。',
- MODEL_EMPTY_RESPONSE:'模型没有返回决策内容。请重试或切换模型。',
+ MODEL_EMPTY_RESPONSE:'模型没有返回决策内容；自动恢复未成功，Agent 已停止。请重试或切换模型。',
+ REWARD_CARDS_NOT_READY:'奖励牌超过 15 秒仍未可选。Agent 已暂停，请检查游戏内选牌界面。',
  MODEL_REFUSAL_OR_TOOL_CALL:'模型返回了拒绝或工具调用，未提供可执行的决策。',
  MODEL_RESPONSE_TOO_LARGE:'模型回复超过接收大小限制。请缩短输出。',
  MODEL_HTTP_400:'模型服务拒绝请求（HTTP 400）。请检查模型名称、结构化输出和推理设置。',

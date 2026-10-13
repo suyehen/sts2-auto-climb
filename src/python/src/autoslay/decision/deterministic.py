@@ -10,7 +10,7 @@ from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge.events import resource_hook_warnings
 from autoslay.decision.outcomes import Outcome,compare
 
-VERSION='1.1.0'
+VERSION='1.1.1'
 POLICY_PATH=ROOT/'config/decision/autonomy.default.json'
 CERTIFICATES=ROOT/'data/knowledge/rules/deterministic-certificates.json'
 ADMIN={'return_to_main_menu','quit_game'}
@@ -47,6 +47,8 @@ def finish_model(snapshot,actions,cert,allowed_effects,allowed_enemy_powers=froz
     creatures=[p['creature'],*(s.get('enemies') or [])]
     if any('hidden_power_ids' not in c or c['hidden_power_ids'] for c in creatures): reasons.append('hidden_power_coverage_missing_or_unreviewed')
     for c in [*(p.get('deck') or []),*(p.get('hand') or [])]:
+        if c.get('costs_x') or c.get('costs_star_x'):
+            reasons.append('variable_card_cost_requires_adapter:'+c['entity_id'])
         if c.get('modifiers_complete') is not True or c.get('enchantment_id') or c.get('affliction_id'):
             reasons.append('card_modifiers_missing_or_unreviewed:'+c['entity_id'])
     if p.get('potions'): reasons.append('potion_alternative_requires_comparison')

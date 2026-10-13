@@ -40,12 +40,15 @@ def test_relic_pool_metadata_migration_preserves_all_semantics():
     assert not reference_matches({'reference_sha256':entry_fingerprint(card)},card|dict(pool='POOL',pools=['POOL']))
 
 
-def test_nibbit_bestiary_filter_does_not_block_combat_but_other_hooks_do():
+@pytest.mark.parametrize('entity,body',[
+    ('MONSTER.NIBBIT','return moveStateId != "SLICE_MOVE";'),
+    ('MONSTER.FUZZY_WURM_CRAWLER','return moveStateId != "FIRST_ACID_GOOP";')])
+def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body):
     model,state,entry,behavior,snapshot,cards=fixtures()
-    entry['entity_id']='MONSTER.NIBBIT'
-    entry['mechanics']={'ShouldShowMoveInBestiary':'return moveStateId != "SLICE_MOVE";'}
+    entry['entity_id']=entity
+    entry['mechanics']={'ShouldShowMoveInBestiary':body}
     model=MonsterRules(snapshot,cards,behavior)
-    state=replace(state,enemies=(replace(state.enemies[0],entity_id='MONSTER.NIBBIT'),))
+    state=replace(state,enemies=(replace(state.enemies[0],entity_id=entity),))
     assert unmodeled_special_hooks(entry)==set()
     assert model.audit(state)[0]['unmodeled_special_hooks']==[]
     assert model.step(state)[0][1].discard_composition==(('CARD.SLIMED',2),)

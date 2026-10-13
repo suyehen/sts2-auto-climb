@@ -19,6 +19,26 @@ from .context import build
 from .providers import create, ProviderError
 
 
+def reward_settling(snapshot):
+    state=snapshot.get('state') or {}
+    cards=(state.get('reward_screen') or {}).get('cards') or []
+    return (state.get('phase')=='card_reward_selection' and bool(cards)
+            and all(c.get('available') is False for c in cards)
+            and not any(a.get('type')=='choose_reward_card' for a in state.get('legal_actions',[])))
+
+
+def reusable_state(origin, fresh):
+    """Only a version counter may differ; every actionable state field is hashed."""
+    if (not fresh.get('connected') or fresh.get('error') or not fresh.get('ready')
+            or fresh.get('busy') or (fresh.get('state') or {}).get('control_mode')!='auto'
+            or reward_settling(fresh)):
+        return False
+    if any(origin.get(k)!=fresh.get(k) for k in ('schema_version','game_assembly_sha256')):
+        return False
+    left,right=source(origin),source(fresh)
+    return all(left[k]==right[k] for k in left if k!='state_version')
+
+
 class Agent:
     def __init__(self, store=None, fetch=fetch_state, control=set_control_mode, submit=submit_action,
                  status=get_action_status, factory=create, analyze=analyze_decision, record=True,
@@ -60,6 +80,18 @@ class Agent:
         self.phase = 'paused'
 
     async def command(self, route, body):
+        # Local status must remain available while a game-state read or pause
+        # holds the mutation lock; the supervisor uses it as its readiness check.
+        if route == '/status':
+            return self.status()
+        if route in {'/start', '/play/start'}:
+            with dispatch_lock(ROOT/'.runtime/local/service-maintenance') as acquired:
+                if not acquired:
+                    raise ValueError('SERVICE_MAINTENANCE')
+                return await self._command(route, body)
+        return await self._command(route, body)
+
+    async def _command(self, route, body):
         async with self.lock:
             if route == '/status': return self.status()
             if route == '/play/state': return await self.launch.state(body.get('request_id'))
@@ -154,7 +186,7 @@ class Agent:
             await self.unresolved()
             fresh = await self.fetch()
             if not self.running or self.generation != generation: return None
-            if source(fresh) != source(snapshot) or not fresh.get('ready') or fresh.get('busy'):
+            if not reusable_state(snapshot,fresh):
                 return None
             validate(decision.model_dump_json(), fresh)
             src = source(fresh)
@@ -162,7 +194,8 @@ class Agent:
                 session_epoch=src['session_epoch'], expected_state_version=src['state_version'],
                 action_id=decision.action_id, target_id=decision.target_id)
             path = self.journal/(request.request_id+'.json')
-            record = dict(status='dispatch_pending', request=request.model_dump(), provider=self.store.active)
+            record = dict(status='dispatch_pending', request=request.model_dump(), provider=self.store.active,
+                          state_rebound=source(fresh)!=source(snapshot), original_state_version=snapshot.get('state_version'))
             atomic(path, record)
             receipt = await self.submit(request)
             record.update(status=receipt.get('status', 'unresolved'), receipt=receipt)
@@ -174,6 +207,7 @@ class Agent:
         run_identity = None
         snapshot = None
         identity = None
+        reward_wait = None
         try:
             while self.running and generation == self.generation:
                 identity = None
@@ -181,6 +215,15 @@ class Agent:
                 snapshot = await self.fetch()
                 if not snapshot.get('connected') or snapshot.get('error'): raise ValueError('GAME_DISCONNECTED')
                 s = snapshot.get('state') or {}
+                if reward_settling(snapshot):
+                    screen=(s.get('reward_screen') or {}).get('screen_id')
+                    key=(snapshot.get('session_epoch'),s.get('run_id'),screen)
+                    if reward_wait is None or reward_wait[0]!=key:reward_wait=(key,time.monotonic())
+                    if time.monotonic()-reward_wait[1]>15:raise ValueError('REWARD_CARDS_NOT_READY')
+                    self.phase='waiting_reward_cards'
+                    await asyncio.sleep(.4)
+                    continue
+                reward_wait=None
                 current_run = (snapshot.get('session_epoch'), s.get('run_id'))
                 if current_run != run_identity:
                     self.recent = []
@@ -224,17 +267,24 @@ class Agent:
                 start = time.monotonic()
                 self.model_wait = dict(request_id=identity, started_at=time.time(),
                                        timeout_seconds=p.timeout_seconds, phase=s.get('phase'), attempt=1, max_tokens=p.max_tokens)
+                self.model_wait['overall_started_at']=self.model_wait['started_at']
                 if hasattr(provider,'on_retry'):
                     def update_retry(progress):
                         if self.model_wait and self.running and generation==self.generation:
                             self.model_wait.update(progress)
+                            self.request_event(snapshot,identity,'retrying',**progress)
                     provider.on_retry=update_retry
                 try:
                     plan, usage = await self.decide_plan(provider, packet, snapshot, generation, identity, report, p)
+                except asyncio.CancelledError:
+                    self.request_event(snapshot,identity,'cancelled',reason='agent_paused_or_switched')
+                    raise
                 finally:
                     self.model_wait = None
                 if not self.running or generation != self.generation: break
-                if plan is None:continue
+                if plan is None:
+                    self.request_event(snapshot,identity,'not_executed',reason='state_changed_before_correction')
+                    continue
                 previous = await self.execute_plan(plan, snapshot, report, generation, p,
                     identity, round((time.monotonic()-start)*1000), usage)
         except asyncio.CancelledError: raise
@@ -262,7 +312,7 @@ class Agent:
         # No part of the rejected plan was submitted. Retry once only after
         # verifying that the same visible state is still waiting for a choice.
         fresh=await self.fetch()
-        if not self.running or generation!=self.generation or source(fresh)!=source(snapshot) or not fresh.get('ready') or fresh.get('busy'):
+        if not self.running or generation!=self.generation or not reusable_state(snapshot,fresh):
             return None,usage
         correction=dict(packet,validation_feedback=dict(code='MULTI_ACTION_REQUIRES_COMBAT',
             instruction='Previous response was rejected and NO actions were executed. Return steps with exactly one currently legal action.'))
@@ -282,7 +332,7 @@ class Agent:
         profile=self.store.profiles.get(self.store.active)
         details=dict(code=code, occurred_at=time.time(), stage=self.phase,
                      provider=self.store.active, model=profile.model if profile else None,
-                     request_id=request_id, game_phase=state.get('phase'), turn=state.get('turn'))
+                     request_id=request_id, plan_request_id=request_id, game_phase=state.get('phase'), turn=(state.get('player') or {}).get('turn',state.get('turn')))
         if self.phase=='executing' and self.last:
             details.update({k:self.last[k] for k in ['plan_step','plan_length','action_id','status'] if k in self.last})
         if provider_details:details.update(provider_details)
@@ -293,6 +343,14 @@ class Agent:
             if self.record and snapshot:runs.stage('agent_error',snapshot,details)
         except Exception:
             # Diagnosis must never interfere with stopping the executor.
+            pass
+
+    def request_event(self,snapshot,identity,status,**details):
+        event=dict(plan_request_id=identity,status=status,occurred_at=time.time(),**details)
+        try:
+            atomic(self.journal/('requests/'+uuid4().hex+'.json'),event)
+            if self.record and snapshot:runs.stage('agent_request',snapshot,event)
+        except Exception:
             pass
 
     async def execute_plan(self, plan, snapshot, report, generation, profile, identity, model_ms, usage):
@@ -319,6 +377,8 @@ class Agent:
             self.last = dict(source=profile.id, model=profile.model, reason=plan.reason,
                 action_id=step.action_id, target_id=step.target_id, model_ms=model_ms, usage=usage,
                 plan_request_id=identity, plan_step=index+1, plan_length=len(prepared),
+                original_plan_length=len(plan.steps), original_plan_steps=[s.model_dump() for s in plan.steps],
+                plan_preparation='modeled_prefix_or_observation_boundary' if len(prepared)<len(plan.steps) else 'complete',
                 plan_steps=[s.model_dump() for s, _ in prepared])
             self.phase = 'executing'
             step_report = report
@@ -331,7 +391,12 @@ class Agent:
                              steps=self.last['plan_steps'], **self.last))
             result = await self.dispatch(decision, current, generation)
             if result is None:
+                self.last.update(status='not_executed',plan_interruption='state_changed_or_agent_paused')
+                self.request_event(current,identity,'not_executed',reason=self.last['plan_interruption'],plan_step=index+1)
                 break
+            if result.get('state_rebound'):
+                self.request_event(current,identity,'state_rebound',original_state_version=result['original_state_version'],
+                                   expected_state_version=result['request']['expected_state_version'])
             previous = source(current)
             self.last['status'] = result['status']
             self.recent.append(dict(action_id=step.action_id, target_id=step.target_id,
@@ -341,8 +406,11 @@ class Agent:
                 after = await self.fetch()
                 from autoslay.calibration.events import record_action
                 comparison = await asyncio.to_thread(record_action, step_report, current, after, step.action_id, result)
+                from autoslay.telemetry.effects import observe as observe_effects
+                settled=(result.get('receipt') or {}).get('snapshot') or after
+                observed_effects=observe_effects(current,settled,result['status'],(result.get('request') or {}).get('request_id'))
                 await asyncio.to_thread(runs.stage, 'agent_outcome', after,
-                    dict(analysis_id=step_report['analysis_id'], event_comparison=comparison,
+                    dict(analysis_id=step_report['analysis_id'], event_comparison=comparison,observed_effects=observed_effects,
                          plan_request_id=identity, plan_step=index+1, **result))
             if result['status'] not in {'completed', 'awaiting_choice'}:
                 raise ValueError('ACTION_'+result['status'].upper())

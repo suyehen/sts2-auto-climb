@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-CONTRACT_VERSION = "1.6.0"
+CONTRACT_VERSION = "1.6.1"
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,8 @@ class Card:
     card_type: str | None = None
     canonical: bool = False
     star_cost: int = -1
+    costs_x: bool = False
+    costs_star_x: bool = False
 
 
 @dataclass(frozen=True)

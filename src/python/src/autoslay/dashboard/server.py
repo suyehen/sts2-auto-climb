@@ -42,7 +42,7 @@ def make_server(port=PORT,directory=None):
             self.send_response(status); self.send_header('Content-Type',kind)
             self.send_header('Content-Length',str(len(payload))); self.send_header('Cache-Control','no-store')
             self.send_header('X-Content-Type-Options','nosniff')
-            self.send_header('Content-Security-Policy',"default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+            self.send_header('Content-Security-Policy',"default-src 'self'; connect-src 'self' http://127.0.0.1:18770; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
             if attachment: self.send_header('Content-Disposition','attachment; filename="'+('archive.zip' if kind=='application/zip' else 'decision.json')+'"')
             self.end_headers(); self.wfile.write(payload)
 
@@ -59,7 +59,7 @@ def make_server(port=PORT,directory=None):
                     match=re.fullmatch(r'/assets/(cards|potions|relics|monsters|map)/((CARD|POTION|RELIC|MONSTER|MAP)\.[A-Z0-9_]+\.webp)',route)
                     if not match or {'cards':'CARD','potions':'POTION','relics':'RELIC','monsters':'MONSTER','map':'MAP'}[match[1]]!=match[3]:raise ValueError('Invalid image')
                     self.send((ROOT/'data/knowledge/assets'/match[1]/match[2]).read_bytes(),kind='image/webp');return
-                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
+                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/services.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
                     name='index.html' if route=='/' else route[1:]
                     kind={'html':'text/html','js':'text/javascript','css':'text/css'}[name.rsplit('.',1)[1]]+'; charset=utf-8'
                     self.send((ASSETS/name).read_bytes(),kind=kind); return
@@ -170,11 +170,14 @@ def make_server(port=PORT,directory=None):
                         if value.get('decision_id')==identity:evidence['observations'].append(value)
                     try:
                         decision=repository.load_event(identity)
-                        for e in repository.entries(decision['archive_id'],limit=10000,skip_heartbeat=True):
+                        entries=repository.entries(decision['archive_id'],limit=10000,skip_heartbeat=True)
+                        from autoslay.telemetry.effects import archived as execution_facts
+                        evidence['executed_effects']=execution_facts(repository,decision,entries)
+                        for e in entries:
                             detail=e.get('details') or {}
                             if detail.get('analysis_id')==identity or detail.get('decision_id')==identity:
-                                if e['kind']=='ai_choice':evidence['choice']=detail
-                                if e['kind']=='outcome_observed' and detail not in evidence['observations']:evidence['observations'].append(detail)
+                                if e['kind'] in {'ai_choice','local_choice'}:evidence['choice']=detail
+                                if e['kind'] in {'outcome_observed','local_outcome','agent_outcome'} and detail not in evidence['observations']:evidence['observations'].append(detail)
                             if e['kind']=='action_plan':
                                 plan=detail.get('plan') or {};source=decision['report'].get('source') or {}
                                 if all(plan.get(a)==source.get(b) for a,b in [('session_epoch','session_epoch'),('run_id','run_id'),('expected_state_version','state_version')]):evidence['plans'].append(detail)

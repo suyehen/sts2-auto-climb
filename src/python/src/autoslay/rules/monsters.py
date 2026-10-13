@@ -11,7 +11,7 @@ from autoslay.decision.contracts import UnsupportedEffect
 from autoslay.knowledge.behavior import load
 from autoslay.knowledge.monster_values import arguments, call_end, resolve
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 KNOWN_POWERS = {'POWER.STRENGTH_POWER','POWER.WEAK_POWER','POWER.VULNERABLE_POWER',
                 'POWER.HARD_TO_KILL_POWER','POWER.MINION_POWER'}
 ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
@@ -21,9 +21,11 @@ ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
 
 def unmodeled_special_hooks(entry):
     hooks=set(entry.get('mechanics',{}))-{'AfterAddedToRoom'}
-    # Reviewed Nibbit method only filters encyclopedia visibility, not combat.
+    # Reviewed pure display filters; unknown bodies still fail closed.
     body=entry.get('mechanics',{}).get('ShouldShowMoveInBestiary','')
-    if entry.get('entity_id')=='MONSTER.NIBBIT' and body.strip()=='return moveStateId != "SLICE_MOVE";':
+    reviewed={'MONSTER.NIBBIT':'return moveStateId != "SLICE_MOVE";',
+              'MONSTER.FUZZY_WURM_CRAWLER':'return moveStateId != "FIRST_ACID_GOOP";'}
+    if entry.get('entity_id') in reviewed and body.strip()==reviewed[entry['entity_id']]:
         hooks.discard('ShouldShowMoveInBestiary')
     return hooks
 
