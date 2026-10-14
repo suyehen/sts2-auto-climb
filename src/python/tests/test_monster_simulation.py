@@ -1,11 +1,38 @@
 from copy import deepcopy
 from dataclasses import replace
+import hashlib
+import json
 import pytest
 from autoslay.decision.contracts import CombatState,Enemy,UnsupportedEffect
 from autoslay.knowledge_base.rulebook import entry_fingerprint,reference_matches
 from autoslay.rules.monsters import MonsterRules,expression,unmodeled_special_hooks
 from autoslay.planning.lookahead import evaluate_lookahead
 from autoslay.telemetry.decisions import packet
+
+
+@pytest.fixture
+def display_knowledge(tmp_path,monkeypatch):
+    from autoslay.knowledge_base import repository
+    root=tmp_path/'knowledge'
+    root.mkdir()
+    manifest=dict(schema_version='knowledge-manifest/1.0',
+                  datasets=dict(mechanism_scope='scope.json',behavior='behavior.json'))
+    metadata=dict(game_version='0.111.0',game_assembly_sha256='pinned')
+    entries=[]
+    rows=[]
+    for entity,body in [('MONSTER.NIBBIT','return moveStateId != "SLICE_MOVE";'),
+                        ('MONSTER.FUZZY_WURM_CRAWLER','return moveStateId != "FIRST_ACID_GOOP";')]:
+        source=hashlib.sha256(('synthetic-source:'+entity).encode()).hexdigest()
+        entries.append(dict(entity_id=entity,provenance=dict(game_assembly_sha256='pinned',source_sha256=source),
+                            mechanics={'ShouldShowMoveInBestiary':body}))
+        rows.append(dict(entity_id=entity,phase='presentation',hook='ShouldShowMoveInBestiary',
+                         treatment='irrelevant_to_combat',game_version='0.111.0',source_fingerprint=source,
+                         body_fingerprint=hashlib.sha256(body.encode()).hexdigest()))
+    for name,data in [('manifest.json',manifest),('scope.json',metadata|dict(entries=rows)),
+                      ('behavior.json',metadata|dict(entries=entries))]:
+        (root/name).write_text(json.dumps(data),encoding='utf-8')
+    monkeypatch.setattr(repository,'REPOSITORY',repository.Repository(root))
+    return root,entries
 
 
 def fixtures(ascension=0):
@@ -43,14 +70,12 @@ def test_relic_pool_metadata_migration_preserves_all_semantics():
 @pytest.mark.parametrize('entity,body',[
     ('MONSTER.NIBBIT','return moveStateId != "SLICE_MOVE";'),
     ('MONSTER.FUZZY_WURM_CRAWLER','return moveStateId != "FIRST_ACID_GOOP";')])
-def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body):
+def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body,display_knowledge):
     model,state,entry,behavior,snapshot,cards=fixtures()
     entry['entity_id']=entity
     entry['mechanics']={'ShouldShowMoveInBestiary':body}
-    from autoslay.knowledge_base.behavior import load
-    actual=next(e for e in load()['entries'] if e['entity_id']==entity)
-    entry['provenance']=actual['provenance']
-    snapshot['game_assembly_sha256']=behavior['game_assembly_sha256']=actual['provenance']['game_assembly_sha256']
+    actual=next(e for e in display_knowledge[1] if e['entity_id']==entity)
+    entry['provenance']=deepcopy(actual['provenance'])
     model=MonsterRules(snapshot,cards,behavior)
     state=replace(state,enemies=(replace(state.enemies[0],entity_id=entity),))
     assert unmodeled_special_hooks(entry)==set()
@@ -62,6 +87,50 @@ def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body):
         model.step(state)
     entry['mechanics']={'ShouldShowMoveInBestiary':'UnknownCombatEffect();'}
     assert unmodeled_special_hooks(entry)=={'ShouldShowMoveInBestiary'}
+
+
+@pytest.mark.parametrize('missing',['manifest.json','scope.json','behavior.json'])
+def test_missing_display_evidence_blocks_prediction(display_knowledge,missing):
+    root,entries=display_knowledge
+    (root/missing).unlink()
+    model,state,entry,*_=fixtures()
+    entry.update(deepcopy(entries[0]))
+    model.entries={entry['entity_id']:entry}
+    state=replace(state,enemies=(replace(state.enemies[0],entity_id=entry['entity_id']),))
+    assert unmodeled_special_hooks(entry)=={'ShouldShowMoveInBestiary'}
+    assert model.audit(state)[0]['unmodeled_special_hooks']==['ShouldShowMoveInBestiary']
+    with pytest.raises(UnsupportedEffect,match='monster_special_hooks_unmodeled'):
+        model.step(state)
+
+
+@pytest.mark.parametrize('field',['source_sha256','game_assembly_sha256'])
+def test_mismatched_display_provenance_is_not_exempted(display_knowledge,field):
+    entry=deepcopy(display_knowledge[1][0])
+    entry['provenance'][field]='mismatched'
+    assert unmodeled_special_hooks(entry)=={'ShouldShowMoveInBestiary'}
+
+
+def test_no_special_hooks_does_not_read_display_evidence(monkeypatch):
+    def unexpected_read(*args):
+        pytest.fail('Monster without special hooks must not read display evidence')
+    monkeypatch.setattr('autoslay.rules.mechanism_scope.read_view',unexpected_read)
+    for mechanics in ({},{'AfterAddedToRoom':'Initialize();'}):
+        assert unmodeled_special_hooks(dict(mechanics=mechanics))==set()
+
+
+def test_unregistered_hook_does_not_read_behavior(display_knowledge):
+    root,_=display_knowledge
+    (root/'behavior.json').write_text('invalid JSON',encoding='utf-8')
+    assert unmodeled_special_hooks(dict(entity_id='MONSTER.TEST',mechanics={'AfterDeath':'Unknown();'}))=={'AfterDeath'}
+
+
+@pytest.mark.local_knowledge
+def test_exported_bestiary_filters_match_reviewed_evidence():
+    from autoslay.knowledge_base.behavior import load
+    entries={entry['entity_id']:entry for entry in load()['entries']}
+    for entity in ('MONSTER.NIBBIT','MONSTER.FUZZY_WURM_CRAWLER'):
+        from autoslay.rules.mechanism_scope import reviewed_display_hooks
+        assert 'ShouldShowMoveInBestiary' in reviewed_display_hooks(entries[entity])
 
 
 @pytest.mark.parametrize('ascension,damage',[(0,4),(8,4),(9,5),(10,5)])

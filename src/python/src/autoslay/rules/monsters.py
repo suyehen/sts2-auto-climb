@@ -22,6 +22,8 @@ ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
 def unmodeled_special_hooks(entry):
     from autoslay.rules.mechanism_scope import reviewed_display_hooks
     hooks=set(entry.get('mechanics',{}))-{'AfterAddedToRoom'}
+    if not hooks:
+        return set()
     return hooks-reviewed_display_hooks(entry)
 
 

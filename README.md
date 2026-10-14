@@ -75,7 +75,7 @@ node --test src/web/tests/*.test.mjs
 powershell -ExecutionPolicy Bypass -File scripts/build/Test-Project.ps1
 ```
 
-GitHub Actions 只运行无需游戏资源的检查，不调用模型、不开始游戏。完整本机测试与真实对局验证仍需本地完成。
+GitHub Actions 只运行无需游戏资源的检查，不调用模型、不开始游戏。普通单元测试使用临时模拟知识库，不读取本机导出资料；依赖真实导出资料的测试标记为 `local_knowledge`，云端通过 `-m 'not local_knowledge'` 排除。展示机制缺少审核资料或来源指纹不匹配时仍保持未建模，不放行预测。完整本机测试与真实对局验证仍需本地完成。
 
 | 目录 | 内容 |
 | --- | --- |

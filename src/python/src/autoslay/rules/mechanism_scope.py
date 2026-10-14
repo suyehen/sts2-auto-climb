@@ -35,14 +35,23 @@ def reviewed_pickup(snapshot, book):
 
 
 def reviewed_display_hooks(entry):
-    registry=read_view(dataset_path('mechanism_scope'),'display-scope/1',
-                       lambda data: {**{k:data.get(k) for k in ('game_version','game_assembly_sha256')},
-                                     'entries':[row for row in data.get('entries',[]) if row.get('phase')=='presentation']})
-    wanted={row['entity_id'] for row in registry['entries']}
-    inventory=read_view(dataset_path('behavior'),'display-sources/'+hashlib.sha256(str(sorted(wanted)).encode()).hexdigest(),
-                        lambda data: {**{k:data.get(k) for k in ('game_version','game_assembly_sha256')},
-                                      'entries':{row['entity_id']:dict(source_sha256=row.get('provenance',{}).get('source_sha256'),hooks=list(row.get('mechanics',{})))
-                                                 for row in data.get('entries',[]) if row['entity_id'] in wanted}})
+    if not entry.get('mechanics'):
+        return set()
+    try:
+        registry=read_view(dataset_path('mechanism_scope'),'display-scope/1',
+                           lambda data: {**{k:data.get(k) for k in ('game_version','game_assembly_sha256')},
+                                         'entries':[row for row in data.get('entries',[]) if row.get('phase')=='presentation']})
+        if not any(row['entity_id']==entry.get('entity_id') and row['hook'] in entry['mechanics']
+                   for row in registry['entries']):
+            return set()
+        wanted={row['entity_id'] for row in registry['entries']}
+        inventory=read_view(dataset_path('behavior'),'display-sources/'+hashlib.sha256(str(sorted(wanted)).encode()).hexdigest(),
+                            lambda data: {**{k:data.get(k) for k in ('game_version','game_assembly_sha256')},
+                                          'entries':{row['entity_id']:dict(source_sha256=row.get('provenance',{}).get('source_sha256'),hooks=list(row.get('mechanics',{})))
+                                                     for row in data.get('entries',[]) if row['entity_id'] in wanted}})
+    except FileNotFoundError:
+        # Missing evidence never certifies a hook as irrelevant to combat.
+        return set()
     provenance=entry.get('provenance') or {}
     if (not registry.get('game_assembly_sha256') or registry['game_assembly_sha256']!=inventory.get('game_assembly_sha256')
             or registry['game_assembly_sha256']!=provenance.get('game_assembly_sha256')
