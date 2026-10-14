@@ -11,7 +11,7 @@ from autoslay.decision.contracts import UnsupportedEffect
 from autoslay.knowledge_base.behavior import load
 from autoslay.knowledge_base.monster_values import arguments, call_end, resolve
 
-VERSION = '1.0.2'
+VERSION = '1.1.0'
 KNOWN_POWERS = {'POWER.STRENGTH_POWER','POWER.WEAK_POWER','POWER.VULNERABLE_POWER',
                 'POWER.HARD_TO_KILL_POWER','POWER.MINION_POWER'}
 ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
@@ -20,14 +20,9 @@ ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
 
 
 def unmodeled_special_hooks(entry):
+    from autoslay.rules.mechanism_scope import reviewed_display_hooks
     hooks=set(entry.get('mechanics',{}))-{'AfterAddedToRoom'}
-    # Reviewed pure display filters; unknown bodies still fail closed.
-    body=entry.get('mechanics',{}).get('ShouldShowMoveInBestiary','')
-    reviewed={'MONSTER.NIBBIT':'return moveStateId != "SLICE_MOVE";',
-              'MONSTER.FUZZY_WURM_CRAWLER':'return moveStateId != "FIRST_ACID_GOOP";'}
-    if entry.get('entity_id') in reviewed and body.strip()==reviewed[entry['entity_id']]:
-        hooks.discard('ShouldShowMoveInBestiary')
-    return hooks
+    return hooks-reviewed_display_hooks(entry)
 
 
 def expression(text, values, seen=()):

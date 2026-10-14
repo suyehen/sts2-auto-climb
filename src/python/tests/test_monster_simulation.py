@@ -47,6 +47,10 @@ def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body):
     model,state,entry,behavior,snapshot,cards=fixtures()
     entry['entity_id']=entity
     entry['mechanics']={'ShouldShowMoveInBestiary':body}
+    from autoslay.knowledge_base.behavior import load
+    actual=next(e for e in load()['entries'] if e['entity_id']==entity)
+    entry['provenance']=actual['provenance']
+    snapshot['game_assembly_sha256']=behavior['game_assembly_sha256']=actual['provenance']['game_assembly_sha256']
     model=MonsterRules(snapshot,cards,behavior)
     state=replace(state,enemies=(replace(state.enemies[0],entity_id=entity),))
     assert unmodeled_special_hooks(entry)==set()

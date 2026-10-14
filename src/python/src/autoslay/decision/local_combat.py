@@ -5,7 +5,7 @@ from autoslay.decision.normalize import normalize
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge_base.repository import read_json, dataset_path
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 
 
 def select(report, snapshot):
@@ -51,7 +51,9 @@ def select(report, snapshot):
             return None, ['local_combat_resource_change_could_enable_unknown_card']
     except (ValueError, KeyError, TypeError):
         return None, ['local_combat_normalization_incomplete']
-    candidates = (combat.get('candidates') or []) + (combat.get('wait_candidates') or []) + (combat.get('observation_boundaries') or [])
+    candidates = combat.get('decision_candidates')
+    if candidates is None:
+        candidates = (combat.get('candidates') or []) + (combat.get('wait_candidates') or []) + (combat.get('observation_boundaries') or [])
     options = [];potion_tradeoffs=[]
     for candidate in candidates:
         metrics = candidate.get('metrics') or {}
@@ -96,4 +98,5 @@ def select(report, snapshot):
                               search_complete=True, search_stops_at_observation=True,modeled_legal_operations=len(legal),
                               projected_hp_loss=metrics['projected_hp_loss'], heuristic_score=metrics['heuristic_score'],
                               selected_continuation=steps, consumables_preserved=True,
+                              decision_candidate_count=len(candidates),
                               long_term_value_proven=False)), []

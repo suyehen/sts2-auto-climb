@@ -4,12 +4,12 @@ from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.4.4"
+VERSION = "1.5.0"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
                 "RELIC.BEATING_REMNANT", "RELIC.PERMAFROST", "RELIC.SMALL_CAPSULE", "RELIC.REGAL_PILLOW",
-                "RELIC.MANGO"} | set(RULES)
+                } | set(RULES)
 KNOWN_ENEMY_POWERS = {"POWER.VULNERABLE_POWER", "POWER.STRENGTH_POWER", "POWER.HARD_TO_KILL_POWER", "POWER.MINION_POWER", "POWER.WEAK_POWER"}
 
 
@@ -26,6 +26,8 @@ def normalize(snapshot: dict) -> CombatState:
         raise ValueError("Unsupported snapshot or game version")
     from autoslay.knowledge_base.rulebook import Rulebook
     book=Rulebook()
+    from autoslay.rules.mechanism_scope import reviewed_pickup
+    pickup = reviewed_pickup(snapshot, book)
     if snapshot.get('game_assembly_sha256') and snapshot['game_assembly_sha256']!=book.data.get('game_assembly_sha256'):
         raise ValueError('Game implementation changed; executable rules require review')
     s = snapshot["state"]
@@ -46,14 +48,12 @@ def normalize(snapshot: dict) -> CombatState:
     for relic in p.get("relics", []):
         rid = relic["entity_id"]
         compatibility=book.status(rid,snapshot['game_version'])
-        # Mango has only AfterObtained; its max-HP gain is already reflected in
-        # the live creature. It needs no in-combat rulebook execution adapter.
-        if rid in KNOWN_RELICS and rid!='RELIC.MANGO' and compatibility!='compatible':
+        if rid in KNOWN_RELICS and compatibility!='compatible':
             warnings.append('STALE_RELIC_RULE:'+rid+':'+compatibility)
         tracked = read_periodic(relic)
         if tracked:
             periodic.append(tracked)
-        if rid not in KNOWN_RELICS:
+        if rid not in KNOWN_RELICS and rid not in pickup:
             warnings.append("UNMODELED_RELIC:" + rid)
         if rid == "RELIC.PAELS_LEGION":
             legion = relic.get("status") == "Active"

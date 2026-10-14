@@ -88,13 +88,16 @@ def inspect(snapshot, report=None, tracker=None):
                             branch_calculation='ai_required', reference_present=bool(entry)))
     book = Rulebook()
     entities = {}
+    from autoslay.rules.mechanism_scope import reviewed_pickup
+    pickup = reviewed_pickup(snapshot, book) if state.get('phase') == 'combat' else {}
     def walk(value):
         if isinstance(value, dict):
             identity=value.get('entity_id')
             if isinstance(identity,str) and identity.startswith(('CARD.','POTION.','RELIC.','POWER.')):
                 status=book.status(identity,snapshot.get('game_version'))
+                if identity in pickup: status='observed_in_snapshot'
                 entities[identity]=dict(entity_id=identity,name=value.get('name') or (book.references.get(identity) or {}).get('name',identity),
-                                       tier='adapter' if status=='compatible' else 'ai_required',reason=status)
+                                       tier='observed_in_snapshot' if identity in pickup else 'adapter' if status=='compatible' else 'ai_required',reason=status)
             for child in value.values(): walk(child)
         elif isinstance(value,list):
             for child in value: walk(child)

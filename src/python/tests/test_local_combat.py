@@ -43,7 +43,7 @@ def test_local_policy_preserves_coverage_and_freshness_guards(fault):
     if fault=='hidden':s['state']['enemies'][0]['hidden_power_ids']=['POWER.UNKNOWN'];r['source']=source(s)
     if fault=='modifier':s['state']['player']['hand'][0]['enchantment_id']='ENCHANTMENT.UNKNOWN';r['source']=source(s)
     if fault=='fatal':
-        for x in c['candidates']+c.get('wait_candidates',[]):x['metrics']['projected_death']=True
+        for x in c['decision_candidates']:x['metrics']['projected_death']=True
     assert select(r,s)[0] is None
 
 

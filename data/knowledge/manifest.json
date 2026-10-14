@@ -15,6 +15,7 @@
     "aliases": "aliases.json",
     "relations": "relations.json",
     "strategy": "experience/strategy/entries.json",
-    "timing": "experience/timing/profiles.json"
+    "timing": "experience/timing/profiles.json",
+    "mechanism_scope": "rules/mechanism-scope.json"
   }
 }

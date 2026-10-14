@@ -20,7 +20,7 @@ from autoslay.planning import relic_timing
 from autoslay.evaluation.relic_timing import OpeningContext, TimingPolicy
 from autoslay.paths import ROOT
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 def load_policy(path: Path) -> combat_eval.CombatPolicy:
@@ -83,6 +83,10 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
     versions.update(card_flow=card_flow.VERSION, periodic_relic_rules=periodic_relics.VERSION,
                     relic_timing_planner=relic_timing.VERSION, relic_timing_policy=timing_policy.version if timing_policy else None)
     versions.update(versions_extra)
+    from autoslay.rules.mechanism_scope import reviewed_pickup, VERSION as SCOPE_VERSION
+    from autoslay.knowledge_base.rulebook import Rulebook
+    versions['mechanism_scope'] = SCOPE_VERSION
+    owned = {r['entity_id'] for r in snapshot['state']['player'].get('relics') or []}
     report.update(schema_version="decision/1.0", analysis_id=uuid.uuid4().hex,
                   source=dict(session_epoch=snapshot.get("session_epoch"), state_version=snapshot.get("state_version"),
                               run_id=snapshot["state"].get("command_context_id") or snapshot["state"].get("run_id"),
@@ -90,6 +94,7 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
                               state_sha256=hashlib.sha256(json.dumps(snapshot["state"], sort_keys=True, ensure_ascii=False).encode()).hexdigest()),
                   module_versions=versions, policy=asdict(evaluator.policy), budget=asdict(budget or planner.SearchBudget()),
                   timings_ms=clock.stages_ms, coverage=dict(unsupported_cards=simulator.unsupported,
+                    reviewed_mechanisms=[row for identity,row in reviewed_pickup(snapshot, Rulebook()).items() if identity in owned],
                     unsupported_potions=list(simulator.unsupported_potions), interaction_warnings=list(initial.warnings)),
                   normalized_input=asdict(initial),execution_authorized=False, live_state_ready=bool(snapshot.get("ready") and not snapshot.get("busy")),
                   limitations=["read-only candidates; Codex chooses actions from a fresh legal catalog",
