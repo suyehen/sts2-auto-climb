@@ -88,7 +88,7 @@ class Backend:
 
     def ensure(self, name):
         if self.health(name)['ready']:
-            return
+            return dict(started=False)
         if occupied(SERVICES[name][0]):
             raise ValueError('SERVICE_PORT_OCCUPIED')
         # Also refuse to duplicate a live process that has not bound its port yet.
@@ -114,7 +114,7 @@ class Backend:
             if health['ready']:
                 if name == 'agent' and health['running']:
                     raise ValueError('AGENT_NOT_PAUSED')
-                return
+                return dict(started=True, pid=child.pid)
             time.sleep(.2)
         raise ValueError('SERVICE_START_TIMEOUT')
 
@@ -255,7 +255,7 @@ class Manager:
     def perform(self):
         try:
             action, scope = self.job['action'], self.job['scope']
-            names = ['agent'] if scope == 'agent' else ['agent', 'execution', 'dashboard']
+            names = (['agent', 'execution'] if action == 'restart' else ['agent']) if scope == 'agent' else ['agent', 'execution', 'dashboard']
             # Prevent independently launched managers/commands from overlapping.
             with dispatch_lock(self.root/'.runtime/local/service-maintenance') as exclusive:
                 if not exclusive:
@@ -277,7 +277,18 @@ class Manager:
                                         self.phase('stopping', name); self.backend.stop(name, handles[name])
                                     if action == 'restart':
                                         for name in (['execution', 'agent'] if scope == 'agent' else ['execution', 'agent', 'dashboard']):
-                                            self.phase('starting', name); self.backend.ensure(name)
+                                            self.phase('starting', name)
+                                            result = self.backend.ensure(name)
+                                            # A restart must replace the process, rather than
+                                            # accepting an already-responsive stale service.
+                                            if not result or result.get('started') is not True:
+                                                raise ValueError('SERVICE_RESTART_UNCONFIRMED')
+                                            old_pid = getattr(handles[name], 'pid', None)
+                                            if not result.get('pid') or result['pid'] == old_pid:
+                                                raise ValueError('SERVICE_RESTART_UNCONFIRMED')
+                                            with self.lock:
+                                                self.job.setdefault('restarted_services', {})[name] = dict(previous_pid=old_pid, pid=result['pid'])
+                                                self.save()
                                     break
                             if time.monotonic() >= deadline:
                                 raise ValueError('EXECUTOR_BUSY')

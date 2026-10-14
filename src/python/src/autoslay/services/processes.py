@@ -76,6 +76,7 @@ class OwnedProcess:
             if (int(record['Created']) // 10 != birth // 10 or Path(image.value).resolve() != expected_exe or
                     not service_command(args, expected_exe, expected_script)):
                 raise ValueError('PROCESS_IDENTITY_UNVERIFIED')
+            self.pid = pid
         except BaseException:
             self.close()
             raise

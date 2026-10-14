@@ -12,6 +12,7 @@ from autoslay.decision.unified import analyze_decision
 from autoslay.execution.deterministic import DeterministicExecutor
 from autoslay.execution.lock import dispatch_lock
 from autoslay.telemetry import runs, decisions
+from autoslay.telemetry.audit import Audit, error_code
 from .config import Store, Profile, atomic
 from .contracts import validate, validate_plan, Decision
 from .plans import prepare, matches
@@ -56,6 +57,9 @@ class Agent:
         self.fetch, self.control, self.submit, self.action_status = fetch, control, submit, status
         self.factory, self.analyze, self.record = factory, analyze, record
         self.journal = journal or ROOT/'.runtime/logs/agent'
+        self.audit = Audit(self.journal/'audit', archive=record)
+        self.trace_id = None
+        self.audit_snapshot = None
         self.deterministic = deterministic or DeterministicExecutor()
         self.task, self.generation, self.running = None, 0, False
         self.phase, self.error, self.last, self.recent = 'paused', None, None, []
@@ -73,7 +77,7 @@ class Agent:
     def status(self):
         return dict(running=self.running, phase=self.phase, error=self.error, generation=self.generation,
                     last=self.last, model_wait=self.model_wait, error_details=self.error_details, launch_active=self.launch.active,
-                    launch=self.launch.job, **self.store.public())
+                    launch=self.launch.job, audit_health=self.audit.status(), **self.store.public())
 
     async def pause(self):
         await self.launch.cancel()
@@ -87,6 +91,7 @@ class Agent:
         self.model_wait = None
         await self.control('paused')
         self.phase = 'paused'
+        self.audit.emit('control_paused', self.audit_snapshot, route='pause')
 
     async def command(self, route, body):
         # Local status must remain available while a game-state read or pause
@@ -127,6 +132,8 @@ class Agent:
                 self.store.active = identity
                 self.store.save()
                 self.error = None
+                self.audit.emit('provider_switched', self.audit_snapshot, provider=identity,
+                    provider_label=self.store.profiles[identity].label)
             elif route == '/profile':
                 p = Profile.model_validate(body['profile'])
                 if 'api_key' in body and (not isinstance(body['api_key'], str) or len(body['api_key']) > 8192
@@ -175,6 +182,8 @@ class Agent:
                 if result.get('error'): raise ValueError('GAME_CONTROL_FAILED')
                 self.generation += 1
                 self.running = True
+                self.audit_snapshot = snapshot
+                self.audit.emit('control_started', snapshot, provider=self.store.active, provider_label=p.label)
                 self.task = asyncio.create_task(self.loop(self.generation))
             else: raise ValueError('UNKNOWN_ROUTE')
             return self.status()
@@ -186,10 +195,18 @@ class Agent:
             record = json.loads(path.read_text(encoding='utf-8'))
             if record['status'] not in {'completed', 'failed', 'rejected', 'awaiting_choice'}:
                 receipt = await self.action_status(record['request']['request_id'])
+                recovery_snapshot = dict(session_epoch=record['request'].get('session_epoch'),
+                    state=dict(run_id=record['request'].get('run_id')))
+                self.audit.emit('action_recovery_checked', recovery_snapshot, trace_id=record.get('trace_id'),
+                    location=record.get('audit_location'),
+                    request_id=record['request']['request_id'], status=receipt.get('status'))
                 if receipt.get('status') not in {'completed', 'failed', 'rejected', 'awaiting_choice'}:
                     raise ValueError('PREVIOUS_ACTION_UNRESOLVED')
                 record.update(status=receipt['status'], receipt=receipt, recovered_by_status_query=True)
                 atomic(path, record)
+                self.audit.emit('action_recovered', recovery_snapshot, trace_id=record.get('trace_id'),
+                    location=record.get('audit_location'),
+                    request_id=record['request']['request_id'], status=receipt['status'])
 
     async def dispatch(self, decision, snapshot, generation):
         with dispatch_lock(ROOT/'.runtime/logs/plans') as acquired:
@@ -205,12 +222,16 @@ class Agent:
                 session_epoch=src['session_epoch'], expected_state_version=src['state_version'],
                 action_id=decision.action_id, target_id=decision.target_id)
             path = self.journal/(request.request_id+'.json')
-            record = dict(status='dispatch_pending', request=request.model_dump(), provider=self.store.active,
+            record = dict(status='dispatch_pending', request=request.model_dump(), provider=self.store.active, trace_id=self.trace_id,
+                          audit_location=runs.location(fresh),
                           state_rebound=source(fresh)!=source(snapshot), original_state_version=snapshot.get('state_version'))
             atomic(path, record)
+            self.audit.emit('action_submitted', fresh, self.trace_id, request_id=request.request_id,
+                action_id=request.action_id, target_id=request.target_id, expected_state_version=request.expected_state_version)
             receipt = await self.submit(request)
             record.update(status=receipt.get('status', 'unresolved'), receipt=receipt)
             atomic(path, record)
+            self.audit.emit('action_receipt', fresh, self.trace_id, request_id=request.request_id, status=record['status'])
             return record
 
     async def loop(self, generation):
@@ -222,9 +243,11 @@ class Agent:
         event_wait = None
         try:
             while self.running and generation == self.generation:
+                self.finish_trace(snapshot, 'completed')
                 identity = None
                 self.phase = 'reading_state'
                 snapshot = await self.fetch()
+                self.audit_snapshot = snapshot
                 if not snapshot.get('connected') or snapshot.get('error'): raise ValueError('GAME_DISCONNECTED')
                 s = snapshot.get('state') or {}
                 if reward_settling(snapshot):
@@ -261,10 +284,12 @@ class Agent:
                 if token == previous:
                     await asyncio.sleep(.4)
                     continue
+                self.trace_id = uuid4().hex
+                self.audit.emit('trace_started', snapshot, self.trace_id)
                 proof = assess({}, snapshot)
                 if proof['eligible']:
                     self.phase = 'local_deterministic'
-                    result = await self.deterministic.execute(uuid4().hex)
+                    result = await self.local_execute(snapshot, proof)
                     if result.get('status') in {'ai_required','wait'} or (result.get('status')=='rejected' and result.get('reason') in {'STATE_CHANGED','EXECUTOR_BUSY'}):
                         await asyncio.sleep(.2)
                         continue
@@ -274,17 +299,19 @@ class Agent:
                     self.last = dict(source='local_deterministic', status=result['status'])
                     continue
                 if proof['mode'] == 'wait':
+                    self.finish_trace(snapshot, 'wait')
                     await asyncio.sleep(.4)
                     continue
                 self.phase = 'calculating'
                 report = await asyncio.to_thread(self.analyze, snapshot)
+                self.audit.emit('analysis_completed', snapshot, self.trace_id, analysis_id=report.get('analysis_id'))
                 # The strict fast path runs before analysis. A fully covered
                 # local strategy can qualify only after the combat search.
                 strategy=assess(report,snapshot)
                 if strategy['eligible']:
                     self.phase='local_deterministic'
                     kwargs={'bounded':True} if strategy.get('decision_basis')=='bounded_combat_strategy' else {}
-                    result=await self.deterministic.execute(uuid4().hex,**kwargs)
+                    result=await self.local_execute(snapshot, strategy, **kwargs)
                     if result.get('status') in {'completed','awaiting_choice'}:
                         previous=token
                         self.last=dict(source='local_deterministic',status=result['status'],rule_id=strategy['rule_id'],decision_basis=strategy.get('decision_basis'))
@@ -298,10 +325,12 @@ class Agent:
                 provider = self.factory(p, self.store.key(p))
                 self.phase = 'waiting_model'
                 identity = uuid4().hex
+                self.audit.emit('model_requested', snapshot, self.trace_id, analysis_id=report.get('analysis_id'),
+                    plan_request_id=identity, provider=p.id, provider_label=p.label, model=p.model)
                 if self.record:
                     await asyncio.to_thread(decisions.archive, report, snapshot)
                     await asyncio.to_thread(runs.stage, 'agent_packet', snapshot,
-                        dict(analysis_id=report['analysis_id'], request_id=identity,
+                        dict(analysis_id=report['analysis_id'], request_id=identity, trace_id=self.trace_id,
                              provider=p.id, model=p.model, packet=packet))
                 start = time.monotonic()
                 self.model_wait = dict(request_id=identity, started_at=time.time(),
@@ -320,13 +349,18 @@ class Agent:
                     raise
                 finally:
                     self.model_wait = None
-                if not self.running or generation != self.generation: break
+                if not self.running or generation != self.generation:
+                    self.finish_trace(snapshot, 'cancelled')
+                    break
                 if plan is None:
                     self.request_event(snapshot,identity,'not_executed',reason='state_changed_before_correction')
+                    self.finish_trace(snapshot, 'not_executed')
                     continue
                 previous = await self.execute_plan(plan, snapshot, report, generation, p,
                     identity, round((time.monotonic()-start)*1000), usage)
-        except asyncio.CancelledError: raise
+        except asyncio.CancelledError:
+            self.finish_trace(snapshot, 'cancelled')
+            raise
         except ProviderError as exc:
             self.save_error(str(exc), snapshot, identity, exc.details)
         except (ValidationError, json.JSONDecodeError):
@@ -337,6 +371,7 @@ class Agent:
         except Exception:
             self.save_error('AGENT_ERROR', snapshot, identity)
         finally:
+            self.finish_trace(snapshot, 'failed' if self.error else 'completed')
             if generation == self.generation:
                 self.running = False
                 await self.control('paused')
@@ -345,8 +380,11 @@ class Agent:
     async def decide_plan(self, provider, packet, snapshot, generation, identity, report, profile):
         usage={}
         try:
-            raw,usage=await provider.decide(packet)
-            return validate_plan(raw,snapshot),usage
+            raw,usage=await self.model_call(provider, packet, snapshot, identity, profile, 1)
+            plan=validate_plan(raw,snapshot)
+            self.audit.emit('plan_validated', snapshot, self.trace_id, plan_request_id=identity,
+                validation_attempt=1, steps=[s.model_dump() for s in plan.steps], reason=plan.reason)
+            return plan,usage
         except ProviderError as exc:
             if str(exc) not in {'MODEL_TOOL_CALL_REQUIRED','MODEL_INVALID_TOOL_CALL'}: raise
             code=str(exc);issues=[];usage=exc.details.get('usage',{})
@@ -356,6 +394,8 @@ class Agent:
         except ValueError as exc:
             if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'}:raise
             code=str(exc);issues=[]
+        self.audit.emit('plan_rejected', snapshot, self.trace_id, plan_request_id=identity,
+            validation_attempt=1, code=code, validation_issues=issues, usage=usage)
         # No part of the rejected plan was submitted. Retry once only after
         # verifying that the same visible state is still waiting for a choice.
         fresh=await self.fetch()
@@ -374,9 +414,9 @@ class Agent:
         if self.record:
             self.request_event(snapshot,identity,'retrying',retry_reason=code,attempt=2,validation_attempt=2,validation_issues=issues)
             await asyncio.to_thread(runs.stage,'agent_packet',snapshot,dict(analysis_id=report['analysis_id'],
-                request_id=identity,provider=profile.id,model=profile.model,validation_attempt=2,packet=correction))
+                request_id=identity,trace_id=self.trace_id,provider=profile.id,model=profile.model,validation_attempt=2,packet=correction))
         try:
-            raw,retry_usage=await provider.decide(correction)
+            raw,retry_usage=await self.model_call(provider, correction, snapshot, identity, profile, 2)
         except ProviderError as exc:
             retry_usage=exc.details.get('usage',{})
             combined={k:usage.get(k,0)+retry_usage.get(k,0) for k in set(usage)|set(retry_usage)}
@@ -387,10 +427,17 @@ class Agent:
         combined['request_attempts']=usage.get('request_attempts',1)+retry_usage.get('request_attempts',1)
         combined['validation_attempts']=2
         try:
-            return validate_plan(raw,snapshot),combined
+            plan=validate_plan(raw,snapshot)
+            self.audit.emit('plan_validated', snapshot, self.trace_id, plan_request_id=identity,
+                validation_attempt=2, steps=[s.model_dump() for s in plan.steps], reason=plan.reason)
+            return plan,combined
         except (ValidationError,json.JSONDecodeError) as exc:
+            self.audit.emit('plan_rejected', snapshot, self.trace_id, plan_request_id=identity,
+                validation_attempt=2, code='MODEL_INVALID_DECISION', validation_issues=validation_issues(exc), usage=retry_usage)
             raise ProviderError('MODEL_INVALID_DECISION',dict(validation_attempts=2,validation_issues=validation_issues(exc),usage=combined)) from None
         except ValueError as exc:
+            self.audit.emit('plan_rejected', snapshot, self.trace_id, plan_request_id=identity,
+                validation_attempt=2, code=error_code(exc), usage=retry_usage)
             if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'}:raise
             raise ProviderError(str(exc),dict(validation_attempts=2,validation_issues=[dict(type=str(exc))],usage=combined)) from None
 
@@ -400,26 +447,73 @@ class Agent:
         profile=self.store.profiles.get(self.store.active)
         details=dict(code=code, occurred_at=time.time(), stage=self.phase,
                      provider=self.store.active, model=profile.model if profile else None,
-                     request_id=request_id, plan_request_id=request_id, game_phase=state.get('phase'), turn=(state.get('player') or {}).get('turn',state.get('turn')))
+                     request_id=request_id, plan_request_id=request_id, trace_id=self.trace_id,
+                     game_phase=state.get('phase'), turn=(state.get('player') or {}).get('turn',state.get('turn')))
         if self.phase=='executing' and self.last:
             details.update({k:self.last[k] for k in ['plan_step','plan_length','action_id','status'] if k in self.last})
         if provider_details:details.update(provider_details)
         self.error_details=details
+        self.audit.emit('agent_error', snapshot, self.trace_id, code=code, plan_request_id=request_id,
+            usage=(provider_details or {}).get('usage'))
         try:
             atomic(self.journal/'diagnostics/latest.json',details)
             atomic(self.journal/('diagnostics/error-'+uuid4().hex+'.json'),details)
             if self.record and snapshot:runs.stage('agent_error',snapshot,details)
         except Exception:
             # Diagnosis must never interfere with stopping the executor.
-            pass
+            self.audit.health['last_error'] = 'AUDIT_WRITE_FAILED'
+            self.audit.health['write_failures'] += 1
 
     def request_event(self,snapshot,identity,status,**details):
-        event=dict(plan_request_id=identity,status=status,occurred_at=time.time(),**details)
+        event=dict(plan_request_id=identity,trace_id=self.trace_id,status=status,occurred_at=time.time(),**details)
+        self.audit.emit('request_'+status, snapshot, self.trace_id, plan_request_id=identity, **details)
         try:
             atomic(self.journal/('requests/'+uuid4().hex+'.json'),event)
             if self.record and snapshot:runs.stage('agent_request',snapshot,event)
         except Exception:
-            pass
+            self.audit.health['last_error'] = 'AUDIT_WRITE_FAILED'
+            self.audit.health['write_failures'] += 1
+
+    def finish_trace(self, snapshot, status, reason=None):
+        if self.trace_id:
+            self.audit.emit('trace_finished', snapshot, self.trace_id, status=status, reason=reason)
+            self.trace_id = None
+
+    async def local_execute(self, snapshot, proof, **kwargs):
+        request_id = uuid4().hex
+        self.audit.emit('local_requested', snapshot, self.trace_id, request_id=request_id,
+            rule_id=proof.get('rule_id'), decision_basis=proof.get('decision_basis'), reason=proof.get('reason'))
+        result = await self.deterministic.execute(request_id, **kwargs)
+        self.audit.emit('local_returned', snapshot, self.trace_id, request_id=request_id, status=result.get('status'))
+        actual = result.get('request') or {}
+        if actual.get('request_id'):
+            self.audit.emit('action_receipt', snapshot, self.trace_id,
+                request_id=actual['request_id'], analysis_id=result.get('analysis_id'), status=result.get('status'),
+                action_id=actual.get('action_id'), target_id=actual.get('target_id'))
+        if result.get('status') in {'completed', 'awaiting_choice', 'ai_required', 'wait', 'rejected'}:
+            self.finish_trace(snapshot, result['status'])
+        return result
+
+    async def model_call(self, provider, packet, snapshot, identity, profile, validation_attempt):
+        context = dict(plan_request_id=identity, provider=profile.id, provider_label=profile.label, model=profile.model,
+                       validation_attempt=validation_attempt)
+        trace_id = self.trace_id
+        if hasattr(provider, 'on_attempt'):
+            provider.on_attempt = lambda progress: self.audit.emit('model_attempt', snapshot, trace_id, **context, **progress)
+        started = time.monotonic()
+        self.audit.emit('model_call_started', snapshot, trace_id, **context)
+        try:
+            raw, usage = await provider.decide(packet)
+        except asyncio.CancelledError:
+            self.audit.emit('model_call_cancelled', snapshot, trace_id, **context)
+            raise
+        except Exception as exc:
+            self.audit.emit('model_call_failed', snapshot, trace_id, **context, code=error_code(exc),
+                elapsed_ms=round((time.monotonic()-started)*1000), usage=getattr(exc, 'details', {}).get('usage'))
+            raise
+        self.audit.emit('model_call_returned', snapshot, trace_id, **context,
+            elapsed_ms=round((time.monotonic()-started)*1000), usage=usage)
+        return raw, usage
 
     async def execute_plan(self, plan, snapshot, report, generation, profile, identity, model_ms, usage):
         prepared = prepare(plan, snapshot)
@@ -444,7 +538,7 @@ class Agent:
                                 reason=plan.reason, **step.model_dump())
             self.last = dict(source=profile.id, model=profile.model, reason=plan.reason,
                 action_id=step.action_id, target_id=step.target_id, model_ms=model_ms, usage=usage,
-                plan_request_id=identity, plan_step=index+1, plan_length=len(prepared),
+                plan_request_id=identity, trace_id=self.trace_id, plan_step=index+1, plan_length=len(prepared),
                 original_plan_length=len(plan.steps), original_plan_steps=[s.model_dump() for s in plan.steps],
                 plan_preparation='modeled_prefix_or_observation_boundary' if len(prepared)<len(plan.steps) else 'complete',
                 plan_steps=[s.model_dump() for s, _ in prepared])
@@ -484,4 +578,8 @@ class Agent:
                 raise ValueError('ACTION_'+result['status'].upper())
             if result['status'] == 'awaiting_choice':
                 break
+        interruption = (self.last or {}).get('plan_interruption')
+        status = ('cancelled' if not self.running or generation != self.generation else
+                  'interrupted' if interruption else (self.last or {}).get('status', 'unknown'))
+        self.finish_trace(current, status, interruption)
         return previous

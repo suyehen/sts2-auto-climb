@@ -13,6 +13,31 @@ from urllib.parse import urlsplit
 import httpx
 from autoslay.paths import ROOT
 from .contracts import prompt, schema_for, tool_schema_for, tool_result
+from autoslay.telemetry.audit import safe_usage, error_code
+
+
+async def observed_attempt(provider, call, attempt=1, max_tokens=None):
+    """Report each transport attempt without exposing response text or credentials."""
+    started = time.monotonic()
+    def emit(status, **details):
+        callback = getattr(provider, 'on_attempt', None)
+        if callback:
+            try:
+                callback(dict(status=status, attempt=attempt, max_tokens=max_tokens,
+                              elapsed_ms=round((time.monotonic()-started)*1000), **details))
+            except Exception:
+                pass  # Instrumentation must not turn a completed request into a retry.
+    emit('started')
+    try:
+        raw, usage = await call()
+    except asyncio.CancelledError:
+        emit('cancelled')
+        raise
+    except Exception as exc:
+        emit('failed', code=error_code(exc), usage=safe_usage(getattr(exc, 'details', {}).get('usage')))
+        raise
+    emit('returned', usage=safe_usage(usage))
+    return raw, usage
 
 
 def strict_unsupported(status, payload):
@@ -63,6 +88,7 @@ class APIProvider:
     def __init__(self, profile, key='', transport=None):
         self.profile, self.key, self.transport = profile, key, transport
         self.on_retry = None
+        self.on_attempt = None
         self.strict_fallback = False
 
     async def decide(self, packet):
@@ -73,7 +99,7 @@ class APIProvider:
         consumed={}
         for attempt in range(1,4 if recover else 2):
             try:
-                raw,usage=await self.decide_once(packet,budget)
+                raw,usage=await observed_attempt(self, lambda: self.decide_once(packet,budget), attempt, budget)
                 if attempt>1:
                     usage={k:usage.get(k,0)+consumed.get(k,0) for k in set(usage)|set(consumed)}
                     usage['request_attempts']=attempt
@@ -173,9 +199,14 @@ class CodexProvider:
     Isolated ephemeral invocations avoid loading user MCPs/plugins or project instructions.
     The CLI manages subscription authentication and its own sandbox.
     """
-    def __init__(self, profile): self.profile = profile
+    def __init__(self, profile):
+        self.profile = profile
+        self.on_attempt = None
 
     async def decide(self, packet):
+        return await observed_attempt(self, lambda: self.decide_once(packet))
+
+    async def decide_once(self, packet):
         p = self.profile
         exe = resolve_codex_executable(p.codex_executable)
         if not exe: raise ProviderError('CODEX_NOT_INSTALLED')

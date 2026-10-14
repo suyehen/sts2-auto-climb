@@ -93,7 +93,7 @@ def make_server(port=PORT,directory=None):
                     match=re.fullmatch(r'/assets/(cards|potions|relics|monsters|map)/((CARD|POTION|RELIC|MONSTER|MAP)\.[A-Z0-9_]+\.webp)',route)
                     if not match or {'cards':'CARD','potions':'POTION','relics':'RELIC','monsters':'MONSTER','map':'MAP'}[match[1]]!=match[3]:raise ValueError('Invalid image')
                     self.send(asset_path(match[1],match[2]).read_bytes(),kind='image/webp');return
-                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/services.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
+                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/services.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/audit-view.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
                     name='index.html' if route=='/' else route[1:]
                     kind={'html':'text/html','js':'text/javascript','css':'text/css'}[name.rsplit('.',1)[1]]+'; charset=utf-8'
                     self.send((ASSETS/name).read_bytes(),kind=kind); return

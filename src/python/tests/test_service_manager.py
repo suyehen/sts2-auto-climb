@@ -22,6 +22,7 @@ def snapshot():
 
 
 class Owner:
+    def __init__(self, pid=100): self.pid=pid
     def __enter__(self): return self
     def __exit__(self, *_): pass
 
@@ -42,7 +43,9 @@ class Backend:
     def snapshot(self): return deepcopy(self.current)
     def receipt(self, identity):
         self.calls.append(('receipt', identity));return self.receipts.get(identity, dict(status='unknown'))
-    def ensure(self, name): self.calls.append(('start', name))
+    def ensure(self, name):
+        self.calls.append(('start', name))
+        return dict(started=True,pid={'agent':201,'execution':202,'dashboard':203}[name])
     def stop(self, name, owner): self.calls.append(('stop', name))
 
 
@@ -60,12 +63,21 @@ def pending(tmp_path, epoch='epoch', folder='agent'):
     return path
 
 
-def test_agent_restart_pauses_and_restarts_only_agent_in_order(tmp_path):
+def test_agent_restart_replaces_agent_and_execution_in_order(tmp_path):
     m = manager(tmp_path);m.perform()
     assert m.job['status'] == 'completed' and m.job['paused'] is True
-    assert m.backend.calls == [('verify', 'agent'), ('pause',), ('stop', 'agent'),
+    assert m.backend.calls == [('verify', 'agent'), ('verify', 'execution'), ('pause',), ('stop', 'agent'), ('stop','execution'),
                                ('start', 'execution'), ('start', 'agent')]
+    assert m.job['restarted_services']=={'execution':{'previous_pid':100,'pid':202},'agent':{'previous_pid':100,'pid':201}}
     assert not any(c[0] in {'submit', 'play', 'launch'} for c in m.backend.calls)
+
+
+@pytest.mark.parametrize('result',[dict(started=False),dict(started=True,pid=100),dict(started=True)])
+def test_restart_cannot_report_completion_without_a_new_process(tmp_path,result):
+    m=manager(tmp_path)
+    m.backend.ensure=lambda name:result
+    m.perform()
+    assert m.job['status']=='failed' and m.job['error']=='SERVICE_RESTART_UNCONFIRMED'
 
 
 def test_start_is_idempotent_service_ensure_without_pausing_running_game(tmp_path):

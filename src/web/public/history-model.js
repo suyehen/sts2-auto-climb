@@ -4,10 +4,11 @@ const identity=e=>e.event_id||e.record_id;
 function links(e,scope){
  const d=e.details||{},r=e.request||d.request||{};
  const values=[];
+ if(d.trace_id||e.trace_id)values.push('trace:'+(d.trace_id||e.trace_id));
  if(e.kind==='decision')values.push('analysis:'+identity(e)+scope(e,identity(e)));
  for(const v of [d.analysis_id,d.decision_id,e.analysis_id,e.ai_payload?.analysis_id])if(v)values.push('analysis:'+v+scope(e,v));
  for(const v of [d.plan_request_id,e.kind==='agent_packet'?d.request_id:null])if(v)values.push('plan:'+v);
- for(const v of [r.request_id,e.kind==='local_outcome'?d.request_id:null])if(v)values.push('action:'+v);
+ for(const v of [r.request_id,['local_outcome','agent_audit'].includes(e.kind)?d.request_id:null])if(v)values.push('action:'+v);
  if(e.kind==='action_plan')for(const step of d.steps||[])if(step.request?.request_id)values.push('action:'+step.request.request_id);
  return values;
 }
@@ -15,8 +16,8 @@ const roots=new Set(['decision','agent_packet','ai_choice','local_choice']);
 export function groupHistory(entries){
  const events=[...entries].filter(e=>e.kind!=='heartbeat').sort((a,b)=>String(a.recorded_at).localeCompare(String(b.recorded_at))||(a.sequence||a.cursor||0)-(b.sequence||b.cursor||0));
  const requests=new Map();
- for(const e of events){const d=e.details||{},id=d.plan_request_id||(e.kind==='agent_packet'?d.request_id:null);if(id&&d.analysis_id){const values=requests.get(d.analysis_id)||[];if(!values.some(v=>v.id===id))values.push({id,time:e.recorded_at});requests.set(d.analysis_id,values)}}
- const scope=(e,analysis)=>{const d=e.details||{},explicit=d.plan_request_id||(e.kind==='agent_packet'?d.request_id:null);if(explicit)return '@'+explicit;const values=requests.get(analysis)||[];const value=values.filter(v=>String(v.time)<=String(e.recorded_at)).at(-1)||values[0];return value?'@'+value.id:''};
+ for(const e of events){const d=e.details||{},id=d.plan_request_id||(e.kind==='agent_packet'?d.request_id:null);if(id&&d.analysis_id){const values=requests.get(d.analysis_id)||[];if(!values.some(v=>v.id===id))values.push({id,time:e.recorded_at,trace:d.trace_id});requests.set(d.analysis_id,values)}}
+ const scope=(e,analysis)=>{const d=e.details||{},explicit=d.plan_request_id||(e.kind==='agent_packet'?d.request_id:null);if(explicit)return '@'+explicit;const values=requests.get(analysis)||[],trace=d.trace_id||e.trace_id;const value=(trace?values.find(v=>v.trace===trace):null)||values.filter(v=>String(v.time)<=String(e.recorded_at)).at(-1)||values[0];return value?'@'+value.id:trace?'@trace:'+trace:''};
  const parents=new Map(),find=id=>{if(!parents.has(id))parents.set(id,id);if(parents.get(id)!==id)parents.set(id,find(parents.get(id)));return parents.get(id)};
  for(const e of events){const ids=links(e,scope);for(const id of ids.slice(1))parents.set(find(id),find(ids[0]));}
  const grouped=new Map();

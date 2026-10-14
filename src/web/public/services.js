@@ -12,6 +12,7 @@ const errors={
  GAME_SESSION_CHANGED:'游戏会话在核对期间变化，本次重启已停止。请检查游戏状态。',
  SERVICE_START_FAILED:'服务启动失败，请查看对应启动日志。',
  SERVICE_START_TIMEOUT:'服务未在规定时间内就绪，请查看对应启动日志。',
+ SERVICE_RESTART_UNCONFIRMED:'未能确认服务进程已被替换，重启未完成，请检查服务管理记录。',
  SERVICE_STOP_FAILED:'服务未能停止，请查看启动日志。',
  SERVICE_STOP_TIMEOUT:'服务退出超时，请稍后检查状态。',
  MANAGER_INTERRUPTED:'管理进程曾被中断；不会自动重复上次操作，请检查当前服务状态。',
@@ -40,15 +41,15 @@ export async function serviceApi(path,body){
 }
 export function mountServices({host,quickButtons,onBusy,onReady}){
  const E=window.Observer.el,panel=E('details',undefined,'service-controls'),summary=E('summary','后台服务管理'),message=E('p'),buttons=E('div',undefined,'button-row');
- const restart=E('button','重启 Agent 服务'),all=E('button','重启全部后台服务'),quick=E('button','重启服务');
- message.setAttribute('role','status');quick.title='重启 Agent 服务，完成后保持暂停';
+ const restart=E('button','重启 Agent 与执行服务'),all=E('button','重启全部后台服务'),quick=E('button','重启服务');
+ message.setAttribute('role','status');quick.title='重启全部后台服务，就绪后刷新页面；Agent 保持暂停';
  buttons.append(restart,all);panel.append(summary,message,buttons);host.append(panel);quickButtons?.append(quick);
  let data=null,requestId=null,posting=false,refreshing=false,startedHere=false,reported=null,localError='';
  function render(){
   const v=serviceView(data),busy=posting||v.busy;
   summary.textContent=v.label;message.textContent=localError||v.detail;quick.title=localError||v.detail;
   for(const button of [restart,all,quick])button.disabled=busy||!v.available;
-  restart.textContent=busy?'正在维护…':'重启 Agent 服务';quick.textContent=busy?'维护中…':'重启服务';
+  restart.textContent=busy?'正在维护…':'重启 Agent 与执行服务';quick.textContent=busy?'维护中…':'重启服务';
   onBusy(busy);
  }
  async function refresh(){
@@ -60,7 +61,7 @@ export function mountServices({host,quickButtons,onBusy,onReady}){
    const job=data.job;
    if(job&&job.status==='completed'&&job.request_id!==reported){
     reported=job.request_id;onReady();
-    if(startedHere&&job.scope==='all'&&job.action==='restart')location.reload();
+    if(startedHere&&job.request_id===requestId&&job.action==='restart')location.reload();
    }
   }catch{
    data=null;render();
@@ -78,7 +79,7 @@ export function mountServices({host,quickButtons,onBusy,onReady}){
    message.textContent=localError||'请求结果尚未确认，正在核对管理记录。';
   }finally{posting=false;await refresh()}
  }
- restart.onclick=quick.onclick=()=>operate('agent');all.onclick=()=>operate('all');
+ restart.onclick=()=>operate('agent');all.onclick=quick.onclick=()=>operate('all');
  render();refresh();setInterval(()=>{if(!posting)refresh()},1500);
  return {refresh};
 }
