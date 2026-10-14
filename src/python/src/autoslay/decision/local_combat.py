@@ -5,7 +5,7 @@ from autoslay.decision.normalize import normalize
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge_base.repository import read_json, dataset_path
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 
 
 def select(report, snapshot):
@@ -17,7 +17,7 @@ def select(report, snapshot):
     coverage = combat.get('coverage') or {}
     if any(key not in coverage for key in ('unsupported_cards', 'unsupported_potions', 'interaction_warnings')) or coverage['interaction_warnings']:
         return None, ['local_combat_mechanics_incomplete']
-    if combat.get('search_truncated') is not False or combat.get('problems') != []:
+    if combat.get('search_truncated') is not False or combat.get('problems') != [] or combat.get('candidate_pool_incomplete'):
         return None, ['local_combat_search_incomplete']
     state = snapshot['state'];player = state.get('player') or {}
     creatures = [player.get('creature') or {}, *(state.get('enemies') or [])]
@@ -100,3 +100,61 @@ def select(report, snapshot):
                               selected_continuation=steps, consumables_preserved=True,
                               decision_candidate_count=len(candidates),
                               long_term_value_proven=False)), []
+
+
+def select_calibrated(report, snapshot, policy):
+    """Interval dominance/regret under a version-matched independent calibration."""
+    from .deterministic import source, operations, ADMIN
+    if policy.get('strategy_mode','off')!='execute':return None,['combat_strategy_'+policy.get('strategy_mode','off')]
+    if any((report.get('source') or {}).get(k)!=v for k,v in source(snapshot).items()):
+        return None,['local_combat_requires_matching_analysis']
+    strategy=(report.get('combat') or {}).get('strategy') or {}
+    from .combat_circuit import blocked
+    if blocked((strategy.get('policy_identity') or {}).get('policy_fingerprint')):
+        return None,['combat_strategy_disabled_after_mismatch']
+    reasons=list(strategy.get('calibration_reasons') or [])
+    if not strategy.get('calibration_version'):reasons.append('combat_calibration_missing')
+    if not strategy.get('search_complete') and not strategy.get('comparison_bounds_complete'):
+        reasons.append('combat_strategy_search_incomplete')
+    state=snapshot['state'];player=state.get('player') or {}
+    if any(c.get('hidden_power_ids')!=[] for c in [player.get('creature') or {},*(state.get('enemies') or [])]):
+        reasons.append('local_combat_hidden_hooks_not_observed')
+    reviewed=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
+    for card in player.get('hand') or []:
+        if card.get('modifiers_complete') is not True:reasons.append('local_combat_card_modifiers_not_observed')
+        enchant=card.get('enchantment_id')
+        if card.get('affliction_id') or enchant and (enchant not in reviewed or card['entity_id'] not in reviewed[enchant].get('card_ids',[])):
+            reasons.append('local_combat_card_modifier_not_certified')
+    actions=[a for a in state.get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}]
+    legal={Operation(**op) for op in operations(actions)}
+    rows=strategy.get('first_actions') or []
+    if {Operation(**r['first_step']) for r in rows}!=legal:reasons.append('combat_strategy_first_step_missing')
+    if any(r.get('upper') is None for r in rows):
+        reasons.append('combat_strategy_alternative_bound_unknown')
+    if reasons:return None,list(dict.fromkeys(reasons))
+    suggested=strategy.get('suggested_first_step')
+    best=next((r for r in rows if r['first_step']==suggested),None)
+    if not best or not best.get('complete') or best.get('death_upper')!=0 or best.get('lower') is None:
+        return None,['combat_strategy_risk_constraint']
+    # Fully modeled alternatives violating the zero-death risk constraint are
+    # infeasible; a finite utility must never make one defeat the only safe path.
+    feasible=[r for r in rows if not (r.get('complete') and r.get('death_upper')==1)]
+    other=max((r['upper'] for r in feasible if r is not best),default=best['lower'])
+    gap=best['lower']-other;regret=max(0,other-best['lower'])
+    low=player['creature']['hp']/max(1,player['creature']['max_hp'])<=.35
+    irreversible=bool(best.get('consumed_potions'))
+    epsilon=policy.get('low_risk_epsilon',0) if low or irreversible else policy.get('regret_epsilon',0)
+    if not (gap>policy.get('robust_margin',0) or regret<=epsilon):
+        return None,['combat_strategy_intervals_overlap']
+    return dict(rule_id='calibrated_combat_strategy',decision_basis='calibrated_combat_strategy',
+                reason='经过独立校准的短期战斗策略：比较全部合法首步的收益区间并通过生存约束，只执行首步后重新观察。',
+                steps=[best['first_step']],evidence=dict(module_version=VERSION,optimality_proven=False,
+                  policy_identity=strategy.get('policy_identity'),calibration_version=strategy.get('calibration_version'),
+                  bound_kind=best['bound_kind'],lower=best['lower'],upper=best['upper'],robust_gap=gap,
+                  regret_upper=regret,epsilon=epsilon,death_upper=best['death_upper'],
+                  utility_components=best.get('utility_components'),consumed_potions=best.get('consumed_potions'),
+                  reserve_lower=best.get('reserve_lower'),reserve_upper=best.get('reserve_upper'),
+                  first_actions=rows,search_complete=strategy.get('search_complete'),
+                  comparison_bounds_complete=strategy.get('comparison_bounds_complete'),
+                  unsearched_global_model_upper=strategy.get('unsearched_global_model_upper'),
+                  selected_continuation=[best['first_step']])),[]

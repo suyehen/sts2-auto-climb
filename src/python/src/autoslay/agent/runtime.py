@@ -305,12 +305,18 @@ class Agent:
                 self.phase = 'calculating'
                 report = await asyncio.to_thread(self.analyze, snapshot)
                 self.audit.emit('analysis_completed', snapshot, self.trace_id, analysis_id=report.get('analysis_id'))
+                shadow=(report.get('combat') or {}).get('strategy') or {}
+                if self.record and shadow.get('mode')=='shadow':
+                    await asyncio.to_thread(runs.stage,'combat_shadow',snapshot,
+                        dict(analysis_id=report['analysis_id'],suggested_first_step=shadow.get('suggested_first_step'),
+                             policy_identity=shadow.get('policy_identity'),calibration_reasons=shadow.get('calibration_reasons'),
+                             execution_authorized=False))
                 # The strict fast path runs before analysis. A fully covered
                 # local strategy can qualify only after the combat search.
                 strategy=assess(report,snapshot)
                 if strategy['eligible']:
                     self.phase='local_deterministic'
-                    kwargs={'bounded':True} if strategy.get('decision_basis')=='bounded_combat_strategy' else {}
+                    kwargs={'bounded':True} if strategy.get('decision_basis') in {'bounded_combat_strategy','calibrated_combat_strategy'} else {}
                     result=await self.local_execute(snapshot, strategy, **kwargs)
                     if result.get('status') in {'completed','awaiting_choice'}:
                         previous=token
@@ -484,7 +490,7 @@ class Agent:
         self.audit.emit('local_requested', snapshot, self.trace_id, request_id=request_id,
             rule_id=proof.get('rule_id'), decision_basis=proof.get('decision_basis'), reason=proof.get('reason'))
         result = await self.deterministic.execute(request_id, **kwargs)
-        self.audit.emit('local_returned', snapshot, self.trace_id, request_id=request_id, status=result.get('status'))
+        self.audit.emit('local_returned', snapshot, self.trace_id, request_id=request_id, status=result.get('status'),reason=result.get('reason'))
         actual = result.get('request') or {}
         if actual.get('request_id'):
             self.audit.emit('action_receipt', snapshot, self.trace_id,

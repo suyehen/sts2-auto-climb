@@ -3,5 +3,41 @@
   "damage_weight": 1.0,
   "block_weight": 1.5,
   "permanent_strength_weight": 3.0,
-  "draw_option_weight": 0.0
+  "draw_option_weight": 0.0,
+  "short_term": {
+    "version": "1.0.0",
+    "hp_weight": 1.0,
+    "hp_sensitivity": 2.0,
+    "finish_weight": 50.0,
+    "discount": 0.9,
+    "enemy_hp_weight": 0.4,
+    "enemy_block_weight": 0.15,
+    "enemy_strength_weight": 2.0,
+    "pollution_weight": 1.0,
+    "future_attack_segments": 2.0,
+    "strength_discount": 0.5,
+    "strength_value_cap": 12.0,
+    "worst_loss_weight": 0.5
+  },
+  "potion_reserve": {
+    "costs": {
+      "POTION.FIRE_POTION": {
+        "lower": 8.0,
+        "upper": 20.0
+      },
+      "POTION.BLOCK_POTION": {
+        "lower": 6.0,
+        "upper": 14.0
+      },
+      "POTION.ENERGY_POTION": {
+        "lower": 6.0,
+        "upper": 18.0
+      },
+      "POTION.STRENGTH_POTION": {
+        "lower": 8.0,
+        "upper": 20.0
+      }
+    },
+    "substitute_discount": 0.75
+  }
 }

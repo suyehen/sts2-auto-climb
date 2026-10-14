@@ -16,7 +16,7 @@ from autoslay.knowledge_base.templates import canonical
 from autoslay.planning.search import search, SearchBudget
 from autoslay.evaluation.combat import CombatEvaluator
 
-VERSION='1.2.0'
+VERSION='1.3.0'
 
 class ScenarioRules(IroncladRules):
     def card(self,card,state):
@@ -26,6 +26,8 @@ class ScenarioRules(IroncladRules):
         for effect in rule.effects:
             value=effect.amount
             if effect.kind in {'damage','dismantle'}:
+                if card.enchantment_id=='ENCHANTMENT.SHARP':
+                    value+=card.enchantment_amount or 0
                 value=max(0,value+state.base_strength+state.strength_delta)
                 if state.player_weak: value=value*3//4
                 value-=state.strength_delta  # Engine adds delta; do not apply Strength twice.
@@ -35,16 +37,33 @@ class ScenarioRules(IroncladRules):
 
 def templates_for(snapshot,entries):
     templates={}; variants={}
+    from autoslay.knowledge_base.repository import read_json, dataset_path
+    modifiers=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
     p=snapshot['state']['player']
-    for raw in (p.get('deck') or [])+(p.get('hand') or [])+(p.get('discard') or [])+(p.get('exhaust') or []):
-        entity=raw['entity_id']; variants.setdefault(entity,set()).add(raw.get('upgrade_level',0))
-        try: templates[entity]=replace(canonical(raw,entries)[0],canonical=True)
+    raw_cards=(p.get('deck') or [])+(p.get('hand') or [])+(p.get('discard') or [])+(p.get('exhaust') or [])
+    raw_cards += [v['card'] for v in p.get('draw_variants') or [] if v.get('card')]
+    for raw in raw_cards:
+        entity=raw.get('variant_key') or raw['entity_id']
+        signature=(raw.get('upgrade_level',0),raw.get('enchantment_id'),raw.get('affliction_id'),
+                   raw.get('energy_cost'),raw.get('star_cost'),raw.get('enchantment_amount'))
+        variants.setdefault(entity,set()).add(signature)
+        if raw.get('affliction_id'):continue
+        enchant=raw.get('enchantment_id')
+        if enchant and (enchant!='ENCHANTMENT.SHARP' or raw['entity_id'] not in modifiers.get(enchant,{}).get('card_ids',[])
+                       or type(raw.get('enchantment_amount')) is not int or raw['enchantment_amount']<0):continue
+        if raw.get('has_local_cost_modifiers'):continue
+        try:
+            template=canonical(raw,entries)[0]
+            base_cost=raw.get('base_energy_cost',template.cost)
+            if raw.get('energy_cost',base_cost)!=base_cost:continue
+            templates[entity]=replace(template,canonical=True,variant_key=raw.get('variant_key',''),
+                                     cost=base_cost,enchantment_id=enchant,enchantment_amount=raw.get('enchantment_amount'))
         except ValueError: pass
     for entity,levels in variants.items():
         if len(levels)>1: templates.pop(entity,None)
     return templates
 
-def draw_branches(state,count,templates,limit,seed):
+def draw_branches(state,count,templates,limit,seed,metadata=None):
     """Ordinary draw and one reshuffle; branch probabilities retain exact/sample mass."""
     plan=plan_draw(count,len(state.hand),sum(n for _,n in state.draw_composition),sum(n for _,n in state.discard_composition),
                    blocked=state.effect_draw_blocked,discard_known=state.discard_known)
@@ -55,6 +74,9 @@ def draw_branches(state,count,templates,limit,seed):
         known.update(draw); pool=discard; number=plan.actual-sum(draw.values()); reshuffle=True
     else: pool=draw; number=plan.actual; reshuffle=False
     outcomes=distribution(pool,number,exact_limit=limit,samples=limit,seed=seed)
+    if metadata is not None:
+        metadata.update(method=outcomes.method,samples=outcomes.samples,seed=outcomes.seed,
+                        probability_kind='exact' if outcomes.method=='exact' else 'empirical_frequency')
     result=[]
     for branch_index,outcome in enumerate(outcomes.outcomes):
         selected=Counter(dict(outcome.cards)); all_drawn=known+selected
@@ -72,7 +94,7 @@ def draw_branches(state,count,templates,limit,seed):
             discard_composition=() if reshuffle else state.discard_composition)))
     return result,outcomes.method
 
-def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,scenarios=None):
+def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,scenarios=None,policy=None):
     horizon=settings.get('horizon',2); limit=settings.get('branches',8); total_ms=settings.get('time_ms',600)
     seed=settings.get('seed',42); draws=settings.get('draws',5); energy=settings.get('energy',3)
     if any(type(v) is not int for v in (horizon,limit,total_ms,seed,draws,energy)) or not (1<=horizon<=3 and 1<=limit<=32 and 1<=total_ms<=3000 and 0<=draws<=10 and 0<=energy<=10):
@@ -132,15 +154,15 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
             observations.add('unsupported_remaining_card_end_turn_hooks'); return None
         if state.warnings:
             observations.add('combat_interactions_unmodeled');return None
-        discarded=add_to_composition(state.discard_composition,[c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE'])
-        exhausted=add_to_composition(state.exhausted_composition,[c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE'])
+        discarded=add_to_composition(state.discard_composition,[c.variant_key or c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE'])
+        exhausted=add_to_composition(state.exhausted_composition,[c.variant_key or c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE'])
         state=replace(state,hand=(),discard_composition=discarded,exhausted_composition=exhausted)
         if model is not None:
             try:enemy_outcomes=model.step(state,limit,select_next=ply<horizon)
             except (UnsupportedEffect,SyntaxError,KeyError) as exc:
                 observations.add(str(exc));return None
         else:
-            loss=CombatEvaluator().evaluate(state,Transition(state),())['projected_hp_loss']
+            loss=CombatEvaluator(policy).evaluate(state,Transition(state),())['projected_hp_loss']
             enemy_outcomes=[(1.0,replace(state,hp=max(0,state.hp-loss)),[])]
         outcomes=[]
         for probability,after,_ in enemy_outcomes:
@@ -173,7 +195,7 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
         nonlocal nodes
         if expired(): return None
         sim=CombatSimulator(state,ScenarioRules())
-        report=search(state,sim,CombatEvaluator(),SearchBudget(max_nodes=150,time_ms=max(1,min(25,int(total_ms))),top_k=2,max_depth=6)); nodes+=report['nodes']
+        report=search(state,sim,CombatEvaluator(policy),SearchBudget(max_nodes=150,time_ms=max(1,min(25,int(total_ms))),top_k=2,max_depth=6)); nodes+=report['nodes']
         best=None
         for candidate in report['candidates'][:2]+report['observation_boundaries'][:1]:
             local=state; result=Transition(local); operations=[]

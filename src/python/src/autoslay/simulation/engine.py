@@ -3,7 +3,7 @@ from autoslay.decision.contracts import CombatState, Operation, Transition, Unsu
 from autoslay.rules.registry import IroncladRules, Effect
 from autoslay.simulation.card_flow import plan_draw, add_to_composition
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 class CombatSimulator:
@@ -47,21 +47,27 @@ class CombatSimulator:
                 alive_ids={e.instance_id for e in state.enemies if e.hp>0}
                 actions.extend(Operation(potion.action_id, target) for target in potion.targets
                                if rule.target_type!='AnyEnemy' or target in alive_ids)
-                if not potion.targets:
+                if potion.allows_no_target or not potion.targets:
                     actions.append(Operation(potion.action_id))
         return tuple(actions)
 
     def apply(self, state: CombatState, action: Operation) -> Transition:
         if action not in self.actions(state):
             raise UnsupportedEffect("Operation is not modeled or not legal")
-        if state.warnings:
-            raise UnsupportedEffect("Unmodeled combat interaction: " + "; ".join(state.warnings))
+        from autoslay.rules.mechanism_scope import action_blockers
+        blockers=action_blockers(state,action) if state.mechanism_scope else list(state.warnings)
+        if blockers:
+            raise UnsupportedEffect("Unmodeled combat interaction: " + "; ".join(blockers))
         if action.action_id == "end_turn":
             # Forecast current visible attacks separately; never invent next turn's hand/intents.
             return Transition(state, "next_turn_requires_observation")
         potion_rule = self.compiled_potions.get(action.action_id)
         card = None if potion_rule else next(c for c in state.hand if "play_" + c.instance_id == action.action_id)
         rule = potion_rule or self.compiled[card.instance_id]
+        if card is not None and card.canonical:
+            # Public canonical continuations must recompile after Strength/Weak
+            # changes; adding a delta to an already rounded number is incorrect.
+            rule = self.rules.card(card, state)
         target_type = potion_rule.target_type if potion_rule else card.target_type
         if target_type == "AnyEnemy":
             targets = {action.target_id}
@@ -129,12 +135,14 @@ class CombatSimulator:
             elif effect.kind in {"strength", "temporary_strength"}:
                 s = replace(s, strength_delta=s.strength_delta + effect.amount,
                             temporary_strength=s.temporary_strength + (effect.amount if effect.kind == "temporary_strength" else 0))
-                if s.player_weak:
+                if s.player_weak and not (card is not None and card.canonical and all(c.canonical for c in s.hand)
+                    and all(e.kind not in {'damage','dismantle'} for e in effects[index+1:])):
                     return Transition(s, "weak_strength_rounding_requires_observation")
             elif effect.kind == "lose_hp":
                 if s.turn_hp_loss_cap is not None:
                     return Transition(s, "remaining_turn_hp_cap_requires_observation")
-                s = replace(s, hp=max(0, s.hp - max(0, effect.amount - s.hp_loss_reduction)))
+                loss = min(s.hp, max(0, effect.amount - s.hp_loss_reduction))
+                s = replace(s, hp=s.hp-loss, self_hp_loss=s.self_hp_loss+loss)
             elif effect.kind == "energy":
                 s = replace(s, energy=s.energy + effect.amount)
             elif effect.kind == "exhaust_nonattacks":
@@ -144,7 +152,7 @@ class CombatSimulator:
                 if any(c.instance_id not in self.compiled and c.entity_id != "CARD.ASCENDERS_BANE" for c in exhausted):
                     return Transition(s, "unknown_exhaust_hooks_requires_observation")
                 s = replace(s, hand=tuple(c for c in s.hand if c.card_type == "Attack"),
-                    exhausted_composition=add_to_composition(s.exhausted_composition, [c.entity_id for c in exhausted]),
+                    exhausted_composition=add_to_composition(s.exhausted_composition, [c.variant_key or c.entity_id for c in exhausted]),
                     block=s.block + effect.amount * len(exhausted))
             elif effect.kind.endswith("_boundary"):
                 return Transition(s, effect.kind + "_requires_observation")
@@ -169,6 +177,6 @@ class CombatSimulator:
                 break
         if card is not None:
             destination = "exhausted_composition" if exhaust else "discard_composition"
-            s = replace(s, **{destination: add_to_composition(getattr(s, destination), [card.entity_id])})
+            s = replace(s, **{destination: add_to_composition(getattr(s, destination), [card.variant_key or card.entity_id])})
         return Transition(s, requested_draw=draw_plan.requested if draw_plan else 0,
                           draw_reason=draw_plan.reason if draw_plan else None)

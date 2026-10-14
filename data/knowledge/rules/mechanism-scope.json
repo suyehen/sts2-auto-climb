@@ -1,6 +1,6 @@
 {
   "schema_version": "mechanism-scope/1.0",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "game_version": "0.111.0",
   "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "entries": [
@@ -133,6 +133,60 @@
       "trigger": "ShouldShowMoveInBestiary",
       "treatment": "irrelevant_to_combat",
       "evidence": "MegaCrit.Sts2.Core.Models.Monsters/ShrinkerBeetle.cs: Bestiary filter changes visible move list only."
+    },
+    {
+      "entity_id": "MONSTER.FUZZY_WURM_CRAWLER",
+      "hook": "AcidGoop",
+      "game_version": "0.111.0",
+      "phase": "combat_move",
+      "treatment": "modeled",
+      "source_fingerprint": "1b985c2625c86375a377bb8f124e339cba9af66ce4c6b7d0d5f4548662ce8bb8",
+      "body_fingerprint": "b93c8ddfae8a80f714c86e5c5eec4f7528af02efde0fee0f092e6a20643f7c1e",
+      "reads": [
+        "player.hp",
+        "enemy.strength",
+        "presentation"
+      ],
+      "writes": [
+        "player.hp",
+        "enemy.strength",
+        "enemy.IsPuffed",
+        "presentation"
+      ],
+      "trigger": "announced_enemy_turn",
+      "ignored_state_updates": [
+        "Position"
+      ],
+      "initialized_fields": [
+        "IsPuffed"
+      ],
+      "evidence": "Reviewed full FuzzyWurmCrawler.cs: AcidGoop visual guard writes only a SpineBoneNode position; IsPuffed setter only AssertMutable + bool assignment and is read only by animation. Damage/Strength commands are still executed by the ordered adapter. Unknown modified bodies remain blocked."
+    },
+    {
+      "entity_id": "MONSTER.FUZZY_WURM_CRAWLER",
+      "hook": "Inhale",
+      "game_version": "0.111.0",
+      "phase": "combat_move",
+      "treatment": "modeled",
+      "source_fingerprint": "1b985c2625c86375a377bb8f124e339cba9af66ce4c6b7d0d5f4548662ce8bb8",
+      "body_fingerprint": "4058de8a358f027c50a9437414647c4a6661dae08dc5c869ec7893af2289a162",
+      "reads": [
+        "player.hp",
+        "enemy.strength",
+        "presentation"
+      ],
+      "writes": [
+        "player.hp",
+        "enemy.strength",
+        "enemy.IsPuffed",
+        "presentation"
+      ],
+      "trigger": "announced_enemy_turn",
+      "ignored_state_updates": [],
+      "initialized_fields": [
+        "IsPuffed"
+      ],
+      "evidence": "Reviewed full FuzzyWurmCrawler.cs: AcidGoop visual guard writes only a SpineBoneNode position; IsPuffed setter only AssertMutable + bool assignment and is read only by animation. Damage/Strength commands are still executed by the ordered adapter. Unknown modified bodies remain blocked."
     }
   ]
 }

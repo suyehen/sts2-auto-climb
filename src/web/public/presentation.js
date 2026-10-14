@@ -15,7 +15,7 @@ export const metricValue=(key,value)=>key.endsWith('probability')&&typeof value=
 export function disclosureState(host){return new Map(Array.from(host.querySelectorAll?.('details')||[],d=>[d.id||d.querySelector('summary')?.textContent,d.open]))}
 export function restoreDisclosures(host,state){for(const d of host.querySelectorAll?.('details')||[]){const key=d.id||d.querySelector('summary')?.textContent;if(state.has(key))d.open=state.get(key)}}
 export const metrics={projected_hp_loss:'预计失血',effective_hp_damage:'有效伤害',effective_block:'有效格挡',heuristic_score:'综合收益分',remaining_energy:'剩余能量',remaining_stars:'剩余星星',fatal_probability:'致死概率',covered_probability:'已计算分支概率',delta_utility:'卡组边际收益',utility:'收益分',spent:'金币支出',projected_death:'是否预测死亡',all_enemies_killed:'是否全部击杀',prevented_attack_damage:'避免的攻击伤害',self_hp_loss:'自身效果失血',incoming_after_kills:'击杀后剩余攻击',expected_utility:'概率加权收益',base_value:'基础价值',synergy_correction:'卡组协同修正',environment_correction:'当前环境修正',constraint_correction:'机制限制修正',cost_penalty:'费用负担',draw_disabled_or_capacity:'抽牌限制修正',hp:'生命',block:'格挡',energy:'能量',max_hp:'生命上限',draw_count:'抽牌数',remaining_primary_enemy_hp:'主要敌人剩余生命',projected_attack_hp_loss:'预计受击失血',block_after_plays:'出牌后格挡',initial_visible_attack:'当前可见攻击',utility_points:'卡组综合分',damage:'伤害',downside_penalty:'风险扣分',hp_loss:'生命损失',survived:'条件生存率',finished:'条件完成率'};
-Object.assign(metrics,{permanent_strength_gain:'永久力量增益',requested_draw:'请求抽牌数',remaining_hand_size:'剩余手牌数',projected_hp_loss_is_upper_bound:'失血预测是否仅为上限',hand_limit:'手牌上限',effect_draw_blocked:'效果抽牌是否被禁止',turn:'回合数',stars:'星星',base_strength:'基础力量',strength_delta:'力量变化',temporary_strength:'临时力量',hp_loss_reduction:'失血减免',turn_hp_loss_cap:'本回合失血上限',damage_weight:'伤害权重',block_weight:'格挡权重',draw_weight:'抽牌权重',energy_weight:'能量权重',strength_weight:'力量权重',vulnerable_weight:'易伤权重',curse_weight:'诅咒权重',hp_weight:'生命权重',max_hp_weight:'生命上限权重',gold_weight:'金币权重',risk_weight:'风险权重',opening_draw:'首回合抽牌',permanent_strength_weight:'永久力量权重',draw_option_weight:'抽牌机会权重',strength_multihit_weight:'力量与多段攻击协同',draw_cheap_card_weight:'抽牌与低费牌协同',exhaust_block_weight:'消耗与格挡协同',deck_size_penalty:'卡组厚度负担'});
+Object.assign(metrics,{permanent_strength_gain:'战斗内持续力量增益',requested_draw:'请求抽牌数',remaining_hand_size:'剩余手牌数',projected_hp_loss_is_upper_bound:'失血预测是否仅为上限',hand_limit:'手牌上限',effect_draw_blocked:'效果抽牌是否被禁止',turn:'回合数',stars:'星星',base_strength:'基础力量',strength_delta:'力量变化',temporary_strength:'临时力量',hp_loss_reduction:'失血减免',turn_hp_loss_cap:'本回合失血上限',damage_weight:'伤害权重',block_weight:'格挡权重',draw_weight:'抽牌权重',energy_weight:'能量权重',strength_weight:'力量权重',vulnerable_weight:'易伤权重',curse_weight:'诅咒权重',hp_weight:'生命权重',max_hp_weight:'生命上限权重',gold_weight:'金币权重',risk_weight:'风险权重',opening_draw:'首回合抽牌',permanent_strength_weight:'战斗内持续力量权重',draw_option_weight:'抽牌机会权重',strength_multihit_weight:'力量与多段攻击协同',draw_cheap_card_weight:'抽牌与低费牌协同',exhaust_block_weight:'消耗与格挡协同',deck_size_penalty:'卡组厚度负担'});
 export function empty(title,text){const n=el('div',undefined,'empty-state');n.append(el('div','◇','empty-symbol'),el('strong',title),el('p',text));return n}
 export function stat(label,value,note){const n=el('div',undefined,'stat-card');n.append(el('span',label),el('strong',fmt(value)));if(note)n.append(el('small',note));return n}
 export function decisionSourceStats(manifest){
@@ -30,6 +30,18 @@ export function renderDecisionStats(host,manifest){
   grid.append(stat(label,rate===null?'—':(rate*100).toFixed(1)+'%',count===null?'数量未记录':count+' 次'));
  }
  host.replaceChildren(grid,el('p',stats.total===null?'暂无本局选择统计':stats.total===0?'本局尚未记录决策选择':'本局已记录 '+stats.total+' 次选择 · 占比按本地 + AI 选择计算','decision-stats-note'));
+}
+export function renderCombatMetrics(host,value){
+ if(!value)return;
+ const panel=el('details');panel.id='combat-metrics';panel.append(el('summary','战斗决策与请求统计'));
+ const rate=v=>v==null?'未记录':(100*v).toFixed(1)+'%';
+ panel.append(definitions([['战斗自主率',rate(value.choices?.local_rate)],['战斗选择数',value.choices?.total],
+  ['主动决策自主率',rate(value.active_choices?.local_rate)],['主动选择数',value.active_choices?.total],
+  ['实际模型请求数',value.model_requests?.count],['每场观测战斗请求',value.model_requests?.requests_per_battle],
+  ['每个观测玩家回合请求',value.model_requests?.requests_per_turn],['动作执行成功率',rate(value.execution?.success_rate)],
+  ['提交前拒绝',value.execution?.pre_submission_rejection_event_ids?.length]]));
+ panel.append(el('p','等待、重复分析和影子建议不计入选择；缺少请求或质量证据时显示未知。','hint'));
+ host.append(panel);
 }
 export function definitions(rows){const n=el('div');for(const [key,value]of rows){const r=el('div',undefined,'definition-row');r.append(el('span',key),el('strong',fmt(value)));n.append(r)}return n}
 export function table(value){const t=el('table',undefined,'human-table');for(const [k,v]of Object.entries(value||{})){if(!metrics[k]||typeof v==='object'&&v!==null)continue;const r=el('tr');r.append(el('th',metrics[k]),el('td',metricValue(k,v)));t.append(r)}return t}
@@ -126,7 +138,7 @@ export function autonomyPanel(autonomy,snapshot={}){
   const names={forced_action:'必须推进的唯一动作',forced_end_turn:'只能结束回合',mandatory_card_selection:'必须选择全部候选牌',certain_combat_finish:'确定立即结束战斗',eliminate_certain_death:'排除明确致死选项',equivalent_outcomes:'完整结果等价',dominant_outcome:'战后资源严格支配',common_first_step:'最佳路线的共同首步',bounded_combat_search:'本地当前回合策略（非整局最优证明）'};
   panel.append(definitions([['分流规则',names[autonomy.rule_id]||autonomy.rule_id],['下一步',(autonomy.selected_steps||[]).map(s=>actionName(s,snapshot)).join(' → ')],['AI 调用','跳过']]));
   if(evidence.search)panel.append(definitions([['路线搜索完整',evidence.search.complete],['已搜索状态',evidence.search.nodes],['可结束战斗的路线',evidence.finish_count],['最佳等价路线',evidence.equivalent_best_count],['被严格支配的路线',evidence.dominated_finish_count],['战后生命',evidence.hp_after_victory]]));
-  if(evidence.selected_continuation?.length)panel.append(el('p',(autonomy.decision_basis==='bounded_combat_strategy'?'本地策略参考路线：':'证明使用的路线：')+evidence.selected_continuation.map(step=>actionName(step,snapshot)).join(' → '),'result-description'));
+  if(evidence.selected_continuation?.length)panel.append(el('p',(['bounded_combat_strategy','calibrated_combat_strategy'].includes(autonomy.decision_basis)?'本地策略参考路线：':'证明使用的路线：')+evidence.selected_continuation.map(step=>actionName(step,snapshot)).join(' → '),'result-description'));
   if(evidence.search)panel.append(el('p','仅执行下一步，结算后重新读取状态和证明。比较范围为已核验的本回合结束战斗场景。','hint'));
   for(const [index,finish] of (evidence.compared_finishes||[]).entries()){
    const row=el('details');row.id='autonomy-finish-'+index;row.append(el('summary','结束路线 '+(index+1)));
@@ -181,7 +193,7 @@ export function renderDecision(host,record,tab='summary',choice=null,evidence=nu
  if(tab==='evidence'){const grid=el('div',undefined,'evidence-layout');const intended=el('div',undefined,'evidence-cell'),actual=el('div',undefined,'evidence-cell');intended.append(el('h3','当时选择了什么'),el('p',evidence?.choice?.reason||choice?.reason||'尚未记录选择理由。'));actual.append(el('h3','实际发生了什么'));const outcomes=evidence?.observations||[];if(!outcomes.length)actual.append(el('p','暂无与这次决策匹配的结果记录。'));for(const o of outcomes){if(o.note)actual.append(el('p',o.note,'result-description'));actual.append(table(o.actual||o.observed||o));}const plans=evidence?.plans||[];for(const p of plans)actual.append(el('p',({completed:'执行完成',stopped:'已停止',running:'执行中'})[p.status]||'计划已记录'));grid.append(intended,actual);host.append(grid);return}
  const p=s.player||{},c=p.creature||{};if(!options.live)host.append(definitions([['房间',phase(r.phase||s.phase)],['当时生命',c.hp!=null?c.hp+' / '+c.max_hp:'未记录'],['当时能量',p.energy],['当时金币',p.gold]]));
  if(choice?.reason)host.append(el('p',choice.reason,'decision-note'));
- if(r.autonomy?.eligible)host.append(el('p',r.autonomy.decision_basis==='bounded_combat_strategy'?'本地策略已完成当前回合的覆盖检查，只执行下一步后重新观察；未证明整局最优。':'这一步已通过确定性检查，可以直接执行，无需等待 AI。','decision-note'));
+ if(r.autonomy?.eligible)host.append(el('p',['bounded_combat_strategy','calibrated_combat_strategy'].includes(r.autonomy.decision_basis)?'本地策略已完成当前回合的覆盖检查，只执行下一步后重新观察；未证明整局最优。':'这一步已通过确定性检查，可以直接执行，无需等待 AI。','decision-note'));
  if(r.autonomy?.eligible||r.autonomy?.score_review)host.append(autonomyPanel(r.autonomy,snapshot));
  if(r.combat?.lookahead){const facts=combatForecastFacts(r.combat.lookahead,snapshot),summary=el('div',undefined,'combat-forecast-summary');summary.append(el('h3',r.combat.lookahead.horizon+' 回合推演'));for(const fact of facts.filter(f=>/^(战斗方案|抽牌方案)/.test(f)))summary.append(el('p',fact,'result-description'));host.append(summary);const panel=combatForecastPanel(r.combat.lookahead,snapshot);panel.open=tab==='metrics'&&!options.live;host.append(panel)}
  if(options.live)host.append(candidateGroups(r,snapshot,false));

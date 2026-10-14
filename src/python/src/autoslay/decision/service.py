@@ -20,7 +20,7 @@ from autoslay.planning import relic_timing
 from autoslay.evaluation.relic_timing import OpeningContext, TimingPolicy
 from autoslay.paths import ROOT
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 
 def load_policy(path: Path) -> combat_eval.CombatPolicy:
@@ -54,7 +54,7 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
         with clock.stage('lookahead'):
             entries, knowledge_hash = index(expected_version=snapshot['game_version'])
             report['lookahead'] = evaluate_lookahead(snapshot, initial, report['candidates'], report['observation_boundaries'],
-                                                   entries, lookahead_settings, scenarios)
+                                                   entries, lookahead_settings, scenarios,policy=policy)
             versions_extra = dict(lookahead=LOOKAHEAD_VERSION, knowledge_hash=knowledge_hash)
     else:
         versions_extra = {}
@@ -83,10 +83,16 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
     versions.update(card_flow=card_flow.VERSION, periodic_relic_rules=periodic_relics.VERSION,
                     relic_timing_planner=relic_timing.VERSION, relic_timing_policy=timing_policy.version if timing_policy else None)
     versions.update(versions_extra)
-    from autoslay.rules.mechanism_scope import reviewed_pickup, VERSION as SCOPE_VERSION
+    from autoslay.rules.mechanism_scope import reviewed_pickup, coverage_for_snapshot, VERSION as SCOPE_VERSION
     from autoslay.knowledge_base.rulebook import Rulebook
     versions['mechanism_scope'] = SCOPE_VERSION
     owned = {r['entity_id'] for r in snapshot['state']['player'].get('relics') or []}
+    from autoslay.decision.deterministic import operations, ADMIN
+    known={(r['action_id'],r['target_id']) for r in report['first_action_summaries']}
+    for op in operations([a for a in snapshot['state'].get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}]):
+        if (op['action_id'],op['target_id']) not in known:
+            report['first_action_summaries'].append(dict(**op,continuation_count=0,coverage='incomplete',
+              reasons=['first_step_not_modeled'],unsearched_alternatives=1,lower_bound=None,upper_bound=None,bound_kind='unknown'))
     report.update(schema_version="decision/1.0", analysis_id=uuid.uuid4().hex,
                   source=dict(session_epoch=snapshot.get("session_epoch"), state_version=snapshot.get("state_version"),
                               run_id=snapshot["state"].get("command_context_id") or snapshot["state"].get("run_id"),
@@ -94,6 +100,7 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
                               state_sha256=hashlib.sha256(json.dumps(snapshot["state"], sort_keys=True, ensure_ascii=False).encode()).hexdigest()),
                   module_versions=versions, policy=asdict(evaluator.policy), budget=asdict(budget or planner.SearchBudget()),
                   timings_ms=clock.stages_ms, coverage=dict(unsupported_cards=simulator.unsupported,
+                    mechanism_scope=[asdict(r) for r in coverage_for_snapshot(snapshot,initial.warnings)],
                     reviewed_mechanisms=[row for identity,row in reviewed_pickup(snapshot, Rulebook()).items() if identity in owned],
                     unsupported_potions=list(simulator.unsupported_potions), interaction_warnings=list(initial.warnings)),
                   normalized_input=asdict(initial),execution_authorized=False, live_state_ready=bool(snapshot.get("ready") and not snapshot.get("busy")),

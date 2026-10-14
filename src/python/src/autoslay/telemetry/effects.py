@@ -48,6 +48,13 @@ def observe(before, after, status='completed', request_id=None):
         result['creatures'].append(dict(instance_id=identity,name=new.get('name'),hp_before=old.get('hp'),hp_after=new.get('hp'),powers=changes))
     result.update(status='observed',phase_before=left.get('phase'),phase_after=right.get('phase'),
                   turn_before=p.get('turn'),turn_after=q.get('turn'))
+    old_quality=left.get('combat_quality') or {};new_quality=right.get('combat_quality') or {}
+    if old_quality.get('combat_instance_id') and old_quality['combat_instance_id']==new_quality.get('combat_instance_id'):
+        fields=('enemy_hp_loss','self_hp_loss','unattributed_hp_loss','healing')
+        if all(type(old_quality.get(k)) is int and type(new_quality.get(k)) is int
+               and new_quality[k]>=old_quality[k] for k in fields):
+            result['combat_quality_delta']={k:new_quality[k]-old_quality[k] for k in fields}
+            result['combat_quality_basis']='actual game callbacks; same combat identity'
     result['notes'].append('生命变化包括自伤、治疗和战后回复；抽到的牌与实际附魔已记录，未选择方案的结果不作推断。')
     return result
 

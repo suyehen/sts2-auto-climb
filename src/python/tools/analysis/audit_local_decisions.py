@@ -20,7 +20,16 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('run_id')
     parser.add_argument('--output',type=Path,required=True,help='New versioned output; existing files are never overwritten')
     parser.add_argument('--manifest',type=Path,help='Replay exactly the event IDs in an earlier audit')
+    parser.add_argument('--shadow',action='store_true',help='Read-only new-strategy evaluation; never enables execution or edits active config')
     args=parser.parse_args()
+    if args.shadow:
+        from autoslay.decision import unified
+        original=unified.decision_config
+        def shadow_config(path):
+            value=original(path)
+            if Path(path).name=='autonomy.default.json':value=dict(value,strategy_mode='shadow')
+            return value
+        unified.decision_config=shadow_config
     if args.output.exists():raise ValueError('Audit output already exists')
     repo=Repository();entries=repo.entries(args.run_id,limit=10000,skip_heartbeat=True)
     if len(entries)>=10000:raise ValueError('Archive listing truncated; refusing an incomplete rate audit')
@@ -47,14 +56,22 @@ def main():
                     if model.warnings:blockers=list(model.warnings)
                     else:
                         report=analyze_decision(snapshot,use_cache=False)
-                        proof,blockers=select(report,snapshot)
+                        gate=assess(report,snapshot)
+                        proof=gate if gate['eligible'] else None
+                        blockers=[b for b in gate.get('reasons',[]) if b!='no_complete_proof'] if not proof else []
                 except (ValueError,KeyError,TypeError) as exc:
                     blockers=['replay_unavailable:'+type(exc).__name__]
             legal=operations([a for a in snapshot['state'].get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}])
             rows.append(dict(decision_id=e['event_id'],location=e['location'],original_choice=chosen.get(e['event_id']),
-                             forced=len(legal)==1,replay_mode='local' if proof else 'wait' if fast['mode']=='wait' else 'unavailable' if any(b.startswith('replay_unavailable:') for b in blockers) else 'ai_required',
+                             forced=len(legal)==1,replay_mode=(
+                                 'local_strict_rule' if proof.get('decision_basis','strict_proof')=='strict_proof' else
+                                 'local_bounded_strategy' if proof.get('decision_basis')=='bounded_combat_strategy' else 'local_calibrated_strategy') if proof else 'wait' if fast['mode']=='wait' else 'unavailable' if any(b.startswith('replay_unavailable:') for b in blockers) else 'ai_required',
                              replay_eligible=bool(proof),rule_id=proof.get('rule_id') if proof else None,
-                             selected_steps=(proof.get('steps') or proof.get('selected_steps')) if proof else None,blockers=blockers))
+                             selected_steps=(proof.get('steps') or proof.get('selected_steps')) if proof else None,blockers=blockers,
+                             search_limits=(report or {}).get('combat',{}).get('truncation_reasons',[]),
+                             timeout_nondeterminism='time_limit' in (report or {}).get('combat',{}).get('truncation_reasons',[])))
+            if args.shadow:
+                rows[-1]['shadow_strategy']=(report or {}).get('combat',{}).get('strategy')
             if not proof and fast['mode']!='wait':
                 rows[-1]['diagnostics']=diagnose(snapshot,report,blockers[0] if blockers else None)
             if len(rows)%10==0:print(json.dumps(dict(progress=len(rows)),ensure_ascii=False),flush=True)
@@ -67,7 +84,13 @@ def main():
     active_local=sum(e['kind']=='local_choice' for e in active)
     total=actual_local+actual_ai
     policies={name:decision_config(ROOT/('config/decision/'+name+'.default.json')) for name in ('combat','analysis','autonomy')}
-    payload=dict(schema_version='local-combat-replay/1.1',run_id=args.run_id,knowledge_revision=revision,
+    if args.shadow:policies['autonomy']=dict(policies['autonomy'],strategy_mode='shadow')
+    from autoslay.telemetry.combat_metrics import summarize
+    payload=dict(schema_version='local-combat-replay/1.2',run_id=args.run_id,knowledge_revision=revision,
+                 observed_combat_metrics=summarize(entries,repo.load_event),
+                 replay_classification_counts=dict(Counter(r['replay_mode'] for r in rows)),
+                 validation_status='functional_replay_only; no independent whole-run holdout calibration',
+                 strategy_shadow_requested=args.shadow,
                  cutoff_utc=datetime.now(timezone.utc).isoformat(),event_ids=[e['event_id'] for e in entries],
                  policy_fingerprint=digest(policies),policies=policies,
                  code_fingerprint=digest({str(p.relative_to(ROOT)):p.read_text(encoding='utf-8-sig') for directory in ('decision','planning','rules','evaluation') for p in (ROOT/'src/python/src/autoslay'/directory).glob('*.py')}),

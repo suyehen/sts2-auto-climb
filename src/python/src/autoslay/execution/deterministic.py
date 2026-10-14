@@ -10,6 +10,7 @@ from autoslay.execution.sequence import save
 from autoslay.telemetry import runs,decisions
 from uuid import uuid4
 from autoslay.knowledge_base.repository import scoped
+from time import perf_counter
 
 
 @scoped
@@ -44,22 +45,25 @@ class DeterministicExecutor:
                         if receipt.get('status') not in {'completed','failed','rejected'}:
                             return dict(status='unresolved',reason='PREVIOUS_ACTION_UNRESOLVED',request=old['request'])
                         old.update(status=receipt['status'],receipt=receipt,recovered_by_status_query=True);save(old_path,old)
-                before=await self.fetch();proof=await asyncio.to_thread(qualify,before,bounded)
+                before=await self.fetch();started=perf_counter();proof=await asyncio.to_thread(qualify,before,bounded)
+                analysis_ms=(perf_counter()-started)*1000
                 if not proof['eligible']: return dict(status=proof['mode'],autonomy=proof)
                 # Re-evaluate, rather than accepting a proof/candidate supplied by callers.
                 fresh=await self.fetch()
                 if source(fresh)!=proof['source'] or not fresh.get('ready') or fresh.get('busy'):
                     return dict(status='rejected',reason='STATE_CHANGED')
-                proof=await asyncio.to_thread(qualify,fresh,bounded)
+                started=perf_counter();proof=await asyncio.to_thread(qualify,fresh,bounded)
+                analysis_ms+=(perf_counter()-started)*1000
                 if not proof['eligible']: return dict(status=proof['mode'],autonomy=proof)
                 step=proof['selected_steps'][0];identity=uuid4().hex
                 report=dict(analysis_id=identity,source=proof['source'],phase=fresh['state']['phase'],
+                    request_elapsed_ms=analysis_ms,
                     autonomy=proof,execution_authorized=False,ai_called=False,shortlist=[],
-                    limitations=['bounded current-turn policy; not a global outcome proof' if proof.get('decision_basis')=='bounded_combat_strategy' else 'proof applies only to this fresh state'])
+                    limitations=['bounded strategy; not a global outcome proof' if proof.get('decision_basis') in {'bounded_combat_strategy','calibrated_combat_strategy'} else 'proof applies only to this fresh state'])
                 if self.record:
                     await asyncio.to_thread(decisions.archive,report,fresh)
                     await asyncio.to_thread(runs.stage,'local_choice',fresh,dict(analysis_id=identity,reason=proof['reason'],
-                        rule_id=proof['rule_id'],evidence=proof['evidence'],steps=[step],ai_called=False))
+                        rule_id=proof['rule_id'],decision_basis=proof.get('decision_basis'),evidence=proof['evidence'],steps=[step],ai_called=False))
                 request=ActionRequest(request_id='det-'+request_id,run_id=proof['source']['run_id'],
                     session_epoch=proof['source']['session_epoch'],expected_state_version=proof['source']['state_version'],**step)
                 result=dict(status='dispatch_pending',request=request.model_dump(),autonomy=proof,analysis_id=identity)
@@ -68,8 +72,27 @@ class DeterministicExecutor:
                 result.update(status=receipt.get('status','unresolved'),receipt=receipt)
                 save(path,result)
                 after=await self.fetch();result['snapshot']=after;save(path,result)
+                if proof.get('decision_basis')=='calibrated_combat_strategy' and result['status']=='completed':
+                    from autoslay.decision.normalize import normalize
+                    from autoslay.simulation.engine import CombatSimulator
+                    from autoslay.decision.contracts import Operation
+                    from autoslay.telemetry.verification import compare_transition
+                    try:
+                        initial=normalize(fresh);transition=CombatSimulator(initial).apply(initial,Operation(**step))
+                        if not transition.boundary and not transition.state.combat_won and after.get('state',{}).get('phase')=='combat':
+                            comparison=compare_transition(transition,after)
+                            result['prediction_comparison']=comparison
+                            if not comparison['numeric_fields_match']:
+                                from autoslay.decision.combat_circuit import disable
+                                disable(proof['evidence']['policy_identity']['policy_fingerprint'],comparison,ROOT)
+                                result['new_strategy_disabled']=True
+                                save(path,result)
+                    except (ValueError,KeyError,TypeError) as exc:
+                        result['prediction_comparison_unavailable']=type(exc).__name__
+                from autoslay.telemetry.effects import observe
                 if self.record: await asyncio.to_thread(runs.stage,'local_outcome',after,
                     dict(analysis_id=identity,request_id=request.request_id,status=result['status'],rule_id=proof['rule_id'],
+                        observed_effects=observe(fresh,receipt.get('snapshot') or after,result['status'],request.request_id),
                         predicted=proof['evidence'],actual=dict(phase=(after.get('state') or {}).get('phase'),
                         hp=(((after.get('state') or {}).get('player') or {}).get('creature') or {}).get('hp'))))
                 return result

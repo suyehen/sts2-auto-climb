@@ -11,7 +11,7 @@ from autoslay.decision.contracts import UnsupportedEffect
 from autoslay.knowledge_base.behavior import load
 from autoslay.knowledge_base.monster_values import arguments, call_end, resolve
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 KNOWN_POWERS = {'POWER.STRENGTH_POWER','POWER.WEAK_POWER','POWER.VULNERABLE_POWER',
                 'POWER.HARD_TO_KILL_POWER','POWER.MINION_POWER'}
 ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
@@ -124,6 +124,11 @@ class MonsterRules:
 
     def identify(self,enemy):
         entry=self.entry(enemy)
+        declared=next((m for m in entry.get('moves',[]) if m['state_id']==enemy.move_state),None)
+        if declared:
+            if self.attacks(enemy,entry,declared)!=enemy.attacks:
+                raise UnsupportedEffect('announced_move_numeric_mismatch:'+enemy.entity_id)
+            return replace(enemy,move_state=declared['variable'],move_history=enemy.move_history or (declared['variable'],))
         if enemy.move_state in self.moves(entry):return enemy
         possible=[]
         for variable,move in self.moves(entry).items():
@@ -191,14 +196,18 @@ class MonsterRules:
         if not total:raise UnsupportedEffect('no_eligible_random_move')
         return [(w/total*p,d) for w,t in weights for p,d in self.destinations(enemy,entry,t,visited+(target,))]
 
-    def effects(self,enemy,entry,move):
+    def effects(self,enemy,entry,move,allow_ordered=False):
         source=move.get('execution_evidence','')
-        visual=re.search(r'if \(TestMode\.IsOff\)\s*\{',source)
+        from autoslay.rules.mechanism_scope import reviewed_move_scope
+        scope=reviewed_move_scope(entry,move)
+        visual=re.search(r'if \(TestMode\.IsOff(?: && targets\.Any\(\))?\)\s*\{',source)
         if visual:
             start=visual.end()-1;depth=1;end=start+1
             while end<len(source) and depth:
                 depth+=(source[end]=='{')-(source[end]=='}');end+=1
             block=source[start:end]
+            if '&& targets.Any()' in source[visual.start():start] and not scope:
+                raise UnsupportedEffect('unreviewed_visual_guard:'+move['handler'])
             if depth or re.search(r'(?:DamageCmd|PowerCmd|CardPileCmd|CreatureCmd\.GainBlock)',block):
                 raise UnsupportedEffect('mechanics_inside_visual_guard')
             source=source[:visual.start()]+source[end:]
@@ -210,7 +219,7 @@ class MonsterRules:
         if re.search(r'\bif\s*\((?!TestMode\.IsOff)',source):raise UnsupportedEffect('conditional_move_handler:'+move['handler'])
         if re.search(r'\b(?:for|while)\s*\(',source):raise UnsupportedEffect('looped_move_handler:'+move['handler'])
         attack=source.find('DamageCmd.Attack(')
-        if attack>=0 and re.search(r'(?:PowerCmd\.Apply|CreatureCmd\.GainBlock|CardPileCmd\.)',source[:attack]):
+        if not allow_ordered and attack>=0 and re.search(r'(?:PowerCmd\.Apply|CreatureCmd\.GainBlock|CardPileCmd\.)',source[:attack]):
             raise UnsupportedEffect('pre_attack_effect_order_requires_adapter')
         effects=[]
         for match in re.finditer(r'(PowerCmd\.Apply<([^>]+)>|CreatureCmd\.GainBlock|CardPileCmd\.AddToCombatAndPreview<([^>]+)>)\(',source):
@@ -229,6 +238,24 @@ class MonsterRules:
                 effects.append(('block',self.number(args[1],enemy,entry),None))
         return effects
 
+    def ordered_effects(self,enemy,entry,move):
+        """Validate all calls, then retain the source order including attacks."""
+        effects=iter(self.effects(enemy,entry,move,allow_ordered=True))
+        self.attacks(enemy,entry,move)  # Cross-check numeric intent and execution evidence.
+        source=move.get('execution_evidence','');result=[]
+        pattern=r'(DamageCmd\.Attack|PowerCmd\.Apply<[^>]+>|CreatureCmd\.GainBlock|CardPileCmd\.AddToCombatAndPreview<[^>]+>)\('
+        for match in re.finditer(pattern,source):
+            if match[1]=='DamageCmd.Attack':
+                end=call_end(source,match.end()-1)
+                amount=self.number(source[match.end():end],enemy,entry)
+                tail=source[end:source.find(';',end) if ';' in source[end:] else len(source)]
+                repeats=re.search(r'\.WithHitCount\(([^()]+)\)',tail)
+                count=self.number(repeats[1],enemy,entry) if repeats else 1
+                if count>100:raise UnsupportedEffect('attack_repeat_limit')
+                result.append(('attack',amount,count))
+            else:result.append(next(effects))
+        return result
+
     def step(self,state,limit=32,select_next=True):
         """Apply the visible enemy turn, then branch to real next intents."""
         if state.warnings:raise UnsupportedEffect('combat_interactions_unmodeled')
@@ -246,29 +273,36 @@ class MonsterRules:
                 if not enemy.move_state:raise UnsupportedEffect('current_move_unknown:'+enemy.entity_id)
                 if set(enemy.powers)-KNOWN_POWERS:raise UnsupportedEffect('enemy_power_hooks_unmodeled:'+enemy.entity_id)
                 moves=self.moves(entry);move=moves[enemy.move_state]
-                effects=self.effects(enemy,entry,move)
+                ordered=self.ordered_effects(enemy,entry,move)
+                effects=[e for e in ordered if e[0]!='attack']
                 enemy=replace(enemy,block=0)
                 hp,block=current.hp,current.block
-                for hit in self.attacks(enemy,entry,move):
-                    hit=hit//2 if current.colossus and enemy.vulnerable else hit
-                    absorbed=min(block,hit);block-=absorbed;hp=max(0,hp-max(0,hit-absorbed-current.hp_loss_reduction))
-                current=replace(current,hp=hp,block=block)
-                if hp<=0:
-                    next_results.append((probability,current,trace));continue
                 from autoslay.simulation.card_flow import add_to_composition
-                for kind,amount,identity in effects:
-                    if kind=='strength':enemy=replace(enemy,strength=enemy.strength+amount)
+                for kind,amount,identity in ordered:
+                    if kind=='attack':
+                        for _ in range(identity):
+                            hit=max(0,amount+enemy.strength)
+                            if enemy.weak:hit=hit*3//4
+                            hit=hit//2 if current.colossus and enemy.vulnerable else hit
+                            absorbed=min(block,hit);block-=absorbed;hp=max(0,hp-max(0,hit-absorbed-current.hp_loss_reduction))
+                    elif kind=='strength':enemy=replace(enemy,strength=enemy.strength+amount)
                     elif kind=='block':enemy=replace(enemy,block=enemy.block+amount)
                     elif kind=='weak':current=replace(current,weak_turns=current.weak_turns+amount)
                     elif kind=='frail':current=replace(current,frail_turns=current.frail_turns+amount)
                     elif kind=='discard':current=replace(current,discard_composition=add_to_composition(current.discard_composition,[identity]*amount))
                     elif kind=='draw':current=replace(current,draw_composition=add_to_composition(current.draw_composition,[identity]*amount))
+                    if hp<=0:break
+                current=replace(current,hp=hp,block=block,enemy_hp_loss=current.enemy_hp_loss+current.hp-hp)
+                if hp<=0:
+                    next_results.append((probability,current,trace));continue
                 values=self.values(enemy,entry);fields=dict(enemy.runtime_fields)
+                from autoslay.rules.mechanism_scope import reviewed_move_scope
+                scope=reviewed_move_scope(entry,move) or {}
                 for update in move.get('state_updates',[]):
                     variable=update['variable']
-                    if variable=='GlobalPosition':continue
+                    if variable in scope.get('ignored_state_updates',[]):continue
                     field=entry['state_graph'].get('definitions',{}).get(variable,variable)
-                    if field not in fields:raise UnsupportedEffect('unmodeled_state_update:'+variable)
+                    if field not in fields and variable not in scope.get('initialized_fields',[]):raise UnsupportedEffect('unmodeled_state_update:'+variable)
                     fields[field]=expression(update['value_expression'],values)
                 enemy=replace(enemy,runtime_fields=tuple(sorted(fields.items())),weak_turns=max(0,enemy.weak_turns-1),weak=enemy.weak_turns>1)
                 if select_next:

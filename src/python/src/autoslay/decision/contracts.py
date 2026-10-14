@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-CONTRACT_VERSION = "1.6.1"
+CONTRACT_VERSION = "1.7.0"
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,9 @@ class Card:
     star_cost: int = -1
     costs_x: bool = False
     costs_star_x: bool = False
+    variant_key: str = ''
+    enchantment_id: str | None = None
+    enchantment_amount: int | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,7 @@ class Potion:
     description: str
     action_id: str
     targets: tuple[str, ...]
+    allows_no_target: bool = False
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,19 @@ class PeriodicRelic:
             raise ValueError("Invalid stable relic counter")
         if any(type(v) is not int or v < 0 for v in (self.draw_bonus, self.energy_bonus)):
             raise ValueError("Invalid relic bonus")
+
+
+@dataclass(frozen=True)
+class MechanismImpact:
+    entity_id: str
+    hook: str
+    treatment: str
+    reads: tuple[str, ...] = ('*',)
+    writes: tuple[str, ...] = ('*',)
+    phase: str = 'combat'
+    trigger: str = 'unknown'
+    source_fingerprint: str | None = None
+    warning: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +117,10 @@ class CombatState:
     weak_turns: int = 0
     frail_turns: int = 0
     stars: int = 0
+    enemy_hp_loss: int = 0
+    self_hp_loss: int = 0
+    healing: int = 0
+    mechanism_scope: tuple[MechanismImpact, ...] = ()
 
 
 @dataclass(frozen=True)

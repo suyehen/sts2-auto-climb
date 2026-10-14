@@ -33,7 +33,7 @@ from autoslay.decision.mechanisms import attach as attach_mechanisms
 from autoslay.knowledge_base.behavior import load as load_behavior
 from autoslay.evaluation.event_adapters import VERSION as EVENT_ADAPTER_VERSION
 
-VERSION='1.7.0'
+VERSION='1.8.0'
 CACHE=AnalysisCache()
 
 def relevant_entities(value):
@@ -82,6 +82,9 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     adaptive=decision_config(ROOT/'config/decision/analysis.default.json')
     policy=RunPolicy(**decision_config(ROOT/'config/decision/run.default.json'))
     combat_policy=load_policy(ROOT/'config/decision/combat.default.json')
+    autonomy_policy=decision_config(ROOT/'config/decision/autonomy.default.json')
+    from autoslay.calibration.combat import load as load_combat_calibration
+    calibration=load_combat_calibration(autonomy_policy.get('combat_calibration_id',''))
     interactions=load_interactions()
     entries,knowledge_hash=index(expected_version=snapshot['game_version'])
     rulebook=Rulebook()
@@ -95,7 +98,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                     event_rules=digest(event_rules()),
                     event_adapter=EVENT_ADAPTER_VERSION,
                     event_source=digest(next((e for e in load_behavior()['entries'] if e['entity_id']==(s.get('event_screen') or {}).get('entity_id')),None)) if phase=='event' else None,
-                    autonomy=decision_config(ROOT/'config/decision/autonomy.default.json')))
+                    combat_calibration=digest(calibration),autonomy=autonomy_policy))
     cached=CACHE.get(key) if use_cache else None
     if cached is not None:
         cached.update(source=source(snapshot),analysis_id=uuid.uuid4().hex,cache_hit=True,
@@ -127,6 +130,25 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
         if not danger: settings.update(branches=4,time_ms=250)
         report.update(budget_tier=tier,combat=analyze(snapshot,budget=SearchBudget(**adaptive[tier]),policy=combat_policy,
                        lookahead_settings=settings,scenarios=scenarios))
+        if autonomy_policy.get('strategy_mode','off')!='off':
+            from autoslay.planning.combat_strategy import analyze as analyze_strategy
+            from autoslay.decision.normalize import normalize
+            strategy=analyze_strategy(snapshot,normalize(snapshot),entries,combat_policy,
+                      adaptive['strategy'],SearchBudget(**adaptive[tier]),calibration,current_snapshot().revision)
+            if adaptive['strategy']['extra_budget_enabled'] and not strategy['problems'] and strategy['truncation_reasons']:
+                available=[r['comparison_utility'] for r in strategy['first_actions'] if r.get('comparison_utility') is not None]
+                available.sort(reverse=True)
+                close=len(available)>=2 and available[0]-available[1]<=autonomy_policy['robust_margin']
+                if danger or close:
+                    extended=dict(adaptive[tier]);extended['max_nodes']=min(100000,extended['max_nodes']*2)
+                    extended['time_ms']=min(5000,extended['time_ms']*2)
+                    retry=analyze_strategy(snapshot,normalize(snapshot),entries,combat_policy,
+                         adaptive['strategy'],SearchBudget(**extended),calibration,current_snapshot().revision)
+                    retry['budget_stages']=[dict(nodes=strategy['nodes'],elapsed_ms=strategy['elapsed_ms'],
+                                                reasons=strategy['truncation_reasons']),dict(nodes=retry['nodes'],elapsed_ms=retry['elapsed_ms'])]
+                    strategy=retry
+            strategy['mode']=autonomy_policy['strategy_mode']
+            report['combat']['strategy']=strategy
         report['shortlist']=report['combat']['candidates'][:3]
         report['observations']=report['combat']['observation_boundaries'][:3]
     elif s.get('player') and (s['player'].get('deck') or []):
@@ -170,6 +192,10 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                           'unknown card/event/item choices remain unranked; deck totals cover known components only']
     report['request_elapsed_ms']=(perf_counter()-started)*1000
     report['autonomy']=assess(report,snapshot)
+    if phase=='combat':
+        from autoslay.decision.coverage import diagnose
+        primary=report['autonomy'].get('primary_reason')
+        report['combat_diagnostics']=diagnose(snapshot,report,primary if not report['autonomy']['eligible'] else None)
     report['ai_required']=report['autonomy']['mode']=='ai_required'
     attach_mechanisms(report,snapshot)
     report['ai_packet']=packet(report)

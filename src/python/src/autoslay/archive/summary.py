@@ -48,7 +48,9 @@ def detail(repo,run_id,entries,meta):
         v['observed_span_seconds']=seconds(v['first_recorded_at'],v['last_recorded_at'])
         v['observed_hp_change']=None if v['hp_first'] is None or v['hp_last'] is None else v['hp_last']-v['hp_first']
     folder=repo.folder(run_id);files=[p for p in folder.rglob('*') if p.is_file()]
+    from autoslay.telemetry.combat_metrics import summarize
     return dict(visits=list(visits.values()),room_visit_counts=dict(Counter(v['room_type'] or 'unknown' for v in visits.values())),
+        combat_metrics=summarize(entries,repo.load_event),
         analysis_ms=stats(analyses),execution_seconds=stats(execution),selection_wait_seconds=stats(waits),recorded_decision_sources=dict(decision_sources),
         wall_span_seconds=seconds(meta.get('started_at'),meta.get('ended_at')),recorded_action_prefix_counts=dict(actions),
         unresolved_request_count=len(requests),manual_interventions=None,version_history=version_history,

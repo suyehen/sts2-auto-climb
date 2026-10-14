@@ -4,7 +4,7 @@ from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
@@ -17,7 +17,8 @@ def card_view(value: dict) -> Card:
     return Card(value["instance_id"], value["entity_id"], value["energy_cost"],
                 value["target_type"], value["description"], value.get("upgrade_level", 0), value.get("type"),
                 star_cost=value.get('star_cost',-1),costs_x=bool(value.get('costs_x')),
-                costs_star_x=bool(value.get('costs_star_x')))
+                costs_star_x=bool(value.get('costs_star_x')),variant_key=value.get('variant_key',''),
+                enchantment_id=value.get('enchantment_id'),enchantment_amount=value.get('enchantment_amount'))
 
 
 @scoped
@@ -86,6 +87,7 @@ def normalize(snapshot: dict) -> CombatState:
                              tuple(attacks), tuple(sorted(powers)), tuple(uncertain), bool(powers.get("POWER.MINION_POWER")),
                              powers.get("POWER.STRENGTH_POWER", 0), powers.get("POWER.WEAK_POWER", 0) > 0,
                              max_hp=e.get('max_hp',0),weak_turns=powers.get('POWER.WEAK_POWER',0),
+                             move_state=e.get('current_move_id'),
                              runtime_fields=tuple(sorted((k,v) for k,v in (e.get('runtime_state') or {}).get('fields',{}).items()
                                                         if type(v) in {int,bool,str}))))
     actions = {a["action_id"]: a for a in s.get("legal_actions", [])}
@@ -94,18 +96,20 @@ def normalize(snapshot: dict) -> CombatState:
         aid = potion.get("use_action_id")
         if aid in actions:
             potions.append(Potion(potion["instance_id"], potion["entity_id"], potion["description"],
-                                  aid, tuple(actions[aid]["allowed_target_ids"])))
+                                  aid, tuple(actions[aid]["allowed_target_ids"]),bool(actions[aid].get('allows_no_target'))))
+    from autoslay.rules.mechanism_scope import coverage_for_snapshot
     return CombatState(creature["hp"], creature["max_hp"], creature["block"], p["energy"],
                        tuple(card_view(c) for c in p.get("hand") or []), tuple(enemies),
-                       tuple(sorted((x["entity_id"], x["count"]) for x in p.get("draw_composition") or [])),
+                       tuple(sorted((x.get('variant_key') or x["entity_id"], x["count"])
+                                    for x in p.get('draw_variants',p.get("draw_composition")) or [])),
                        tuple(potions), legion_ready=legion,
                        colossus=any(p["entity_id"] == "POWER.COLOSSUS_POWER" for p in creature.get("powers", [])),
                        warnings=tuple(sorted(set(warnings))), hand_limit=p.get("hand_limit", 10),
                        effect_draw_blocked=any(x["entity_id"] == "POWER.NO_DRAW_POWER" for x in creature.get("powers", []))
                            or any(x["entity_id"] == "RELIC.FIDDLE" for x in p.get("relics", [])),
-                       discard_composition=tuple(sorted(Counter(c["entity_id"] for c in p.get("discard") or []).items())),
+                       discard_composition=tuple(sorted(Counter(c.get('variant_key') or c["entity_id"] for c in p.get("discard") or []).items())),
                        discard_known="discard" in p,
-                       exhausted_composition=tuple(sorted(Counter(c["entity_id"] for c in p.get("exhaust") or []).items())),
+                       exhausted_composition=tuple(sorted(Counter(c.get('variant_key') or c["entity_id"] for c in p.get("exhaust") or []).items())),
                        periodic_relics=tuple(periodic), turn=p.get("turn"),
                        hp_loss_reduction=1 if any(r["entity_id"] == "RELIC.TUNGSTEN_ROD" for r in p.get("relics", [])) else 0,
                        turn_hp_loss_cap=20 if any(r["entity_id"] == "RELIC.BEATING_REMNANT" for r in p.get("relics", [])) else None,
@@ -115,4 +119,5 @@ def normalize(snapshot: dict) -> CombatState:
                        weak_turns=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.WEAK_POWER'),0),
                        frail_turns=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.FRAIL_POWER'),0),
                        stars=p.get('stars') or 0,
+                       mechanism_scope=tuple(r for r in coverage_for_snapshot(snapshot,warnings) if r.warning),
                        player_weak=any(r["entity_id"] == "POWER.WEAK_POWER" and r["amount"] > 0 for r in creature.get("powers", [])))

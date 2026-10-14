@@ -16,5 +16,10 @@
   "complex_strategy_enabled": false,
   "minimum_probability_coverage": 1.0,
   "require_future_threat_coverage": true,
-  "require_fresh_action_validation": true
+  "require_fresh_action_validation": true,
+  "strategy_mode": "off",
+  "combat_calibration_id": "",
+  "robust_margin": 0.0,
+  "regret_epsilon": 0.0,
+  "low_risk_epsilon": 0.0
 }

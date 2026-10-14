@@ -39,6 +39,9 @@ public static partial class Bridge
             if (actualVersion != "v0.111.0") throw new InvalidOperationException("Unsupported game version: " + actualVersion);
             gameAssemblySha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
                 File.ReadAllBytes(typeof(ModelDb).Assembly.Location))).ToLowerInvariant();
+            new HarmonyLib.Harmony("autoslay.observed-combat-quality").PatchAll(typeof(Bridge).Assembly);
+            CombatManager.Instance.CombatWon += _ => ObserveCombatResult(true);
+            CombatManager.Instance.CombatEnded += _ => ObserveCombatResult(false);
             token = File.ReadAllText(Path.Combine(dir, "bridge-token.txt")).Trim();
             if (token.Length < 32) throw new InvalidOperationException("Invalid bridge token");
             var tree = (SceneTree)Engine.GetMainLoop();
@@ -52,14 +55,23 @@ public static partial class Bridge
     }
 
     private static object Entity(AbstractModel model) => new { entity_id = model.Id.ToString() };
+    // Public multiset identity only. Never exports draw order or RNG.
+    private static string CardVariantKey(CardModel card) => string.Join("|", card.Id.ToString(),
+        card.CurrentUpgradeLevel, card.Enchantment?.Id.ToString() ?? "", card.Affliction?.Id.ToString() ?? "",
+        card.EnergyCost.GetWithModifiers(CostModifiers.All), card.GetStarCostWithModifiers(),
+        card.EnergyCost.GetWithModifiers(CostModifiers.None), card.EnergyCost.HasLocalModifiers,
+        card.Enchantment?.Amount);
     private static object Card(CardModel card) => new {
         instance_id = Id(card), entity_id = card.Id.ToString(), name = card.Title,
+        variant_key = CardVariantKey(card),
         upgrade_level = card.CurrentUpgradeLevel, type = card.Type.ToString(), target_type = card.TargetType.ToString(),
         energy_cost = card.EnergyCost.GetWithModifiers(CostModifiers.All), costs_x = card.EnergyCost.CostsX,
+        base_energy_cost = card.EnergyCost.GetWithModifiers(CostModifiers.None), has_local_cost_modifiers = card.EnergyCost.HasLocalModifiers,
         star_cost = card.GetStarCostWithModifiers(), costs_star_x = card.HasStarCostX,
         keywords = card.Keywords.Select(k => k.ToString()).ToArray(),
         modifiers_complete = true,
         enchantment_id = card.Enchantment?.Id.ToString(), affliction_id = card.Affliction?.Id.ToString(),
+        enchantment_amount = card.Enchantment?.Amount,
         description = card.GetDescriptionForPile(card.Pile?.Type ?? PileType.Deck, null)
     };
     private static CardPresentation TooltipCard(CardModel card) => new(card.Id.ToString(), card.Title,
@@ -70,6 +82,7 @@ public static partial class Bridge
         instance_id = Id(creature), entity_id = creature.ModelId.ToString(), name = creature.Name,
         hp = creature.CurrentHp, max_hp = creature.MaxHp, block = creature.Block,
         runtime_state = creature.Monster == null ? null : RuntimeFields.Read(creature.Monster),
+        current_move_id = creature.Monster?.NextMove?.StateId,
         hidden_power_ids = creature.Powers.Where(p => !p.IsVisible).Select(p => p.Id.ToString()).ToArray(),
         powers = creature.Powers.Where(p => p.IsVisible).Select(p => new { entity_id = p.Id.ToString(), amount = p.Amount,
             name = p.Title.GetFormattedText(), hover_tips = p.HoverTips.Select(EventTip).ToArray() }).ToArray(),
@@ -121,6 +134,7 @@ public static partial class Bridge
                 phase = menuView.Phase ?? (MegaCrit.Sts2.Core.Nodes.Screens.ScreenContext.ActiveScreenContext.Instance.GetCurrentScreen() is MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverScreen ? "game_over" : null) ?? (run == null ? "no_run" : (treasureView.ScreenId != null ? "treasure" : null) ?? (restView.ScreenId != null ? "rest_site" : null) ?? (shopView.ScreenId != null ? "shop" : null) ?? (selectionView.ScreenId != null ? "card_selection" : null) ?? rewardView.Phase ?? (mapView.Active ? "map" : null) ?? (eventView.Supported && IsActive(MegaCrit.Sts2.Core.Nodes.Rooms.NEventRoom.Instance!) ? "event" : null) ?? (combat != null ? "combat" : "outside_combat")),
                 command_context_id = run == null ? menuView.ContextId : Id(run),
                 combat_instance_id = combat == null ? null : Id(combat),
+                combat_quality = CombatQuality(run, combat),
                 run_id = run == null ? null : Id(run), room_type = run?.CurrentRoom?.GetType().Name,
                 // Saved start time + seed distinguish runs and survive loading the same save.
                 // Export only a hash, never RNG state or draw order.
@@ -142,6 +156,9 @@ public static partial class Bridge
                     potions = potionView, potion_slots = player.MaxPotionCount, hand = pcs?.Hand.Cards.Select(Card).ToArray(),
                     discard = pcs?.DiscardPile.Cards.Select(Card).ToArray(), exhaust = pcs?.ExhaustPile.Cards.Select(Card).ToArray(),
                     // Expose composition only: never reveal unknown draw order or RNG.
+                    draw_variants = pcs?.DrawPile.Cards.GroupBy(CardVariantKey).OrderBy(g => g.Key)
+                        .Select(g => new { variant_key = g.Key, entity_id = g.First().Id.ToString(), count = g.Count(),
+                            card = Card(g.First()) }).ToArray(),
                     draw_composition = pcs?.DrawPile.Cards.GroupBy(c => c.Id.ToString()).OrderBy(g => g.Key)
                         .Select(g => new { entity_id = g.Key, count = g.Count() }).ToArray()
                 },

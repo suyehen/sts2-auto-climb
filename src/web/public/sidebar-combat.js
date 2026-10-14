@@ -1,6 +1,26 @@
 import {el,definitions,table,actionName,autonomyPanel,observedEffectsPanel,phase,reason,renderDecision,disclosureState,restoreDisclosures} from './presentation.js';
 import {enemyIntentFacts,candidateIntentFacts} from './combat-forecast.js';
 
+export function renderCombatStrategy(host,strategy,snapshot){
+ if(!strategy)return;
+ const panel=el('details');panel.id='combat-strategy';
+ panel.append(el('summary','短期战斗策略 · '+({shadow:'影子观测',execute:'校准执行',off:'关闭'})[strategy.mode]));
+ if(strategy.mode==='shadow')panel.append(el('p','以下建议仅用于观测，不执行，也不计入自主率。','hint'));
+ panel.append(definitions([['比较窗口',strategy.horizon+' 回合'],['建议首步',strategy.suggested_first_step?actionName(strategy.suggested_first_step,snapshot):'暂无完整建议'],
+  ['搜索覆盖',strategy.search_complete?'完整':'存在未搜索或未知分支'],['校准',strategy.calibration_reasons?.length?'尚未通过当前状态的校准':'已有匹配校准产物']]));
+ for(const row of strategy.first_actions||[]){
+  const item=el('details');item.append(el('summary',actionName(row.first_step,snapshot)));
+  item.append(definitions([['模型估值',row.Q_hat],['收益下界',row.lower],['收益上界',row.upper],
+   ['区间性质',row.bound_kind==='validated_empirical_interval'?'经验校准区间，可能失覆盖':'尚无有效授权区间'],
+   ['失血上界',row.loss_upper],['药水保留成本下界',row.reserve_lower],['药水保留成本上界',row.reserve_upper]]));
+  const labels={enemy_hp_loss:'敌方造成失血',self_hp_loss:'自伤',healing:'治疗',finish:'结束战斗',terminal_enemy_hp:'剩余敌人生命',
+   terminal_enemy_block:'剩余敌人格挡',terminal_enemy_strength:'敌人强化',terminal_strength:'持续力量终值',terminal_pollution:'牌堆污染'};
+  item.append(definitions(Object.entries(row.utility_components||{}).map(([key,value])=>[labels[key]||key,value])));
+  panel.append(item);
+ }
+ host.append(panel);
+}
+
 export function renderSidebarCombat(intents,calculation,record,latest){
  intents.replaceChildren();calculation.replaceChildren();
  const snapshot=latest||{},s=snapshot.state||{},report=record?.report||{},forecast=report.combat?.lookahead;
@@ -23,6 +43,7 @@ export function renderSidebarCombat(intents,calculation,record,latest){
   const text='后续意图等待当前状态的分析；最近一次决策对应其他状态或版本未记录。';
   intents.append(el('p',text,'decision-note'));calculation.append(el('p',text,'decision-note'));return;
  }
+ renderCombatStrategy(calculation,report.combat?.strategy,record.snapshot);
  if(!forecast){
   const text='当前分析尚无后续意图模型，后续行动与失血未知。';
   intents.append(el('p',text,'hint'));calculation.append(el('p',text,'hint'));return;
@@ -69,7 +90,7 @@ export function renderDecisionFlow(host,record,choice=null,evidence=null,status=
   section.append(heading);for(const node of body)section.append(node);host.append(section);
  };
  const text=value=>el('p',value,'flow-copy');
- const localBody=[text(!report?'等待游戏状态与分析。':history&&!autonomy?'这条旧记录未保存自主检查依据。':autonomy?.eligible?(autonomy.decision_basis==='bounded_combat_strategy'?'本地当前回合策略覆盖检查通过；执行首步后重新观察，不代表整局最优证明。':'确定性检查通过，可自主执行。'):autonomy?.mode==='wait'?'状态尚未就绪，等待下一次检查。':'未通过确定性检查，交由 AI 综合判断。')];
+ const localBody=[text(!report?'等待游戏状态与分析。':history&&!autonomy?'这条旧记录未保存自主检查依据。':autonomy?.eligible?(['bounded_combat_strategy','calibrated_combat_strategy'].includes(autonomy.decision_basis)?'本地当前回合策略覆盖检查通过；执行首步后重新观察，不代表整局最优证明。':'确定性检查通过，可自主执行。'):autonomy?.mode==='wait'?'状态尚未就绪，等待下一次检查。':'未通过确定性检查，交由 AI 综合判断。')];
  if(autonomy?.eligible&&autonomy.selected_steps?.length)localBody.push(text(autonomy.selected_steps.map(s=>actionName(s,snapshot)).join(' → ')));
  if(autonomy?.reason)localBody.push(el('p',reason(autonomy.reason),'hint'));
  if(autonomy)localBody.push(autonomyPanel(autonomy,snapshot));

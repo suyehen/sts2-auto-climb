@@ -74,10 +74,10 @@ def add_generated(state: CombatState, cards: tuple[Card, ...], destination: str 
     hand_cards = cards[:max(0, state.hand_limit - len(state.hand))] if destination == "hand" else ()
     discarded = cards[len(hand_cards):] if destination == "hand" else cards if destination == "discard" else ()
     s = replace(state, hand=state.hand + hand_cards,
-                discard_composition=add_to_composition(state.discard_composition, (c.entity_id for c in discarded)))
+                discard_composition=add_to_composition(state.discard_composition, (c.variant_key or c.entity_id for c in discarded)))
     if destination == "draw":
-        s = replace(s, draw_composition=add_to_composition(s.draw_composition, (c.entity_id for c in cards)))
+        s = replace(s, draw_composition=add_to_composition(s.draw_composition, (c.variant_key or c.entity_id for c in cards)))
     elif destination == "exhaust":
-        s = replace(s, exhausted_composition=add_to_composition(s.exhausted_composition, (c.entity_id for c in cards)))
+        s = replace(s, exhausted_composition=add_to_composition(s.exhausted_composition, (c.variant_key or c.entity_id for c in cards)))
     return Placement(s, tuple(c.instance_id for c in hand_cards),
                      tuple(c.instance_id for c in discarded) if destination == "hand" else ())

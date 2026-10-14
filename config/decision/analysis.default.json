@@ -1,7 +1,32 @@
 {
   "version": "1.0.0",
-  "normal": {"max_nodes": 2000, "time_ms": 200, "top_k": 5},
-  "danger": {"max_nodes": 6000, "time_ms": 400, "top_k": 5},
+  "normal": {
+    "max_nodes": 2000,
+    "time_ms": 200,
+    "top_k": 5
+  },
+  "danger": {
+    "max_nodes": 6000,
+    "time_ms": 400,
+    "top_k": 5
+  },
   "low_hp_fraction": 0.35,
-  "lookahead": {"horizon": 2, "branches": 8, "time_ms": 600, "seed": 42, "draws": 5, "energy": 3}
+  "lookahead": {
+    "horizon": 2,
+    "branches": 8,
+    "time_ms": 600,
+    "seed": 42,
+    "draws": 5,
+    "energy": 3
+  },
+  "strategy": {
+    "version": "1.0.0",
+    "horizon": 2,
+    "branches": 32,
+    "seed": 42,
+    "draws": 5,
+    "energy": 3,
+    "extra_budget_enabled": false,
+    "outcome_limit": 128
+  }
 }

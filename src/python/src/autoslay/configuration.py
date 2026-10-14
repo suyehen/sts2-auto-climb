@@ -49,7 +49,13 @@ def merge(default,value):
             if type(v) not in (float,int) or not math.isfinite(v) or v<0 or (type(d) is int and type(v) is not int): raise ValueError('CONFIG_INVALID_NUMBER')
             result[key]=v
         elif isinstance(d,str):
-            if not isinstance(v,str) or v!=d: raise ValueError('CONFIG_POLICY_VERSION_UNSUPPORTED')
+            if key=='strategy_mode':
+                if not isinstance(v,str) or v not in {'off','shadow','execute'}:raise ValueError('CONFIG_INVALID_STRATEGY_MODE')
+            elif key=='combat_calibration_id':
+                import re
+                if not isinstance(v,str) or v and not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',v):
+                    raise ValueError('CONFIG_INVALID_CALIBRATION_ID')
+            elif not isinstance(v,str) or v!=d: raise ValueError('CONFIG_POLICY_VERSION_UNSUPPORTED')
             result[key]=v
     return result
 
@@ -72,9 +78,16 @@ def validate_policies(values):
     l=a['lookahead']
     if not 0<a['low_hp_fraction']<=1 or not 1<=l['horizon']<=3 or not 1<=l['branches']<=32 or not 1<=l['time_ms']<=3000 or not 0<=l['draws']<=10 or not 0<=l['energy']<=10:
         raise ValueError('CONFIG_INVALID_BUDGET')
+    strategy=a['strategy']
+    if not 1<=strategy['horizon']<=2 or not 1<=strategy['branches']<=128 or not 0<=strategy['draws']<=10 or not 0<=strategy['energy']<=10:
+        raise ValueError('CONFIG_INVALID_STRATEGY_BUDGET')
+    if not 1<=strategy['outcome_limit']<=1024:raise ValueError('CONFIG_INVALID_OUTCOME_LIMIT')
     gate=result['autonomy']
     if gate['minimum_probability_coverage']!=1 or not gate['require_fresh_action_validation'] or not gate['require_future_threat_coverage'] or gate['complex_strategy_enabled']:
         raise ValueError('CONFIG_PROOF_REQUIREMENTS_FIXED')
+    if gate['strategy_mode']=='execute' and not gate['combat_calibration_id']:
+        raise ValueError('CONFIG_COMBAT_CALIBRATION_REQUIRED')
+    if gate['low_risk_epsilon']>gate['regret_epsilon']:raise ValueError('CONFIG_INVALID_RISK_ORDER')
     return result
 
 

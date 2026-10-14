@@ -1,8 +1,8 @@
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from math import isfinite
 from autoslay.decision.contracts import CombatState, Operation, Transition
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 @dataclass(frozen=True)
@@ -12,13 +12,23 @@ class CombatPolicy:
     block_weight: float = 1.5
     permanent_strength_weight: float = 3.0
     draw_option_weight: float = 0.0
+    short_term: dict = field(default_factory=dict)
+    potion_reserve: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.version, str) or not self.version:
             raise ValueError("Policy version required")
         for key, value in asdict(self).items():
-            if key != "version" and (type(value) not in {int, float} or not isfinite(value) or value < 0):
+            if key not in {'version','short_term','potion_reserve'} and (type(value) not in {int, float} or not isfinite(value) or value < 0):
                 raise ValueError("Weights must be finite nonnegative numbers")
+        from .combat_value import ValuePolicy
+        ValuePolicy(**self.short_term)
+        for cost in self.potion_reserve.get('costs',{}).values():
+            if not isinstance(cost,dict) or set(cost)!={'lower','upper'} or any(
+                type(v) not in (int,float) or not isfinite(v) or v<0 for v in cost.values()) or cost['lower']>cost['upper']:
+                raise ValueError('Invalid potion reserve interval')
+        discount=self.potion_reserve.get('substitute_discount',.75)
+        if type(discount) not in (int,float) or not 0<discount<=1:raise ValueError('Invalid potion substitute discount')
 
 
 class CombatEvaluator:

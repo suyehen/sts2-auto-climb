@@ -176,7 +176,7 @@ def assess(report,snapshot,policy=None):
         selected_steps=None,execution_authorized=False,source=source(snapshot),rule_id=None,evidence={},checks=[],
         score_review=score_review(report))
     def reject(reason,mode='ai_required'):
-        result['reasons'].append(reason);result['mode']=mode;return result
+        result['reasons'].append(reason);result['primary_reason']=reason;result['mode']=mode;return result
     if not policy.get('deterministic_enabled',False): return reject('deterministic_disabled')
     s=snapshot.get('state') or {}
     if s.get('control_mode')=='paused': return reject('control_paused','wait')
@@ -223,6 +223,15 @@ def assess(report,snapshot,policy=None):
         from autoslay.decision.local_combat import select
         proof,reasons=select(report,snapshot)
         result['checks'].append(dict(rule_id='bounded_combat_search',blockers=reasons))
+    if proof is None and s.get('phase')=='combat' and report and policy.get('strategy_mode','off')!='off':
+        from autoslay.decision.local_combat import select_calibrated
+        proof,reasons=select_calibrated(report,snapshot,policy)
+        result['checks'].append(dict(rule_id='calibrated_combat_strategy',blockers=reasons))
     if proof: result.update(eligible=True,mode='local_deterministic',rule_id=proof['rule_id'],reason=proof['reason'],selected_steps=proof['steps'],evidence=proof['evidence'],decision_basis=proof.get('decision_basis','strict_proof'))
-    else: result['reasons']=['no_complete_proof']+[b for check in result['checks'] for b in check['blockers']]
+    else:
+        result['reasons']=['no_complete_proof']+[b for check in result['checks'] for b in check['blockers']]
+        ordered=[c for c in result['checks'] if c['rule_id']=='bounded_combat_search']
+        if policy.get('strategy_mode')=='execute':ordered=[c for c in result['checks'] if c['rule_id']=='calibrated_combat_strategy']+ordered
+        result['primary_reason']=next((b for c in ordered for b in c['blockers']),
+                                      result['reasons'][1] if len(result['reasons'])>1 else 'no_complete_proof')
     return result

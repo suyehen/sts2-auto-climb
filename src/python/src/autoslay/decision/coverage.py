@@ -2,10 +2,12 @@
 from collections import Counter
 from autoslay.decision.normalize import normalize
 from autoslay.simulation.engine import CombatSimulator
+from autoslay.knowledge_base.repository import scoped, read_json, read_view, dataset_path
 
-VERSION='1.0.0'
+VERSION='1.2.0'
 
 
+@scoped
 def diagnose(snapshot, report=None, primary=None):
     """Collect independent visible blockers without granting execution authority."""
     from autoslay.decision.deterministic import operations, ADMIN
@@ -15,13 +17,26 @@ def diagnose(snapshot, report=None, primary=None):
     actions=[a for a in state.get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}]
     affected=[a['action_id'] for a in actions]
     revision=current_snapshot()
+    fingerprints=read_view(dataset_path('source_inventory'),'diagnostic-source-fingerprints/1',
+                           lambda data:{e['entity_id']:e.get('source_sha256') for e in data.get('entries',[])})
     rows=[]
     def add(stage,code,entity=None,instance=None,details=None):
         row=dict(stage=stage,code=code,entity_id=entity,instance_id=instance,
-                 affected_actions=affected,source_fingerprint=revision.revision if revision else None,
+                 affected_actions=affected,source_fingerprint=fingerprints.get(entity),
+                 knowledge_revision=revision.revision if revision else None,
                  is_primary=not rows if not primary else (code==primary or details==primary) and not any(r['is_primary'] for r in rows),details=details)
         if row not in rows:rows.append(row)
     combat=(report or {}).get('combat') or {}
+    expected=(report or {}).get('source')
+    if expected:
+        from autoslay.decision.deterministic import source
+        if expected != source(snapshot):
+            # Service reports may include additional transport metadata.
+            if any(expected.get(k)!=v for k,v in source(snapshot).items()):
+                add('source','local_combat_requires_matching_analysis')
+    if any(a.get('type') not in {'play_card','end_turn','use_potion'} for a in actions):
+        add('action','local_combat_action_not_modeled')
+    reviewed=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
     legal_cards={a.get('card_instance_id') or a['action_id'].removeprefix('play_')
                  for a in actions if a.get('type')=='play_card'}
     try:
@@ -53,11 +68,22 @@ def diagnose(snapshot, report=None, primary=None):
     for card in player.get('hand') or []:
         if card.get('modifiers_complete') is not True:
             add('observation','local_combat_card_modifiers_not_observed',card.get('entity_id'),card.get('instance_id'))
+        if card.get('affliction_id') or card.get('enchantment_id') and (
+                card['enchantment_id'] not in reviewed or
+                card.get('entity_id') not in reviewed[card['enchantment_id']].get('card_ids',[])):
+            add('card','local_combat_card_modifier_not_certified',card.get('entity_id'),card.get('instance_id'))
     if combat.get('search_truncated'):add('search','local_combat_search_incomplete')
     for problem in combat.get('problems') or []:add('search','unsupported_branch',details=problem)
+    for check in ((report or {}).get('autonomy') or {}).get('checks',[]):
+        if check.get('rule_id') in {'bounded_combat_search','calibrated_combat_strategy'}:
+            for reason in check.get('blockers') or []:
+                if not any(r['code']==reason for r in rows):add('policy',reason)
+    if combat.get('candidate_pool_incomplete'):add('search','candidate_pool_limit')
     if primary and not any(row['is_primary'] for row in rows):add('policy',primary)
-    return dict(module_version='1.1.0',blockers=rows,diagnostic_only=True,
-                fingerprint=digest(rows),primary_reason=primary)
+    resolved=next((r['code'] for r in rows if r['is_primary']),None)
+    return dict(module_version=VERSION,blockers=rows,diagnostic_only=True,
+                fingerprint=digest(rows),primary_reason=resolved,
+                remaining_after_primary=[r for r in rows if not r['is_primary']])
 
 def audit(snapshots):
     cards=Counter(); potions=Counter(); warnings=Counter(); boundaries=Counter(); errors=[]
