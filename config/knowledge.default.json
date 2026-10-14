@@ -1,0 +1,7 @@
+{
+  "schema_version": "knowledge-config/1.0",
+  "max_results": 50,
+  "context_bytes": 64000,
+  "relation_limit": 5,
+  "timing_min_samples": 5
+}

@@ -11,7 +11,7 @@ from autoslay.decision.cache import digest
 from autoslay.calibration.store import load,candidates
 from autoslay.evaluation.run import RunPolicy,RunContext,compare_choice,card_features,unmodeled
 from autoslay.evaluation.contextual import load_interactions
-from autoslay.knowledge.templates import index
+from autoslay.knowledge_base.templates import index
 
 def partition(trial_id):
     return 'holdout' if int(digest(trial_id)[:8],16)%5==0 else 'train'

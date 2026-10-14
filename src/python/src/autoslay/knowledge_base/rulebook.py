@@ -1,13 +1,11 @@
 """Restricted executable knowledge. No eval, imports or arbitrary code in data."""
-import json
-from functools import lru_cache
+from autoslay.knowledge_base.repository import read_json, read_view, dataset_path
 from pathlib import Path
-from autoslay.paths import ROOT
 from autoslay.decision.cache import digest
 
 VERSION = '1.2.0'
-RULEBOOK_PATH = ROOT/'data/knowledge/rules/rulebook.json'
-CATALOG_PATH = ROOT/'data/knowledge/catalog/encyclopedia.json'
+RULEBOOK_PATH = dataset_path('rules')
+CATALOG_PATH = dataset_path('catalog')
 OPERATIONS = {'damage','dismantle','block','draw','energy','strength','temporary_strength',
               'vulnerable','lose_hp','enemy_strength','colossus','double_vulnerable',
               'weak_boundary','random_exhaust_boundary','upgrade_boundary','exhaust_nonattacks',
@@ -56,19 +54,19 @@ def validate_rulebook(data):
         if periodic and (set(periodic)!={'period','draw','energy'} or any(type(v) is not int or v<0 for v in periodic.values()) or periodic['period']<1):
             raise ValueError('Invalid periodic rule')
 
-@lru_cache(maxsize=8)
 def _read(rule_path,rule_stamp,catalog_path,catalog_stamp):
-    rules=json.loads(Path(rule_path).read_text(encoding='utf-8-sig')); validate_rulebook(rules)
-    catalog=json.loads(Path(catalog_path).read_text(encoding='utf-8-sig'))
+    def build(data):
+        validate_rulebook(data)
+        return data, digest(data)
+    rules,fingerprint=read_view(rule_path, 'validated-rulebook/1', build)
+    catalog=read_json(catalog_path)
     if catalog.get('status')!='complete': raise ValueError('Incomplete reference catalog')
-    return rules,catalog,{e['entity_id']:e for e in catalog['entries']}
+    return rules,catalog,{e['entity_id']:e for e in catalog['entries']},fingerprint
 
 class Rulebook:
-    def __init__(self,path=RULEBOOK_PATH,catalog_path=CATALOG_PATH):
-        path,catalog_path=Path(path),Path(catalog_path)
-        a,b=path.stat(),catalog_path.stat()
-        self.data,self.catalog,self.references=_read(str(path), (a.st_mtime_ns,a.st_size),str(catalog_path),(b.st_mtime_ns,b.st_size))
-        self.fingerprint=digest(self.data)
+    def __init__(self,path=None,catalog_path=None):
+        path,catalog_path=Path(path or dataset_path('rules')),Path(catalog_path or dataset_path('catalog'))
+        self.data,self.catalog,self.references,self.fingerprint=_read(str(path), None,str(catalog_path),None)
 
     def status(self,identity,expected_version=None):
         rule=self.data['entries'].get(identity); entry=self.references.get(identity)

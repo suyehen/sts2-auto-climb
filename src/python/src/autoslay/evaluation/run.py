@@ -1,7 +1,7 @@
 """Shared situational utility. Points are explicit proxies, not win probabilities."""
 from dataclasses import asdict, dataclass
 from math import isfinite
-from autoslay.knowledge.templates import canonical
+from autoslay.knowledge_base.templates import canonical
 from autoslay.rules.registry import IroncladRules
 from autoslay.decision.contracts import CombatState, UnsupportedEffect
 from autoslay.probability.draw import at_least_one

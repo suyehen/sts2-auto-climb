@@ -8,11 +8,13 @@ from pathlib import Path
 from urllib.parse import urlsplit,parse_qs
 import httpx
 from autoslay.paths import ROOT
+from autoslay.knowledge_base.repository import scoped, read_json, dataset_path, asset_path
+from autoslay.knowledge_base.service import SERVICE as knowledge_service
 from autoslay.bridge.client import load_config
 from autoslay.telemetry import decisions
 from autoslay.telemetry import runs
 from autoslay.decision.unified import analyze_decision
-from autoslay.knowledge.rulebook import Rulebook
+from autoslay.knowledge_base.rulebook import Rulebook
 from autoslay.archive.repository import for_legacy
 from autoslay.archive.views import live as live_view
 from autoslay.archive import transfer
@@ -32,6 +34,38 @@ def agent_request(route,body=None):
         response=client.post('http://127.0.0.1:18769'+route,json=body or {},headers={'Authorization':'Bearer '+token})
         data=response.json()
         return data,response.status_code
+
+
+@scoped
+def catalog_page(query):
+    if query.get('category',[''])[0] in {'event','monster','intent'}:
+        from autoslay.knowledge_base.behavior import query as behavior_query
+        data=behavior_query(query=query.get('q',[''])[0],category=query['category'][0],limit=int(query.get('limit',['48'])[0]),page=int(query.get('page',['1'])[0]))
+        manifest_path=dataset_path('monster_portraits')
+        portraits=read_json(manifest_path, default={})
+        for entry in data['entries']:
+            entry['classification']=dict(scope_label={'event':'事件','monster':'怪物','intent':'意图'}[entry['category']],rarity_label={'reference_only':'参考资料','source_extracted_unreviewed':'模型待核验','reviewed_existing_rule':'已有专用规则'}[entry['calculation_status']],source='local_game')
+            portrait=(portraits.get('entries') or {}).get(entry['entity_id'])
+            if portrait and portraits.get('game_assembly_sha256')==data['game_assembly_sha256']:
+                entry['portrait_url']='/assets/monsters/'+portrait['file']
+                entry['portrait_kind']=portrait['kind']
+        data['facets']=dict(scopes=[],rarities=[],card_types=[]);return data
+    data=read_json(dataset_path('catalog'))
+    from autoslay.knowledge_base.browse import query_catalog
+    return query_catalog(data,q=query.get('q',[''])[0],category=query.get('category',[''])[0],
+        owner=query.get('owner',[''])[0],rarity=query.get('rarity',[''])[0],card_type=query.get('card_type',[''])[0],
+        include_shared=query.get('include_shared',['0'])[0]=='1',page=int(query.get('page',['1'])[0]),
+        limit=int(query.get('limit',['100'])[0]))
+
+
+@scoped
+def coverage_report():
+    from autoslay.decision.mechanisms import inventory as mechanism_inventory
+    from autoslay.knowledge_base.installation import version_status
+    inventory=read_json(dataset_path('source_inventory'))
+    audit_path=dataset_path('source_audit')
+    source_audit=read_json(audit_path, default={}) or None
+    return dict(rules=Rulebook().audit(),mechanisms=mechanism_inventory(),source_inventory=inventory,source_audit=source_audit,installation=version_status())
 
 def make_server(port=PORT,directory=None):
     repository=for_legacy(directory)
@@ -58,31 +92,21 @@ def make_server(port=PORT,directory=None):
                 if self.command=='GET' and route.startswith('/assets/'):
                     match=re.fullmatch(r'/assets/(cards|potions|relics|monsters|map)/((CARD|POTION|RELIC|MONSTER|MAP)\.[A-Z0-9_]+\.webp)',route)
                     if not match or {'cards':'CARD','potions':'POTION','relics':'RELIC','monsters':'MONSTER','map':'MAP'}[match[1]]!=match[3]:raise ValueError('Invalid image')
-                    self.send((ROOT/'data/knowledge/assets'/match[1]/match[2]).read_bytes(),kind='image/webp');return
+                    self.send(asset_path(match[1],match[2]).read_bytes(),kind='image/webp');return
                 if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/services.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
                     name='index.html' if route=='/' else route[1:]
                     kind={'html':'text/html','js':'text/javascript','css':'text/css'}[name.rsplit('.',1)[1]]+'; charset=utf-8'
                     self.send((ASSETS/name).read_bytes(),kind=kind); return
                 if self.command=='GET' and route=='/api/catalog':
-                    if query.get('category',[''])[0] in {'event','monster','intent'}:
-                        from autoslay.knowledge.behavior import query as behavior_query
-                        data=behavior_query(query=query.get('q',[''])[0],category=query['category'][0],limit=int(query.get('limit',['48'])[0]),page=int(query.get('page',['1'])[0]))
-                        manifest_path=ROOT/'data/knowledge/assets/monsters/manifest.json'
-                        portraits=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
-                        for entry in data['entries']:
-                            entry['classification']=dict(scope_label={'event':'事件','monster':'怪物','intent':'意图'}[entry['category']],rarity_label={'reference_only':'参考资料','source_extracted_unreviewed':'模型待核验','reviewed_existing_rule':'已有专用规则'}[entry['calculation_status']],source='local_game')
-                            portrait=(portraits.get('entries') or {}).get(entry['entity_id'])
-                            if portrait and portraits.get('game_assembly_sha256')==data['game_assembly_sha256']:
-                                entry['portrait_url']='/assets/monsters/'+portrait['file']
-                                entry['portrait_kind']=portrait['kind']
-                        data['facets']=dict(scopes=[],rarities=[],card_types=[]);self.send(data);return
-                    from autoslay.knowledge.catalog import CATALOG_PATH
-                    data=json.loads(CATALOG_PATH.read_text(encoding='utf-8-sig'))
-                    from autoslay.knowledge.browse import query_catalog
-                    self.send(query_catalog(data,q=query.get('q',[''])[0],category=query.get('category',[''])[0],
-                        owner=query.get('owner',[''])[0],rarity=query.get('rarity',[''])[0],card_type=query.get('card_type',[''])[0],
-                        include_shared=query.get('include_shared',['0'])[0]=='1',page=int(query.get('page',['1'])[0]),
-                        limit=int(query.get('limit',['100'])[0])));return
+                    self.send(catalog_page(query));return
+                if self.command=='GET' and route=='/api/knowledge/status':
+                    self.send(knowledge_service.status());return
+                if self.command=='GET' and route=='/api/knowledge/search':
+                    self.send(knowledge_service.search(query.get('q',[''])[0],
+                        category=query.get('category',[None])[0],dataset=query.get('dataset',[None])[0],
+                        game_version=query.get('game_version',[None])[0],assembly_hash=query.get('assembly_hash',[None])[0],
+                        language=query.get('language',[None])[0],limit=int(query.get('limit',['10'])[0]),
+                        include_related=query.get('include_related',['0'])[0]=='1'));return
                 if self.command=='GET' and route=='/api/agent/status':
                     data,code=agent_request('/status');self.send(data,code);return
                 if self.command=='GET' and route=='/api/play/state':
@@ -155,12 +179,7 @@ def make_server(port=PORT,directory=None):
                     self.send(decisions.load(query.get('id',[''])[0],query.get('origin',['live'])[0],directory),
                               attachment=query.get('download')==['1']); return
                 if self.command=='GET' and route=='/api/coverage':
-                    from autoslay.decision.mechanisms import inventory as mechanism_inventory
-                    from autoslay.knowledge.installation import version_status
-                    inventory=json.loads((ROOT/'data/knowledge/coverage/source-inventory.json').read_text(encoding='utf-8-sig'))
-                    audit_path=ROOT/'data/knowledge/coverage/catalog-source-audit.json'
-                    source_audit=json.loads(audit_path.read_text(encoding='utf-8-sig')) if audit_path.exists() else None
-                    self.send(dict(rules=Rulebook().audit(),mechanisms=mechanism_inventory(),source_inventory=inventory,source_audit=source_audit,installation=version_status())); return
+                    self.send(coverage_report());return
                 if self.command=='GET' and route=='/api/evidence':
                     identity=decisions.safe_id(query.get('id',[''])[0]); evidence=dict(choice=None,observations=[],plans=[])
                     path=ROOT/'data/calibration/choices'/(identity+'.json')

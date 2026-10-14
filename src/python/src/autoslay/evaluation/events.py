@@ -55,11 +55,11 @@ def effect_value(effects,deck,context,entries,policy):
             if len(matched)!=1: raise ValueError('Specific card instance required')
             if unmodeled(card_features(modified[matched[0]],entries)): raise ValueError('Unmodeled card change')
             if kind=='remove_card':
-                from autoslay.knowledge.templates import canonical
+                from autoslay.knowledge_base.templates import canonical
                 if 'Eternal' in canonical(modified[matched[0]],entries)[1].get('keywords',[]): raise ValueError('Eternal card cannot be removed')
                 modified.pop(matched[0])
             else:
-                from autoslay.knowledge.templates import canonical
+                from autoslay.knowledge_base.templates import canonical
                 value=dict(modified[matched[0]]); value['upgrade_level']=value.get('upgrade_level',0)+1
                 canonical(value,entries); modified[matched[0]]=value
         elif kind=='gain_item':

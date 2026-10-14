@@ -33,3 +33,8 @@ data/knowledge/rules/proposals.json
 *.zip
 *.sqlite*
 *.log
+
+# Pending knowledge evidence and generated experience history
+data/knowledge/staging/
+data/knowledge/experience/**/history/
+data/knowledge/experience/**/*.tmp

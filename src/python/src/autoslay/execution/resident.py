@@ -15,8 +15,8 @@ from autoslay.paths import ROOT
 from time import perf_counter
 from autoslay.telemetry import decisions
 from autoslay.telemetry import runs
-from autoslay.knowledge.events import observe as observe_event
-from autoslay.knowledge.updates import CatalogSynchronizer
+from autoslay.knowledge_base.events import observe as observe_event
+from autoslay.knowledge_base.updates import CatalogSynchronizer
 
 PORT = 18766
 

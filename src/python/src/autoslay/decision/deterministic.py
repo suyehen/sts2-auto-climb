@@ -1,18 +1,18 @@
-"""Proof-based shortcuts. Scores and model confidence are never execution proofs."""
+"""Strict proofs and an explicitly labeled bounded strategy; scores are never proofs."""
 from autoslay.configuration import decision_config
-import json
 from math import isfinite
 from autoslay.paths import ROOT
+from autoslay.knowledge_base.repository import read_json, dataset_path, scoped
 from autoslay.decision.cache import digest
 from autoslay.decision.normalize import normalize
 from autoslay.decision.contracts import Operation, UnsupportedEffect
 from autoslay.simulation.engine import CombatSimulator
-from autoslay.knowledge.events import resource_hook_warnings
+from autoslay.knowledge_base.events import resource_hook_warnings
 from autoslay.decision.outcomes import Outcome,compare
 
-VERSION='1.1.1'
+VERSION='1.2.0'
 POLICY_PATH=ROOT/'config/decision/autonomy.default.json'
-CERTIFICATES=ROOT/'data/knowledge/rules/deterministic-certificates.json'
+CERTIFICATES=dataset_path('certificates')
 ADMIN={'return_to_main_menu','quit_game'}
 
 def load_policy():
@@ -31,7 +31,7 @@ def source(snapshot):
         run_id=s.get('command_context_id') or s.get('run_id'),state_sha256=digest(s),game_version=snapshot.get('game_version'))
 
 def certificates(snapshot):
-    cert=json.loads(CERTIFICATES.read_text(encoding='utf-8-sig'))
+    cert=read_json(dataset_path('certificates'))
     if snapshot.get('game_version')!=cert['game_version'] or snapshot.get('game_assembly_sha256')!=cert['game_assembly_sha256']:
         return None
     return cert
@@ -159,6 +159,7 @@ def score_review(report):
         automatic_gap_selection=False,error_bound=None,
         reason='收益分是启发式估算；同分不证明结果等价，分差尚无校准误差界，不能单独用于跳过 AI。')
 
+@scoped
 def assess(report,snapshot,policy=None):
     policy=load_policy() if policy is None else policy
     if policy.get('complex_strategy_enabled'): raise ValueError('Complex autonomous strategy is not implemented; keep disabled')
@@ -208,6 +209,10 @@ def assess(report,snapshot,policy=None):
         from autoslay.decision.terminal_comparison import prove
         proof,reasons=prove(snapshot,actions,cert,comparison_rules)
         result['checks'].append(dict(rule_id='complete_outcome_comparison',blockers=reasons))
-    if proof: result.update(eligible=True,mode='local_deterministic',rule_id=proof['rule_id'],reason=proof['reason'],selected_steps=proof['steps'],evidence=proof['evidence'])
+    if proof is None and s.get('phase')=='combat' and 'bounded_combat_search' in enabled and report:
+        from autoslay.decision.local_combat import select
+        proof,reasons=select(report,snapshot)
+        result['checks'].append(dict(rule_id='bounded_combat_search',blockers=reasons))
+    if proof: result.update(eligible=True,mode='local_deterministic',rule_id=proof['rule_id'],reason=proof['reason'],selected_steps=proof['steps'],evidence=proof['evidence'],decision_basis=proof.get('decision_basis','strict_proof'))
     else: result['reasons']=['no_complete_proof']+[b for check in result['checks'] for b in check['blockers']]
     return result

@@ -1,5 +1,5 @@
-from autoslay.knowledge.monster_values import parameters,resolve,numeric_moves,thresholds
-from autoslay.knowledge.behavior import load,relevant
+from autoslay.knowledge_base.monster_values import parameters,resolve,numeric_moves,thresholds
+from autoslay.knowledge_base.behavior import load,relevant
 
 
 LEVELS=thresholds('enum AscensionLevel { None, ToughEnemies=8, DeadlyEnemies, DoubleBoss }')

@@ -1,13 +1,15 @@
 """Bridge-specific adapter. No hidden draw order or RNG enters the model."""
+from autoslay.knowledge_base.repository import scoped
 from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.4.3"
+VERSION = "1.4.4"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
-                "RELIC.BEATING_REMNANT", "RELIC.PERMAFROST", "RELIC.SMALL_CAPSULE", "RELIC.REGAL_PILLOW"} | set(RULES)
+                "RELIC.BEATING_REMNANT", "RELIC.PERMAFROST", "RELIC.SMALL_CAPSULE", "RELIC.REGAL_PILLOW",
+                "RELIC.MANGO"} | set(RULES)
 KNOWN_ENEMY_POWERS = {"POWER.VULNERABLE_POWER", "POWER.STRENGTH_POWER", "POWER.HARD_TO_KILL_POWER", "POWER.MINION_POWER", "POWER.WEAK_POWER"}
 
 
@@ -18,10 +20,11 @@ def card_view(value: dict) -> Card:
                 costs_star_x=bool(value.get('costs_star_x')))
 
 
+@scoped
 def normalize(snapshot: dict) -> CombatState:
     if snapshot.get("schema_version") != "1.0" or snapshot.get("game_version") != "0.111.0":
         raise ValueError("Unsupported snapshot or game version")
-    from autoslay.knowledge.rulebook import Rulebook
+    from autoslay.knowledge_base.rulebook import Rulebook
     book=Rulebook()
     if snapshot.get('game_assembly_sha256') and snapshot['game_assembly_sha256']!=book.data.get('game_assembly_sha256'):
         raise ValueError('Game implementation changed; executable rules require review')
@@ -43,7 +46,9 @@ def normalize(snapshot: dict) -> CombatState:
     for relic in p.get("relics", []):
         rid = relic["entity_id"]
         compatibility=book.status(rid,snapshot['game_version'])
-        if rid in KNOWN_RELICS and compatibility!='compatible':
+        # Mango has only AfterObtained; its max-HP gain is already reflected in
+        # the live creature. It needs no in-combat rulebook execution adapter.
+        if rid in KNOWN_RELICS and rid!='RELIC.MANGO' and compatibility!='compatible':
             warnings.append('STALE_RELIC_RULE:'+rid+':'+compatibility)
         tracked = read_periodic(relic)
         if tracked:
@@ -55,7 +60,7 @@ def normalize(snapshot: dict) -> CombatState:
             if relic.get("counter") is None and not legion:
                 warnings.append("UNKNOWN_LEGION_READINESS")
     enemies = []
-    from autoslay.knowledge.behavior import load as load_behavior
+    from autoslay.knowledge_base.behavior import load as load_behavior
     from autoslay.rules.monsters import unmodeled_special_hooks
     behavior=load_behavior()
     monster_entries={e['entity_id']:e for e in behavior.get('entries',[]) if e['category']=='monster'} if behavior.get('game_assembly_sha256')==snapshot.get('game_assembly_sha256') else {}

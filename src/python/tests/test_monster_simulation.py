@@ -2,7 +2,7 @@ from copy import deepcopy
 from dataclasses import replace
 import pytest
 from autoslay.decision.contracts import CombatState,Enemy,UnsupportedEffect
-from autoslay.knowledge.rulebook import entry_fingerprint,reference_matches
+from autoslay.knowledge_base.rulebook import entry_fingerprint,reference_matches
 from autoslay.rules.monsters import MonsterRules,expression,unmodeled_special_hooks
 from autoslay.planning.lookahead import evaluate_lookahead
 from autoslay.telemetry.decisions import packet

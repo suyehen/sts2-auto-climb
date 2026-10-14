@@ -1,7 +1,7 @@
 from copy import deepcopy
 import json
-from autoslay.knowledge.behavior import load, relevant, compact
-from autoslay.knowledge.event_model import random_interval, event_methods
+from autoslay.knowledge_base.behavior import load, relevant, compact
+from autoslay.knowledge_base.event_model import random_interval, event_methods
 
 
 def entry(identity):return next(e for e in load()['entries'] if e['entity_id']=='EVENT.'+identity)

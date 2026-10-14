@@ -5,8 +5,8 @@ be implemented and reviewed separately. Review never asserts full game coverage.
 """
 import argparse,json,hashlib
 from autoslay.paths import ROOT
-from autoslay.knowledge.rulebook import Rulebook,entry_fingerprint,validate_rulebook
-from autoslay.knowledge.source_audit import SOURCE,recognize_card,audit
+from autoslay.knowledge_base.rulebook import Rulebook,entry_fingerprint,validate_rulebook
+from autoslay.knowledge_base.source_audit import SOURCE,recognize_card,audit
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('entity_ids',nargs='+');args=parser.parse_args()

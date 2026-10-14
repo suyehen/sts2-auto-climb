@@ -1,6 +1,6 @@
 {
   "schema_version": "deterministic-certificates/1.0",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "game_version": "0.111.0",
   "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "finish_safe_unplayable_cards": [
@@ -39,6 +39,11 @@
     "RELIC.BOOMING_CONCH": {
       "source_path": "MegaCrit.Sts2.Core.Models.Relics\\BoomingConch.cs",
       "source_sha256": "2c918532e9ef8ef9ef8039640d4caddc1820d040dadd9bfc6ef96b020e6f6adb"
+    },
+    "RELIC.MANGO": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics/Mango.cs",
+      "source_sha256": "e76c97e377e887229e3492d9bcf3cda05fec8c476335b5a59e240af050857e2a",
+      "audit": "Only AfterObtained increases max HP; no combat, card-play or victory hook."
     }
   },
   "resource_upper_bound_monsters": {
@@ -107,5 +112,15 @@
       "MegaCrit.Sts2.Core.Models.Relics/BoomingConch.cs": "2c918532e9ef8ef9ef8039640d4caddc1820d040dadd9bfc6ef96b020e6f6adb"
     },
     "audit": "CardReward.OnSelect displays already populated options and waits for OptionSelected before obtaining a card or invoking an alternative. These relics do not modify reward alternatives. Only the final standard card reward of a combat is inspected; deck selection and skip remain AI decisions."
+  },
+  "local_combat_modifiers": {
+    "ENCHANTMENT.SHARP": {
+      "source_path": "MegaCrit.Sts2.Core.Models.Enchantments/Sharp.cs",
+      "source_sha256": "1de8537303cbb6860d4f55b117c0a8cd6179f3c455456b87393c0a7d135339c5",
+      "audit": "Only adds damage to powered attacks; the visible card damage already includes the additive enchantment.",
+      "card_ids": [
+        "CARD.BASH"
+      ]
+    }
   }
 }

@@ -1,6 +1,6 @@
 from copy import deepcopy
 import pytest
-from autoslay.knowledge.behavior import save,load,query,relevant
+from autoslay.knowledge_base.behavior import save,load,query,relevant
 
 
 def catalog():

@@ -1,10 +1,10 @@
 """Recover missing map artwork from the exact saved run, without changing evidence."""
+from autoslay.knowledge_base.repository import asset_path
 import os
 import re
 from datetime import datetime
 from pathlib import Path
 
-from autoslay.paths import ROOT
 
 
 def coord(value):
@@ -60,7 +60,7 @@ def saved_icon_metadata(recorded, started_at, save_paths=None):
                     asset = 'MAP.' + str(identity).split('.')[-1] + '_ICON'
                 else:
                     continue
-                if identity and re.fullmatch(r'MAP\.[A-Z0-9_]+', asset) and (ROOT / 'data/knowledge/assets/map' / (asset + '.webp')).is_file():
+                if identity and re.fullmatch(r'MAP\.[A-Z0-9_]+', asset) and asset_path('map', asset + '.webp').is_file():
                     nodes[n['node_id']] = dict(icon_asset=asset, entity_id=identity)
             return dict(source='matching_game_save', start_time_unix=stamp,
                         map_digest=map_digest(recorded), nodes=nodes)

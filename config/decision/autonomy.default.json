@@ -10,7 +10,8 @@
     "equivalent_outcomes",
     "dominant_outcome",
     "common_first_step",
-    "open_card_reward"
+    "open_card_reward",
+    "bounded_combat_search"
   ],
   "complex_strategy_enabled": false,
   "minimum_probability_coverage": 1.0,

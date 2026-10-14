@@ -1,0 +1,9 @@
+{
+  "schema_version": "knowledge-aliases/1.0",
+  "entries": {
+    "mechanics:hand_capacity_draw": ["满手抽牌", "手牌容量", "抽牌上限"],
+    "mechanics:hand_capacity_generated": ["手牌溢出", "生成牌溢出", "满手生成牌"],
+    "mechanics:draw_prevention": ["无法抽牌", "禁止抽牌"],
+    "mechanics:persistent_periodic_relics": ["周期遗物", "跨战斗计数"]
+  }
+}

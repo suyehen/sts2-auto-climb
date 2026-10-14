@@ -12,7 +12,7 @@ from autoslay.rules.periodic_relics import advance
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.simulation.card_flow import plan_draw, add_to_composition
 from autoslay.probability.draw import distribution
-from autoslay.knowledge.templates import canonical
+from autoslay.knowledge_base.templates import canonical
 from autoslay.planning.search import search, SearchBudget
 from autoslay.evaluation.combat import CombatEvaluator
 

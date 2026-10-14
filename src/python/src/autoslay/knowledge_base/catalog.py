@@ -6,10 +6,10 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from autoslay.paths import ROOT
+from autoslay.knowledge_base.repository import read_json, dataset_path
 from autoslay.bridge.client import request_bridge
 
-CATALOG_PATH = ROOT / "data/knowledge/catalog/encyclopedia.json"
+CATALOG_PATH = dataset_path("catalog")
 
 
 def validate(data: dict) -> None:
@@ -44,7 +44,7 @@ def validate(data: dict) -> None:
 
 
 def save_catalog(data: dict, path: Path = CATALOG_PATH, *, allow_rollback: bool = False) -> dict:
-    from autoslay.knowledge.updates import LOCK
+    from autoslay.knowledge_base.updates import LOCK
     from autoslay.execution.lock import dispatch_lock
     path=Path(path)
     with LOCK:
@@ -54,12 +54,12 @@ def save_catalog(data: dict, path: Path = CATALOG_PATH, *, allow_rollback: bool 
 
 
 def _save_catalog(data: dict, path: Path, *, allow_rollback: bool = False) -> dict:
-    from autoslay.knowledge.updates import compare,content_fingerprint
+    from autoslay.knowledge_base.updates import compare,content_fingerprint
     validate(data)
     path=Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     clean = {k: v for k, v in data.items() if k != "connected"}
-    old=json.loads(path.read_text(encoding='utf-8-sig')) if path.exists() else None
+    old=read_json(path, default={}, fresh=True) or None
     if not allow_rollback and old and old.get('session_epoch') and old.get('session_epoch')==clean.get('session_epoch'):
         previous,current=old.get('generation'),clean.get('generation')
         if type(previous) is int and type(current) is int and current<previous:
@@ -113,7 +113,7 @@ async def export_catalog(*, refresh: bool = False, path: Path = CATALOG_PATH, ti
             if expected_game_version is not None and data.get('game_version')!=expected_game_version:
                 return dict(error='CATALOG_VERSION_MISMATCH',message='Export not saved; live version differs')
             try:
-                from autoslay.knowledge.updates import compact_update
+                from autoslay.knowledge_base.updates import compact_update
                 return compact_update(await asyncio.to_thread(save_catalog, data, path))
             except (ValueError, OSError) as exc:
                 return {"error": "CATALOG_NOT_REPLACED", "message": str(exc)}
@@ -122,8 +122,8 @@ async def export_catalog(*, refresh: bool = False, path: Path = CATALOG_PATH, ti
 
 
 class Catalog:
-    def __init__(self, path: Path = CATALOG_PATH):
-        self.data = json.loads(path.read_text(encoding="utf-8"))
+    def __init__(self, path: Path | None = None):
+        self.data = read_json(path or dataset_path("catalog"))
         validate(self.data)
         self.entries = {entry["entity_id"]: entry for entry in self.data["entries"]}
 

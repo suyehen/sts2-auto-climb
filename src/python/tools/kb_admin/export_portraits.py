@@ -3,10 +3,11 @@ import argparse,hashlib,io,json,re,struct
 from pathlib import Path
 from PIL import Image
 from autoslay.paths import ROOT
-from autoslay.knowledge.catalog import CATALOG_PATH
+from autoslay.knowledge_base.repository import read_json
+from autoslay.knowledge_base.catalog import CATALOG_PATH
 
 def extract(pck:Path,assembly:Path):
-    catalog=json.loads(CATALOG_PATH.read_text(encoding='utf-8-sig'))
+    catalog=read_json(CATALOG_PATH, fresh=True)
     assembly_hash=hashlib.sha256(assembly.read_bytes()).hexdigest()
     if assembly_hash!=catalog.get('game_assembly_sha256'):raise ValueError('Refresh encyclopedia for this game build first')
     asset_root=ROOT/'data/knowledge/assets'

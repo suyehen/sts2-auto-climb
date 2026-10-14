@@ -2,7 +2,7 @@
 from time import perf_counter
 from autoslay.evaluation.run import deck_value,card_features,unmodeled
 from autoslay.evaluation.resources import item_value
-from autoslay.knowledge.templates import canonical
+from autoslay.knowledge_base.templates import canonical
 
 VERSION='1.0.0'
 

@@ -1,6 +1,8 @@
 """Codex MCP entry point. Tool definitions only; logic lives in autoslay."""
 import json
 import asyncio
+from autoslay.knowledge_base.service import SERVICE as knowledge_service
+from autoslay.knowledge_base.repository import scoped
 
 from mcp.server.fastmcp import FastMCP
 from autoslay.bridge.client import ActionRequest, fetch_state, get_action_status as query_action, set_control_mode as control, submit_action
@@ -11,9 +13,9 @@ from autoslay.planning.search import SearchBudget
 from autoslay.probability.draw import at_least_one
 from autoslay.telemetry.timing import Timing
 from autoslay.telemetry.journal import append_record
-from autoslay.knowledge.catalog import Catalog, export_catalog
+from autoslay.knowledge_base.catalog import Catalog, export_catalog
 from autoslay.evaluation.relic_timing import OpeningContext
-from autoslay.knowledge.mechanics import references as mechanism_references
+from autoslay.knowledge_base.mechanics import references as mechanism_references
 from autoslay.execution.sequence import SequenceExecutor
 from autoslay.bridge.client import persistent_transport
 from contextlib import asynccontextmanager
@@ -21,9 +23,9 @@ from autoslay.decision.unified import analyze_decision as unified_analysis, eval
 from autoslay.calibration import store as calibration
 from autoslay.telemetry import decisions
 from autoslay.telemetry import runs
-from autoslay.knowledge.rulebook import Rulebook
-from autoslay.knowledge.events import observe as observe_event
-from autoslay.knowledge.updates import CatalogSynchronizer,rollback
+from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.knowledge_base.events import observe as observe_event
+from autoslay.knowledge_base.updates import CatalogSynchronizer,rollback
 
 synchronizer=CatalogSynchronizer()
 
@@ -121,6 +123,7 @@ async def execute_plan(plan: dict) -> dict:
 
 
 @mcp.tool()
+@scoped
 def query_game_mechanics(query: str, game_version: str = "0.111.0") -> dict:
     """Offline versioned mechanisms: draw capacity, generated overflow, draw prevention,
     persistent periodic counters. Includes source and limitations, no game actions.
@@ -129,6 +132,7 @@ def query_game_mechanics(query: str, game_version: str = "0.111.0") -> dict:
 
 
 @mcp.tool()
+@scoped
 def query_encyclopedia(query: str, category: str | None = None, limit: int = 10,
                        expected_game_version: str | None = None) -> dict:
     """Offline reference lookup by entity ID, name or keyword; no game connection.
@@ -137,7 +141,7 @@ def query_encyclopedia(query: str, category: str | None = None, limit: int = 10,
     """
     try:
         if category in {'event','monster','intent'}:
-            from autoslay.knowledge.behavior import query as query_behavior
+            from autoslay.knowledge_base.behavior import query as query_behavior
             return query_behavior(query,category,limit,game_version=expected_game_version,for_agent=True)
         return Catalog().query(query, category, limit, expected_game_version)
     except (ValueError, OSError) as exc:
@@ -145,13 +149,14 @@ def query_encyclopedia(query: str, category: str | None = None, limit: int = 10,
 
 
 @mcp.tool()
+@scoped
 def query_behavior_log(query: str, category: str = '', limit: int = 10,
                        expected_game_version: str | None = None, include_evidence: bool = False) -> dict:
     """Offline event/monster/intent evidence, options, moves and source provenance.
     Unreviewed programs are references, not executable rules. Only request source
     method evidence when needed; do not load the whole library into model context.
     """
-    from autoslay.knowledge.behavior import query as query_behavior
+    from autoslay.knowledge_base.behavior import query as query_behavior
     try:return query_behavior(query,category,limit,game_version=expected_game_version,include_evidence=include_evidence,for_agent=True)
     except (ValueError,OSError) as exc:return dict(error='BEHAVIOR_UNAVAILABLE',message=str(exc))
 
@@ -167,15 +172,42 @@ async def refresh_encyclopedia() -> dict:
 
 
 @mcp.tool()
+@scoped
 def audit_knowledge_rules() -> dict:
     """Report complete catalog coverage and executable rule compatibility; never approves rules."""
     return Rulebook().audit()
 
 
 @mcp.tool()
+def search_knowledge(query: str, category: str | None = None, dataset: str | None = None,
+                     expected_game_version: str | None = None,
+                     expected_assembly_hash: str | None = None, language: str | None = None,
+                     limit: int = 10, include_related: bool = False) -> dict:
+    """Offline keyword/alias search with build filters and explicit related notes.
+    Results cite a pinned knowledge revision. Ranking never enables simulation
+    rules. No embedding, rerank, remote API or gameplay action is used.
+    """
+    try:
+        return knowledge_service.search(query, category=category, dataset=dataset,
+            game_version=expected_game_version, assembly_hash=expected_assembly_hash,
+            language=language, limit=limit, include_related=include_related)
+    except (ValueError, OSError) as exc:
+        return dict(error='KNOWLEDGE_UNAVAILABLE', message=str(exc))
+
+
+@mcp.tool()
+def knowledge_status() -> dict:
+    """Local knowledge availability, revision and process-local cache diagnostics."""
+    try:
+        return knowledge_service.status()
+    except (ValueError, OSError) as exc:
+        return dict(error='KNOWLEDGE_UNAVAILABLE', message=str(exc))
+
+
+@mcp.tool()
 def rollback_encyclopedia(history_filename: str) -> dict:
     """Restore a named local catalog history snapshot. Rule compatibility remains checked."""
-    from autoslay.knowledge.updates import compact_update
+    from autoslay.knowledge_base.updates import compact_update
     return compact_update(rollback(history_filename))
 
 
@@ -325,7 +357,7 @@ async def get_state() -> dict:
 def get_installation_info() -> dict:
     """Report local installation and available tools, without exposing credentials."""
     info = ROOT / ".runtime/local" / "installation.json"
-    return {"stage": "versioned knowledge, detailed decision records and guarded game control; full mechanism coverage in progress", "capabilities": ["get_state", "act", "execute_plan", "get_action_status", "set_control_mode", "start_new_run", "analyze_combat", "analyze_decision", "evaluate_run_choices", "record_decision_choice", "observe_decision_result", "draw_odds", "query_encyclopedia", "query_behavior_log", "refresh_encyclopedia", "query_game_mechanics", "audit_knowledge_rules", "rollback_encyclopedia", "get_decision_record"], "decision_panel": "http://127.0.0.1:18767/", "installation": json.loads(info.read_text(encoding="utf-8-sig")) if info.exists() else None}
+    return {"stage": "versioned knowledge, detailed decision records and guarded game control; full mechanism coverage in progress", "capabilities": ["get_state", "act", "execute_plan", "get_action_status", "set_control_mode", "start_new_run", "analyze_combat", "analyze_decision", "evaluate_run_choices", "record_decision_choice", "observe_decision_result", "draw_odds", "search_knowledge", "knowledge_status", "query_encyclopedia", "query_behavior_log", "refresh_encyclopedia", "query_game_mechanics", "audit_knowledge_rules", "rollback_encyclopedia", "get_decision_record"], "decision_panel": "http://127.0.0.1:18767/", "installation": json.loads(info.read_text(encoding="utf-8-sig")) if info.exists() else None}
 
 
 if __name__ == "__main__":

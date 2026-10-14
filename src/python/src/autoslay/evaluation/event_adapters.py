@@ -4,8 +4,8 @@ Source dossiers are references, not arbitrary executable C#. An unsupported
 branch stays unknown and prevents a complete comparison.
 """
 from copy import deepcopy
-from autoslay.knowledge.behavior import load
-from autoslay.knowledge.event_model import calls
+from autoslay.knowledge_base.behavior import load
+from autoslay.knowledge_base.event_model import calls
 
 VERSION='1.0.0'
 REVIEWED={

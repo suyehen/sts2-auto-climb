@@ -1,4 +1,4 @@
-"""One fresh proof, one durable action. No retries and no control-mode changes."""
+"""One fresh local decision, one durable action. No action retries or control changes."""
 import asyncio
 import json
 import re
@@ -9,6 +9,16 @@ from autoslay.execution.lock import dispatch_lock
 from autoslay.execution.sequence import save
 from autoslay.telemetry import runs,decisions
 from uuid import uuid4
+from autoslay.knowledge_base.repository import scoped
+
+
+@scoped
+def qualify(snapshot, bounded=False):
+    proof=assess({},snapshot)
+    if bounded and not proof['eligible'] and proof['mode']!='wait':
+        from autoslay.decision.unified import analyze_decision
+        proof=assess(analyze_decision(snapshot),snapshot)
+    return proof
 
 class DeterministicExecutor:
     def __init__(self,directory=None,fetch=fetch_state,submit=submit_action,record=True,status=get_action_status):
@@ -17,7 +27,7 @@ class DeterministicExecutor:
         self.status=status
         self.lock=asyncio.Lock()
 
-    async def execute(self,request_id):
+    async def execute(self,request_id,*,bounded=False):
         if not isinstance(request_id,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',request_id):
             raise ValueError('Invalid deterministic request ID')
         async with self.lock:
@@ -34,17 +44,18 @@ class DeterministicExecutor:
                         if receipt.get('status') not in {'completed','failed','rejected'}:
                             return dict(status='unresolved',reason='PREVIOUS_ACTION_UNRESOLVED',request=old['request'])
                         old.update(status=receipt['status'],receipt=receipt,recovered_by_status_query=True);save(old_path,old)
-                before=await self.fetch();proof=assess({},before)
+                before=await self.fetch();proof=await asyncio.to_thread(qualify,before,bounded)
                 if not proof['eligible']: return dict(status=proof['mode'],autonomy=proof)
                 # Re-evaluate, rather than accepting a proof/candidate supplied by callers.
                 fresh=await self.fetch()
                 if source(fresh)!=proof['source'] or not fresh.get('ready') or fresh.get('busy'):
                     return dict(status='rejected',reason='STATE_CHANGED')
-                proof=assess({},fresh)
+                proof=await asyncio.to_thread(qualify,fresh,bounded)
                 if not proof['eligible']: return dict(status=proof['mode'],autonomy=proof)
                 step=proof['selected_steps'][0];identity=uuid4().hex
                 report=dict(analysis_id=identity,source=proof['source'],phase=fresh['state']['phase'],
-                    autonomy=proof,execution_authorized=False,ai_called=False,shortlist=[],limitations=['proof applies only to this fresh state'])
+                    autonomy=proof,execution_authorized=False,ai_called=False,shortlist=[],
+                    limitations=['bounded current-turn policy; not a global outcome proof' if proof.get('decision_basis')=='bounded_combat_strategy' else 'proof applies only to this fresh state'])
                 if self.record:
                     await asyncio.to_thread(decisions.archive,report,fresh)
                     await asyncio.to_thread(runs.stage,'local_choice',fresh,dict(analysis_id=identity,reason=proof['reason'],

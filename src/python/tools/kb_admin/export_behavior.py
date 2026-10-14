@@ -3,13 +3,14 @@ import argparse,hashlib,json,os,re,subprocess
 from datetime import datetime,timezone
 from pathlib import Path
 from autoslay.paths import ROOT
-from autoslay.knowledge.game_pack import GamePack
-from autoslay.knowledge.behavior import save,load
-from autoslay.knowledge.catalog import CATALOG_PATH
-from autoslay.knowledge.source_audit import body
-from autoslay.knowledge.monster_values import parameters,thresholds,resolve,numeric_moves,arguments,call_end
-from autoslay.knowledge.behavior_graph import graph as state_graph, methods as all_methods, properties, card_links, dynamic_vars, expand_helpers
-from autoslay.knowledge.event_model import extract as event_model,render_template,event_methods
+from autoslay.knowledge_base.repository import read_json, dataset_path
+from autoslay.knowledge_base.game_pack import GamePack
+from autoslay.knowledge_base.behavior import save,load
+from autoslay.knowledge_base.catalog import CATALOG_PATH
+from autoslay.knowledge_base.source_audit import body
+from autoslay.knowledge_base.monster_values import parameters,thresholds,resolve,numeric_moves,arguments,call_end
+from autoslay.knowledge_base.behavior_graph import graph as state_graph, methods as all_methods, properties, card_links, dynamic_vars, expand_helpers
+from autoslay.knowledge_base.event_model import extract as event_model,render_template,event_methods
 
 
 def identity(name):return re.sub(r'(?<!^)(?=[A-Z][a-z]|(?<=[a-z0-9])[A-Z])','_',name).upper()
@@ -26,13 +27,13 @@ def source_folder(assembly,digest):
 
 def refresh(game):
     assembly=game/'data_sts2_windows_x86_64/sts2.dll';digest=hashlib.sha256(assembly.read_bytes()).hexdigest()
-    catalog=json.loads(CATALOG_PATH.read_text(encoding='utf-8-sig'))
+    catalog=read_json(CATALOG_PATH, fresh=True)
     if digest!=catalog['game_assembly_sha256']:raise ValueError('Refresh game encyclopedia first; assembly mismatch')
     pack=GamePack(game/'SlayTheSpire2.pck');folder=source_folder(assembly,digest);entries=[]
     levels=thresholds((folder/'MegaCrit.Sts2.Core.Entities.Ascension/AscensionLevel.cs').read_text(encoding='utf-8-sig'))
     powers=json.loads(pack.read('localization/zhs/powers.json'))
     enchantments=json.loads(pack.read('localization/zhs/enchantments.json'))
-    rules=json.loads((ROOT/'data/knowledge/events/rules.json').read_text(encoding='utf-8-sig'))
+    rules=read_json(dataset_path('event_rules'), fresh=True)
     for category,table_name,directory in [('event','events','MegaCrit.Sts2.Core.Models.Events'),('monster','monsters','MegaCrit.Sts2.Core.Models.Monsters'),('intent','intents','MegaCrit.Sts2.Core.MonsterMoves.Intents')]:
         resource=f'localization/zhs/{table_name}.json';localization=json.loads(pack.read(resource))
         if category=='intent':

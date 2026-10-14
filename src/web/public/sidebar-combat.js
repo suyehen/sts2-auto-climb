@@ -69,7 +69,7 @@ export function renderDecisionFlow(host,record,choice=null,evidence=null,status=
   section.append(heading);for(const node of body)section.append(node);host.append(section);
  };
  const text=value=>el('p',value,'flow-copy');
- const localBody=[text(!report?'等待游戏状态与分析。':history&&!autonomy?'这条旧记录未保存自主检查依据。':autonomy?.eligible?'确定性检查通过，可自主执行。':autonomy?.mode==='wait'?'状态尚未就绪，等待下一次检查。':'未通过确定性检查，交由 AI 综合判断。')];
+ const localBody=[text(!report?'等待游戏状态与分析。':history&&!autonomy?'这条旧记录未保存自主检查依据。':autonomy?.eligible?(autonomy.decision_basis==='bounded_combat_strategy'?'本地当前回合策略覆盖检查通过；执行首步后重新观察，不代表整局最优证明。':'确定性检查通过，可自主执行。'):autonomy?.mode==='wait'?'状态尚未就绪，等待下一次检查。':'未通过确定性检查，交由 AI 综合判断。')];
  if(autonomy?.eligible&&autonomy.selected_steps?.length)localBody.push(text(autonomy.selected_steps.map(s=>actionName(s,snapshot)).join(' → ')));
  if(autonomy?.reason)localBody.push(el('p',reason(autonomy.reason),'hint'));
  if(autonomy)localBody.push(autonomyPanel(autonomy,snapshot));

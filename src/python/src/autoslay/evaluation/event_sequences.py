@@ -1,6 +1,6 @@
 """Bounded explicit event state transitions with re-evaluation after every change."""
 from dataclasses import asdict,replace
-from autoslay.knowledge.events import rules
+from autoslay.knowledge_base.events import rules
 from autoslay.evaluation.run import deck_value
 
 VERSION='1.1.0'

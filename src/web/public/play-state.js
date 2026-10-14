@@ -12,5 +12,5 @@ export function playView(data,{profileId,replaceSave=false,busy=false}={}){
   continueReason:common||(!current&&g?.connected&&(!saved||!g.menu.save_loadable)?'没有可继续的存档。':''),
   continueLabel:current?'接管当前对局':'继续存档并自动游玩',
   progress:data?.job?.status==='completed'&&!active?'Agent 已暂停':data?.job?launchPhases[data.job.phase]||data.job.phase:active?'自动游玩中':'准备开始',
-  error:data?.job?.error?launchErrors[data.job.error]||'启动未完成，请切换工程视图查看详细原因。':''};
+  error:data?.job?.error?launchErrors[data.job.error]||'启动未完成（'+data.job.error+'）。请检查游戏与服务状态。':''};
 }

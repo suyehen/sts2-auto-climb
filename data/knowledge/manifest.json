@@ -1,0 +1,20 @@
+{
+  "schema_version": "knowledge-manifest/1.0",
+  "datasets": {
+    "catalog": "catalog/encyclopedia.json",
+    "behavior": "behavior/catalog.json",
+    "mechanics": "mechanics/game-0.111.0.json",
+    "rules": "rules/rulebook.json",
+    "certificates": "rules/deterministic-certificates.json",
+    "event_rules": "events/rules.json",
+    "classification": "catalog/classification.json",
+    "portraits": "assets/portraits.json",
+    "monster_portraits": "assets/monsters/manifest.json",
+    "source_inventory": "coverage/source-inventory.json",
+    "source_audit": "coverage/catalog-source-audit.json",
+    "aliases": "aliases.json",
+    "relations": "relations.json",
+    "strategy": "experience/strategy/entries.json",
+    "timing": "experience/timing/profiles.json"
+  }
+}

@@ -5,6 +5,7 @@ from datetime import datetime,timezone
 from pathlib import Path
 from threading import RLock
 from autoslay.paths import ROOT
+from autoslay.knowledge_base.repository import current_snapshot
 
 DIRECTORY=ROOT/'data/decisions'
 LOCK=RLock()
@@ -28,7 +29,7 @@ def archive(report,snapshot,origin='live',directory=None):
     location=runs.location(snapshot,origin)
     payload=dict(schema_version='decision-record/1.0',origin=origin,recorded_at=datetime.now(timezone.utc).isoformat(),
                  location=location,snapshot=public_snapshot(snapshot),report=report,ai_payload=compact(report)|dict(decision_record=dict(recorded=True,record_id=identity,origin=origin)),
-                 ai_delivery='not sent to AI; local deterministic proof' if report.get('ai_called') is False else 'compact decision API payload; full report stays local' if origin=='live' else
+                 ai_delivery='not sent to AI; bounded local combat strategy' if (report.get('autonomy') or {}).get('decision_basis')=='bounded_combat_strategy' else 'not sent to AI; local deterministic proof' if report.get('ai_called') is False else 'compact decision API payload; full report stays local' if origin=='live' else
                              'offline replay payload preview; not an actual AI decision or live execution')
     if origin=='live':
         from autoslay.archive.collector import store
@@ -92,7 +93,9 @@ def archive_tool_result(result,snapshot,kind,options=None):
     return archive(report,snapshot)
 
 def packet(report):
+    knowledge = current_snapshot()
     return dict(source=report['source'],phase=report['phase'],units='heuristic scores and conditional forecasts; not win probability',
+                knowledge_revision=report.get('knowledge_revision') or (knowledge.revision if knowledge else None),
                 candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','rest','route') if k in report},
                 coverage=(report.get('combat') or {}).get('coverage'),combat_forecast=forecast_packet((report.get('combat') or {}).get('lookahead')),
                 autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),

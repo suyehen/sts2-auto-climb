@@ -1,8 +1,8 @@
 """Independently versioned, source-checked persistent player-turn relic counters."""
 from dataclasses import replace
-import json
+from autoslay.knowledge_base.repository import read_json, dataset_path
 from autoslay.decision.contracts import PeriodicRelic
-from autoslay.knowledge.rulebook import Rulebook, RULEBOOK_PATH, validate_rulebook
+from autoslay.knowledge_base.rulebook import Rulebook, RULEBOOK_PATH, validate_rulebook
 
 VERSION = "1.0.0"
 GAME_VERSION = "0.111.0"
@@ -11,7 +11,7 @@ def declared_rules():
     # Importing services must work before the user's first encyclopedia export.
     # This is only the declared ID/shape lookup; read_periodic still checks the
     # current catalog fingerprint before using any rule for calculation.
-    data=json.loads(RULEBOOK_PATH.read_text(encoding='utf-8-sig'))
+    data=read_json(dataset_path('rules'))
     validate_rulebook(data)
     return {identity: (rule['periodic']['period'],rule['periodic']['draw'],rule['periodic']['energy'])
             for identity,rule in data['entries'].items() if rule.get('periodic')}

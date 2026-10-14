@@ -51,7 +51,7 @@ class KnowledgeRules:
     version = VERSION
 
     def __init__(self, rulebook=None):
-        from autoslay.knowledge.rulebook import Rulebook
+        from autoslay.knowledge_base.rulebook import Rulebook
         self.rulebook = rulebook or Rulebook()
 
     def effects(self, rule, description, state=None):

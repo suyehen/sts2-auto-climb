@@ -2,7 +2,7 @@
 import argparse
 import asyncio
 import json
-from autoslay.knowledge.catalog import export_catalog
+from autoslay.knowledge_base.catalog import export_catalog
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

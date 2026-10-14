@@ -1,8 +1,8 @@
 """Audit every exported model against local implementation; proposals never auto-approved."""
 import argparse,json
 from autoslay.paths import ROOT
-from autoslay.knowledge.rulebook import Rulebook
-from autoslay.knowledge.source_audit import audit
+from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.knowledge_base.source_audit import audit
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(); parser.add_argument('--write-proposals',action='store_true'); args=parser.parse_args()

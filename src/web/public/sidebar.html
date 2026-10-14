@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoSlay · 实时观察</title><link rel="stylesheet" href="sidebar.css"><script src="shared.js" defer></script><script type="module" src="sidebar.js"></script><script type="module" src="agent.js"></script></head>
-<body><header class="side-header"><div class="side-brand"><span class="brand">AutoSlay <small>实时观察</small></span><span id="link" class="connection-pill">正在连接</span></div><div class="side-location"><h1 id="location">等待游戏状态</h1><p id="stamp"></p></div><div class="controls"><label><input id="followSide" type="checkbox" checked>跟随实时</label><button id="resume" hidden>返回实时</button><button id="full" class="text-button">打开工作台 ↗</button><button id="mode-side" class="text-button" aria-pressed="false">工程视图</button></div><div id="agent-quick-controls"></div></header>
+<body><header class="side-header"><div class="side-brand"><span class="brand">AutoSlay <small>实时观察</small></span><span id="link" class="connection-pill">正在连接</span></div><div class="side-location"><h1 id="location">等待游戏状态</h1><p id="stamp"></p></div><div class="controls"><label><input id="followSide" type="checkbox" checked>跟随实时</label><button id="resume" hidden>返回实时</button><button id="full" class="text-button">打开工作台 ↗</button></div><div id="agent-quick-controls"></div></header>
 <div id="notice" role="status" hidden></div><main>
 <section id="side-decision-stats" class="decision-stats" aria-label="本局决策来源统计"></section>
 <section class="card decision-focus decision-flow" aria-labelledby="flow-title"><div class="flow-heading"><h2 id="flow-title">本次决策</h2><span id="current" class="badge">等待分析</span></div><p id="decision-context" class="hint">等待下一次分析</p><div id="decision-flow" aria-live="polite"></div></section>
@@ -10,4 +10,4 @@
 <details class="card side-disclosure" id="agent-disclosure"><summary>Agent 与决策后端 <span id="agent-state">等待状态</span></summary><section id="agent-controls" class="panel"></section></details>
 <details class="card side-disclosure" id="game-state"><summary>游戏状态 <span>生命 · 能量 · 金币</span></summary><div id="resources" class="resources"></div></details>
 <details class="card side-disclosure" id="timeline-disclosure"><summary>最近决策记录 <span id="recent-count">0 条</span></summary><div id="recent"></div></details>
-<section id="details-card" class="card" hidden><h2>工程检查器</h2><div id="details"></div></section></main></body></html>
+</main></body></html>

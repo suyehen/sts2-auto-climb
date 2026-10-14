@@ -1,9 +1,9 @@
 """Conservative mechanism coverage and instance-scoped observations, never rule execution."""
 from collections import Counter, OrderedDict
 from threading import RLock
-from autoslay.knowledge.behavior import load
-from autoslay.knowledge.rulebook import Rulebook
-from autoslay.knowledge.events import rules as event_rules
+from autoslay.knowledge_base.behavior import load
+from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.knowledge_base.events import rules as event_rules
 
 VERSION = '1.0.0'
 
@@ -113,7 +113,8 @@ def inspect(snapshot, report=None, tracker=None):
     if enemies: blockers.append('怪物后续行为尚未编译为完整战斗推演规则')
     combat=(report or {}).get('combat') or {}
     blockers.extend(combat.get('limitations') or [])
-    local=bool((report or {}).get('autonomy',{}).get('eligible'))
+    strategy=(report or {}).get('autonomy',{}).get('decision_basis')=='bounded_combat_strategy'
+    local=bool((report or {}).get('autonomy',{}).get('eligible')) and not strategy
     estimated=bool(combat.get('candidates'))
     event=state.get('event_screen') or {}
     event_info=None
@@ -125,8 +126,8 @@ def inspect(snapshot, report=None, tracker=None):
         event_info.update(source_model_present=bool(reference),source_model_matches=matching,
                           unresolved=reference.get('unresolved',[]),symbolic_rule_count=sum(v['status']!='fixed' for v in reference.get('variables',{}).values()))
         blockers.append('事件当前数值以游戏为准；后续源码流程供 AI 判断，未启用通用自动推演')
-    result=dict(module_version=VERSION, classification='exact' if local else 'estimated' if estimated else 'ai_required',
-                classification_scope='current local execution proof' if local else 'candidate scoring only',
+    result=dict(module_version=VERSION, classification='exact' if local else 'estimated' if estimated or strategy else 'ai_required',
+                classification_scope='current local execution proof' if local else 'bounded current-turn local policy; not a global proof' if strategy else 'candidate scoring only',
                 execution_authorized=False, ai_required=not local, entities=list(entities.values()), enemies=enemies, event=event_info,
                 unknown_state_count=unknown, blockers=list(dict.fromkeys(blockers)),
                 metric_scopes=dict(visible_hp='observed',visible_block='observed',visible_intents='observed',

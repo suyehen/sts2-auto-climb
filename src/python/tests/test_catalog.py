@@ -2,7 +2,7 @@ import asyncio
 import copy
 import json
 import pytest
-from autoslay.knowledge import catalog
+from autoslay.knowledge_base import catalog
 
 
 def payload():

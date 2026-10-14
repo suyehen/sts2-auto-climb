@@ -1,6 +1,6 @@
 from copy import deepcopy
 from autoslay.decision.mechanisms import inspect, inventory, StateTracker
-from autoslay.knowledge.behavior import load
+from autoslay.knowledge_base.behavior import load
 from autoslay.agent.context import build
 from autoslay.telemetry.decisions import packet, public_snapshot
 

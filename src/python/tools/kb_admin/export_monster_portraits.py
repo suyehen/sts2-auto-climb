@@ -3,10 +3,10 @@ import argparse,hashlib,json,re,subprocess
 from pathlib import Path
 from PIL import Image
 from autoslay.paths import ROOT
-from autoslay.knowledge.game_pack import GamePack
-from autoslay.knowledge.behavior import load
-from autoslay.knowledge.textures import read_texture
-from autoslay.knowledge.source_audit import body
+from autoslay.knowledge_base.game_pack import GamePack
+from autoslay.knowledge_base.behavior import load
+from autoslay.knowledge_base.textures import read_texture
+from autoslay.knowledge_base.source_audit import body
 
 
 def export(game):

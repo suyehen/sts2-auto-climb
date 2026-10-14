@@ -45,11 +45,11 @@ powershell -ExecutionPolicy Bypass -File scripts/build/Deploy-Bridge.ps1 -GamePa
 3. 导出卡牌、遗物、药水图片和怪物图像。
 
 ```powershell
-.runtime/conda/python.exe src/python/tools/knowledge/export_encyclopedia.py --refresh
+.runtime/conda/python.exe src/python/tools/kb_admin/export_encyclopedia.py --refresh
 .runtime/tools/dotnet/dotnet.exe tool install ilspycmd --version 9.1.0.7988 --tool-path .runtime/tools/ilspy
-.runtime/conda/python.exe src/python/tools/knowledge/export_behavior.py --game-path "D:\SteamLibrary\steamapps\common\Slay the Spire 2"
-.runtime/conda/python.exe src/python/tools/knowledge/export_portraits.py --game-path "D:\SteamLibrary\steamapps\common\Slay the Spire 2"
-.runtime/conda/python.exe src/python/tools/knowledge/export_monster_portraits.py --game-path "D:\SteamLibrary\steamapps\common\Slay the Spire 2"
+.runtime/conda/python.exe src/python/tools/kb_admin/export_behavior.py --game-path "D:\SteamLibrary\steamapps\common\Slay the Spire 2"
+.runtime/conda/python.exe src/python/tools/kb_admin/export_portraits.py --game-path "D:\SteamLibrary\steamapps\common\Slay the Spire 2"
+.runtime/conda/python.exe src/python/tools/kb_admin/export_monster_portraits.py --game-path "D:\SteamLibrary\steamapps\common\Slay the Spire 2"
 ```
 
 离线导出工具需要本地 SDK；怪物图像生成使用游戏自带渲染器和资源。游戏更新后按相同顺序重新导出，版本不一致时不要沿用旧行为计算结果。
@@ -97,3 +97,7 @@ GitHub Actions 只运行无需游戏资源的检查，不调用模型、不开�
 - [开发阶段记录](docs/开发阶段记录.md)：历史验收记录，不代表当前安装指南。
 
 原创代码采用 [Apache-2.0](LICENSE)。游戏名称、资源及其权利归相应权利人，本项目许可证不授予游戏资源的再分发权。
+
+## 统一知识库
+
+知识资料统一由 `data/knowledge/manifest.json` 管理，实现位于 `autoslay.knowledge_base`，维护命令位于 `src/python/tools/kb_admin/`。支持离线实体/别名/中文关键词检索，无需模型 key 或向量数据库。详见 [使用说明](docs/统一知识库使用说明.md)。

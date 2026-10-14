@@ -1,4 +1,4 @@
-/* Human-readable projections. The source objects remain intact for engineering inspection. */
+/* Human-readable projections. Original evidence stays intact in the local archive. */
 import {eventForecastFacts,eventBranchFacts} from './event-forecast.js';
 import {combatForecastFacts} from './combat-forecast.js';
 export function gameText(value){return String(value).replace(/(\[img\]([^\[]+)\[\/img\])(?:\1)*/g,(match,whole,path,offset,source)=>{const images=[...match.matchAll(/\[img\]([^\[]+)\[\/img\]/g)];const unit=images[0][1].includes('energy_icon')?'能量':images[0][1].includes('star_icon')?'星星':'图标';return (images.length===1&&/[0-9X]/.test(source[offset-1]||'')?'':images.length)+'点'+unit;}).replace(/\[\/?(?:gold|blue|red|green|purple|orange|white|gray|grey|pink|yellow|b|i)\]/g,'');}
@@ -8,8 +8,8 @@ export const character=v=>({IRONCLAD:'铁甲战士',SILENT:'静默猎手',DEFECT
 export const phase=v=>({combat:'战斗',event:'事件',shop:'商店',rest_site:'休息处',treasure:'宝箱',map:'地图',card_reward_selection:'抓牌',card_selection:'选牌',main_menu:'主菜单',singleplayer_menu:'单人菜单',character_selection:'角色选择',game_over:'对局结束',no_run:'未进入对局',rewards:'领取奖励',reward:'领取奖励',outside_combat:'房间内'})[v]||'等待状态';
 export const result=v=>({win:'胜利',loss:'失败',abandoned:'已放弃',unknown:'未记录结果'})[v]||'尚未记录终局';
 export const room=v=>({Monster:'普通战斗',Elite:'精英战斗',Boss:'首领',RestSite:'休息处',Shop:'商店',Treasure:'宝箱',Unknown:'未知事件',Ancient:'远古之民',AncientMapPoint:'远古之民'})[v]||phase(v);
-export const stage=v=>({analysis_started:'正在计算',decision:'分析已完成',ai_choice:'AI 已作出选择',local_choice:'已作出确定性选择',local_outcome:'自动动作已结算',action_submitted:'正在执行',action_receipt:'等待结算',action_result:'动作已结算',outcome_observed:'结果已记录',snapshot:'状态快照',agent_packet:'已提交给决策模型',agent_outcome:'Agent 执行结果',agent_request:'模型请求状态',agent_error:'Agent 异常停止'})[v]||'对局记录';
-export const agentPhase=v=>({paused:'已暂停',reading_state:'读取游戏状态',calculating:'比较候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'正在执行',local_deterministic:'执行确定性策略',finished:'对局已结束',error:'运行已中止'})[v]||'等待状态';
+export const stage=v=>({analysis_started:'正在计算',decision:'分析已完成',ai_choice:'AI 已作出选择',local_choice:'已作出本地选择',local_outcome:'自动动作已结算',action_submitted:'正在执行',action_receipt:'等待结算',action_result:'动作已结算',outcome_observed:'结果已记录',snapshot:'状态快照',agent_packet:'已提交给决策模型',agent_outcome:'Agent 执行结果',agent_request:'模型请求状态',agent_error:'Agent 异常停止'})[v]||'对局记录';
+export const agentPhase=v=>({paused:'已暂停',reading_state:'读取游戏状态',calculating:'比较候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'正在执行',local_deterministic:'执行本地策略',finished:'对局已结束',error:'运行已中止'})[v]||'等待状态';
 export const reason=v=>({PLAN_COMPLETED:'动作计划已完成',OBSERVATION_REQUIRED:'需要读取新状态后继续判断',STATE_CHANGED:'游戏状态已变化，需要重新判断',MODEL_TIMEOUT:'模型等待超时',UNKNOWN_EFFECT:'存在尚未支持的效果'})[v]||(/^[A-Z][A-Z0-9_]+$/.test(v||'')?'详细原因尚未提供中文解释':v||'');
 export const metricValue=(key,value)=>key.endsWith('probability')&&typeof value==='number'?(value*100).toFixed(1)+'%':fmt(value);
 export function disclosureState(host){return new Map(Array.from(host.querySelectorAll?.('details')||[],d=>[d.id||d.querySelector('summary')?.textContent,d.open]))}
@@ -33,7 +33,6 @@ export function renderDecisionStats(host,manifest){
 }
 export function definitions(rows){const n=el('div');for(const [key,value]of rows){const r=el('div',undefined,'definition-row');r.append(el('span',key),el('strong',fmt(value)));n.append(r)}return n}
 export function table(value){const t=el('table',undefined,'human-table');for(const [k,v]of Object.entries(value||{})){if(!metrics[k]||typeof v==='object'&&v!==null)continue;const r=el('tr');r.append(el('th',metrics[k]),el('td',metricValue(k,v)));t.append(r)}return t}
-export function raw(title,value){const d=el('details');d.append(el('summary',title),el('pre',JSON.stringify(value,null,2)));return d}
 export const calculationTier=v=>({exact:'确定性证明',estimated:'有条件估算',ai_required:'需要 AI 判断',adapter:'已支持基础计算',reference_only:'仅有参考资料',observed:'已观测',unknown:'未知'})[v]||'未评估';
 export function mechanismPanel(audit){const panel=el('details');panel.open=true;panel.append(el('summary','本次计算范围与动态状态'));panel.append(definitions([['判断等级',calculationTier(audit.classification)],['尚未观测的状态',audit.unknown_state_count],['战斗后续分支','需要 AI 判断'],['收益分与胜率','收益分尚未校准为胜率']]));
  for(const b of audit.blockers||[])if(!/^[\x00-\x7f]*$/.test(b))panel.append(el('p',b,'decision-note'));
@@ -124,10 +123,10 @@ export function autonomyPanel(autonomy,snapshot={}){
  panel.append(el('summary',autonomy.eligible?'本地决策依据 · 未调用 AI':'评分比较与 AI 分流'));
  const evidence=autonomy.evidence||{},review=autonomy.score_review;
  if(autonomy.eligible){
-  const names={forced_action:'必须推进的唯一动作',forced_end_turn:'只能结束回合',mandatory_card_selection:'必须选择全部候选牌',certain_combat_finish:'确定立即结束战斗',eliminate_certain_death:'排除明确致死选项',equivalent_outcomes:'完整结果等价',dominant_outcome:'战后资源严格支配',common_first_step:'最佳路线的共同首步'};
+  const names={forced_action:'必须推进的唯一动作',forced_end_turn:'只能结束回合',mandatory_card_selection:'必须选择全部候选牌',certain_combat_finish:'确定立即结束战斗',eliminate_certain_death:'排除明确致死选项',equivalent_outcomes:'完整结果等价',dominant_outcome:'战后资源严格支配',common_first_step:'最佳路线的共同首步',bounded_combat_search:'本地当前回合策略（非整局最优证明）'};
   panel.append(definitions([['分流规则',names[autonomy.rule_id]||autonomy.rule_id],['下一步',(autonomy.selected_steps||[]).map(s=>actionName(s,snapshot)).join(' → ')],['AI 调用','跳过']]));
   if(evidence.search)panel.append(definitions([['路线搜索完整',evidence.search.complete],['已搜索状态',evidence.search.nodes],['可结束战斗的路线',evidence.finish_count],['最佳等价路线',evidence.equivalent_best_count],['被严格支配的路线',evidence.dominated_finish_count],['战后生命',evidence.hp_after_victory]]));
-  if(evidence.selected_continuation?.length)panel.append(el('p','证明使用的路线：'+evidence.selected_continuation.map(step=>actionName(step,snapshot)).join(' → '),'result-description'));
+  if(evidence.selected_continuation?.length)panel.append(el('p',(autonomy.decision_basis==='bounded_combat_strategy'?'本地策略参考路线：':'证明使用的路线：')+evidence.selected_continuation.map(step=>actionName(step,snapshot)).join(' → '),'result-description'));
   if(evidence.search)panel.append(el('p','仅执行下一步，结算后重新读取状态和证明。比较范围为已核验的本回合结束战斗场景。','hint'));
   for(const [index,finish] of (evidence.compared_finishes||[]).entries()){
    const row=el('details');row.id='autonomy-finish-'+index;row.append(el('summary','结束路线 '+(index+1)));
@@ -182,7 +181,7 @@ export function renderDecision(host,record,tab='summary',choice=null,evidence=nu
  if(tab==='evidence'){const grid=el('div',undefined,'evidence-layout');const intended=el('div',undefined,'evidence-cell'),actual=el('div',undefined,'evidence-cell');intended.append(el('h3','当时选择了什么'),el('p',evidence?.choice?.reason||choice?.reason||'尚未记录选择理由。'));actual.append(el('h3','实际发生了什么'));const outcomes=evidence?.observations||[];if(!outcomes.length)actual.append(el('p','暂无与这次决策匹配的结果记录。'));for(const o of outcomes){if(o.note)actual.append(el('p',o.note,'result-description'));actual.append(table(o.actual||o.observed||o));}const plans=evidence?.plans||[];for(const p of plans)actual.append(el('p',({completed:'执行完成',stopped:'已停止',running:'执行中'})[p.status]||'计划已记录'));grid.append(intended,actual);host.append(grid);return}
  const p=s.player||{},c=p.creature||{};if(!options.live)host.append(definitions([['房间',phase(r.phase||s.phase)],['当时生命',c.hp!=null?c.hp+' / '+c.max_hp:'未记录'],['当时能量',p.energy],['当时金币',p.gold]]));
  if(choice?.reason)host.append(el('p',choice.reason,'decision-note'));
- if(r.autonomy?.eligible)host.append(el('p','这一步已通过确定性检查，可以直接执行，无需等待 AI。','decision-note'));
+ if(r.autonomy?.eligible)host.append(el('p',r.autonomy.decision_basis==='bounded_combat_strategy'?'本地策略已完成当前回合的覆盖检查，只执行下一步后重新观察；未证明整局最优。':'这一步已通过确定性检查，可以直接执行，无需等待 AI。','decision-note'));
  if(r.autonomy?.eligible||r.autonomy?.score_review)host.append(autonomyPanel(r.autonomy,snapshot));
  if(r.combat?.lookahead){const facts=combatForecastFacts(r.combat.lookahead,snapshot),summary=el('div',undefined,'combat-forecast-summary');summary.append(el('h3',r.combat.lookahead.horizon+' 回合推演'));for(const fact of facts.filter(f=>/^(战斗方案|抽牌方案)/.test(f)))summary.append(el('p',fact,'result-description'));host.append(summary);const panel=combatForecastPanel(r.combat.lookahead,snapshot);panel.open=tab==='metrics'&&!options.live;host.append(panel)}
  if(options.live)host.append(candidateGroups(r,snapshot,false));

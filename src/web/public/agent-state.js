@@ -1,5 +1,5 @@
 /* One status projection for every Agent control surface. */
-export const phaseNames={paused:'已暂停',reading_state:'读取游戏状态',calculating:'计算候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'执行游戏动作',local_deterministic:'执行确定性策略',finished:'本局已结束',error:'异常停止'};
+export const phaseNames={paused:'已暂停',reading_state:'读取游戏状态',calculating:'计算候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'执行游戏动作',local_deterministic:'执行本地策略',finished:'本局已结束',error:'异常停止'};
 export function decisionActivity(status,fallback='等待分析'){
  if(!status?.running)return fallback;
  if(status.phase==='executing'&&status.last?.plan_length>1)return '执行动作计划 · 第 '+status.last.plan_step+'/'+status.last.plan_length+' 步';

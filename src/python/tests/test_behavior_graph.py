@@ -1,7 +1,7 @@
 from copy import deepcopy
-from autoslay.knowledge.behavior import load,relevant,query
+from autoslay.knowledge_base.behavior import load,relevant,query
 from autoslay.agent.context import build
-from autoslay.knowledge.behavior_graph import graph
+from autoslay.knowledge_base.behavior_graph import graph
 
 
 def entry(identity):

@@ -1,27 +1,18 @@
 """Canonical visible encyclopedia variants, refreshed when the local file changes."""
-from pathlib import Path
-from threading import RLock
-import json
-from autoslay.knowledge.catalog import CATALOG_PATH
+from autoslay.knowledge_base.repository import read_view, dataset_path
 from autoslay.decision.contracts import Card
 from autoslay.decision.cache import digest
 
 VERSION = "1.0.0"
-_lock = RLock()
-_loaded = None
+def index(path=None, expected_version="0.111.0"):
+    path = path or dataset_path("catalog")
+    def build(data):
+        if data.get("status") != "complete": raise ValueError("Incomplete encyclopedia")
+        return data['game_version'], {e["entity_id"]:e for e in data["entries"]}, digest(data)
+    version, entries, fingerprint = read_view(path, 'canonical-catalog/1', build)
+    if version != expected_version: raise ValueError("Stale encyclopedia version")
+    return entries, fingerprint
 
-def index(path=CATALOG_PATH, expected_version="0.111.0"):
-    global _loaded
-    path = Path(path)
-    stat = path.stat()
-    stamp = (str(path.resolve()), stat.st_mtime_ns, stat.st_size)
-    with _lock:
-        if _loaded is None or _loaded[0] != stamp:
-            data = json.loads(path.read_text(encoding="utf-8-sig"))
-            if data.get("status") != "complete": raise ValueError("Incomplete encyclopedia")
-            _loaded = (stamp, data["game_version"], {e["entity_id"]:e for e in data["entries"]}, digest(data))
-        if _loaded[1] != expected_version: raise ValueError("Stale encyclopedia version")
-        return _loaded[2], _loaded[3]
 
 def canonical(value, entries):
     entry = entries.get(value["entity_id"])

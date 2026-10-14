@@ -1,11 +1,11 @@
 """Catalog differences, compatibility gates, explicit rollback and menu-only sync."""
 import asyncio
-import json
+from autoslay.knowledge_base.repository import read_json
 import time
 from pathlib import Path
 from threading import RLock
 from autoslay.decision.cache import digest
-from autoslay.knowledge.rulebook import entry_fingerprint
+from autoslay.knowledge_base.rulebook import entry_fingerprint
 
 LOCK=RLock()
 
@@ -47,11 +47,11 @@ def compare(old,new):
                 note='Catalog changes do not approve executable rules; rule fingerprints are checked on every load')
 
 def rollback(filename,path=None):
-    from autoslay.knowledge.catalog import CATALOG_PATH,save_catalog
+    from autoslay.knowledge_base.catalog import CATALOG_PATH,save_catalog
     path=Path(path or CATALOG_PATH)
     if not isinstance(filename,str) or Path(filename).name!=filename or not filename.endswith('.json'):
         raise ValueError('A history filename is required')
-    data=json.loads((path.parent/'history'/filename).read_text(encoding='utf-8-sig'))
+    data=read_json(path.parent/'history'/filename, fresh=True)
     return save_catalog(data,path,allow_rollback=True)
 
 
@@ -88,17 +88,17 @@ def rebind_added_export_metadata(rulebook,old,new):
 class CatalogSynchronizer:
     """No save loading, menu navigation or gameplay. Game must already be in menu."""
     def __init__(self,path=None,interval=60):
-        from autoslay.knowledge.catalog import CATALOG_PATH
+        from autoslay.knowledge_base.catalog import CATALOG_PATH
         self.path=Path(path or CATALOG_PATH); self.interval=interval; self.last_check=0
-        from autoslay.knowledge.installation import version_status
+        from autoslay.knowledge_base.installation import version_status
         self.task=None; self.status=dict(status='not_checked',installation=version_status(catalog_path=self.path))
 
     async def observe(self,snapshot):
         if not snapshot.get('connected') or snapshot.get('error'):
-            from autoslay.knowledge.installation import version_status
+            from autoslay.knowledge_base.installation import version_status
             self.status=dict(status='disconnected',installation=version_status(catalog_path=self.path)); return self.status
         version=snapshot.get('game_version'); menu=(snapshot.get('state') or {}).get('phase')=='main_menu'
-        try: local=json.loads(self.path.read_text(encoding='utf-8-sig')); matches=local['game_version']==version
+        try: local=read_json(self.path, fresh=True); matches=local['game_version']==version
         except (OSError,ValueError,KeyError): matches=False
         if not menu:
             self.status=dict(status='deferred_until_main_menu',version_matches=matches,game_version=version)
@@ -110,7 +110,7 @@ class CatalogSynchronizer:
         return self.status
 
     async def _refresh(self,expected_version):
-        from autoslay.knowledge.catalog import export_catalog
+        from autoslay.knowledge_base.catalog import export_catalog
         try:
             result=await export_catalog(refresh=True,path=self.path,expected_game_version=expected_version)
             self.status=dict(status='failed' if result.get('error') else 'current',result=result)

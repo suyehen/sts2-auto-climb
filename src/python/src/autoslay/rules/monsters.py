@@ -8,8 +8,8 @@ import re
 from math import isfinite
 from dataclasses import replace
 from autoslay.decision.contracts import UnsupportedEffect
-from autoslay.knowledge.behavior import load
-from autoslay.knowledge.monster_values import arguments, call_end, resolve
+from autoslay.knowledge_base.behavior import load
+from autoslay.knowledge_base.monster_values import arguments, call_end, resolve
 
 VERSION = '1.0.2'
 KNOWN_POWERS = {'POWER.STRENGTH_POWER','POWER.WEAK_POWER','POWER.VULNERABLE_POWER',

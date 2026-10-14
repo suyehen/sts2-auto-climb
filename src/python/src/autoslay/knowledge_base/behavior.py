@@ -4,16 +4,16 @@ import json
 import os
 from datetime import datetime,timezone
 from pathlib import Path
-from autoslay.paths import ROOT
+from copy import deepcopy
+from autoslay.knowledge_base.repository import read_json, dataset_path
 
-PATH=ROOT/'data/knowledge/behavior/catalog.json'
+PATH=dataset_path('behavior')
 CATEGORIES={'event','monster','intent'}
 
 
-def load(path=PATH):
-    path=Path(path)
-    if not path.exists():return dict(schema_version='behavior/1.0',entries=[])
-    data=json.loads(path.read_text(encoding='utf-8-sig'))
+def load(path=None):
+    path=Path(path or dataset_path('behavior'))
+    data=read_json(path, default=dict(schema_version='behavior/1.0',entries=[]))
     validate(data)
     return data
 
@@ -43,7 +43,7 @@ def save(data,path=PATH):
 
 
 def compact(entry,include_evidence=False,for_agent=False):
-    row=dict(entry)
+    row=deepcopy(entry)
     if not include_evidence:
         row.pop('method_evidence',None)
         row.pop('localization',None)
@@ -52,7 +52,6 @@ def compact(entry,include_evidence=False,for_agent=False):
     if for_agent and entry.get('category')=='event':
         row.pop('description',None)
         if entry.get('event_model'):
-            from copy import deepcopy
             row['event_model']=deepcopy(entry['event_model'])
             for method in row['event_model']['methods'].values():
                 evidence=method.pop('evidence',None)
@@ -66,7 +65,7 @@ def compact(entry,include_evidence=False,for_agent=False):
     return row
 
 
-def query(query='',category='',limit=10,page=1,game_version=None,path=PATH,include_evidence=False,for_agent=False):
+def query(query='',category='',limit=10,page=1,game_version=None,path=None,include_evidence=False,for_agent=False):
     if category and category not in CATEGORIES or not 1<=limit<=50 or page<1:raise ValueError('Invalid behavior query')
     data=load(path);needle=query.strip().casefold()[:200]
     rows=[e for e in data['entries'] if (not category or e['category']==category) and (not needle or needle in json.dumps(e,ensure_ascii=False).casefold())]
@@ -76,7 +75,7 @@ def query(query='',category='',limit=10,page=1,game_version=None,path=PATH,inclu
                 execution_authorized=False,limitations=['Reference entries do not enable new simulation rules.','Visible live state takes priority over static reference values.'])
 
 
-def relevant(snapshot,max_bytes=64_000,path=PATH):
+def relevant(snapshot,max_bytes=64_000,path=None):
     data=load(path);state=snapshot.get('state') or {};ids={e.get('entity_id') for e in state.get('enemies') or []}
     ids.add((state.get('event_screen') or {}).get('entity_id'))
     same=data.get('game_version')==snapshot.get('game_version') and bool(data.get('game_assembly_sha256'))

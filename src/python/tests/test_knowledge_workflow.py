@@ -6,21 +6,21 @@ from pathlib import Path
 import httpx
 import pytest
 from autoslay.paths import ROOT
-from autoslay.knowledge.catalog import save_catalog
-from autoslay.knowledge.updates import compare,rollback,CatalogSynchronizer
-from autoslay.knowledge.rulebook import Rulebook,validate_rulebook,entry_fingerprint
-from autoslay.knowledge.source_audit import recognize_card,recognize_potion
+from autoslay.knowledge_base.catalog import save_catalog
+from autoslay.knowledge_base.updates import compare,rollback,CatalogSynchronizer
+from autoslay.knowledge_base.rulebook import Rulebook,validate_rulebook,entry_fingerprint
+from autoslay.knowledge_base.source_audit import recognize_card,recognize_potion
 from autoslay.rules.registry import IroncladRules
 from autoslay.decision.contracts import Card,CombatState,UnsupportedEffect
 from autoslay.evaluation.event_sequences import evaluate_event_sequence
 from autoslay.evaluation.run import RunContext,RunPolicy
-from autoslay.knowledge.templates import index
+from autoslay.knowledge_base.templates import index
 from autoslay.telemetry import decisions
 from autoslay.dashboard.server import make_server
 from dataclasses import replace
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.decision.contracts import Enemy,Operation,Potion
-from autoslay.knowledge.templates import canonical
+from autoslay.knowledge_base.templates import canonical
 
 @pytest.mark.parametrize('identity',[i for i,r in Rulebook().data['entries'].items() if r.get('review_evidence') and r['category']=='card'])
 def test_source_reviewed_rules_have_readable_base_and_upgrade_and_valid_flow(identity):
@@ -126,7 +126,7 @@ def test_strength_potion_changes_following_attack_not_unpowered_damage():
 
 
 def test_potion_recognizer_refuses_unknown_command_and_changed_target():
-    from autoslay.knowledge.source_audit import SOURCE
+    from autoslay.knowledge_base.source_audit import SOURCE
     source=(SOURCE/'MegaCrit.Sts2.Core.Models.Potions/StrengthPotion.cs').read_text(encoding='utf-8-sig')
     assert recognize_potion(source)[0]
     assert recognize_potion(source.replace('TargetType.AnyPlayer','TargetType.AnyEnemy'))[0] is None
@@ -187,7 +187,7 @@ def test_rule_format_rejects_code_and_unknown_mechanisms():
     with pytest.raises(ValueError): validate_rulebook(data)
 
 def test_auto_refresh_is_menu_only_and_checks_live_version(tmp_path,monkeypatch):
-    from autoslay.knowledge import catalog
+    from autoslay.knowledge_base import catalog
     calls=[]
     async def export(**kwargs): calls.append(kwargs); return dict(game_version='0.111.0',changed=False)
     monkeypatch.setattr(catalog,'export_catalog',export)
@@ -277,7 +277,7 @@ def test_ai_payload_keeps_metrics_without_repeating_full_state_traces():
 
 
 def test_encyclopedia_tool_response_keeps_diff_local():
-    from autoslay.knowledge.updates import compact_update
+    from autoslay.knowledge_base.updates import compact_update
     result=dict(path='catalog.json',update_report=dict(changes=[dict(kind='semantic_changed',entity_id='CARD.A')],all_rules_require_review=False))
     compact=compact_update(result)
     assert 'changes' not in compact['update_report']
@@ -293,7 +293,7 @@ def test_same_version_implementation_hash_change_invalidates_rules(tmp_path):
 
 
 def test_export_metadata_rebind_preserves_validation_and_rejects_effect_or_binary_changes():
-    from autoslay.knowledge.updates import rebind_added_export_metadata
+    from autoslay.knowledge_base.updates import rebind_added_export_metadata
     book=Rulebook(); old=deepcopy(book.catalog); new=deepcopy(old)
     entry=next(e for e in new['entries'] if e['entity_id']=='CARD.STRIKE_IRONCLAD')
     entry['dynamic_variables']=[dict(name='Damage',base_value=6)]

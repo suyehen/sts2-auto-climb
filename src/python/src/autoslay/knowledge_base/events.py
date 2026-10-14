@@ -4,6 +4,7 @@ from datetime import datetime,timezone
 from pathlib import Path
 from threading import RLock
 from autoslay.paths import ROOT
+from autoslay.knowledge_base.repository import read_json, dataset_path
 from autoslay.decision.cache import digest
 
 DIRECTORY=ROOT/'data/knowledge/events/observations'
@@ -29,14 +30,14 @@ def observe(snapshot,directory=None):
     return dict(recorded=True,observation_id=identity)
 
 def rules(path=None):
-    path=Path(path or ROOT/'data/knowledge/events/rules.json')
-    data=json.loads(path.read_text(encoding='utf-8-sig'))
+    path=Path(path or dataset_path('event_rules'))
+    data=read_json(path)
     if data.get('schema_version')!='events/1.0': raise ValueError('Invalid event rules')
     return data
 
 def resource_hook_warnings(player,inventory_path=None):
     """Source-backed event gate. No assumptions that every relic affects event HP."""
-    inventory=json.loads(Path(inventory_path or ROOT/'data/knowledge/coverage/source-inventory.json').read_text(encoding='utf-8-sig'))
+    inventory=read_json(inventory_path or dataset_path('source_inventory'))
     by_id={e['entity_id']:e for e in inventory['entries']}
     sensitive={'AfterCurrentHpChanged','AfterDamageReceived','AfterDeath','AfterDiedToDoom',
                'AfterModifyingHpLostAfterOsty','AfterPreventingDeath','ModifyHpLostAfterOsty',

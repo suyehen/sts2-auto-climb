@@ -27,6 +27,15 @@ def reward_settling(snapshot):
             and not any(a.get('type')=='choose_reward_card' for a in state.get('legal_actions',[])))
 
 
+def validation_issues(error):
+    """Publish field locations and validator codes, never response/input text."""
+    if isinstance(error,json.JSONDecodeError):
+        return [dict(field='json',type='invalid_json',line=error.lineno,column=error.colno)]
+    fields={'state_token','steps','reason','action_id','target_id'}
+    return [dict(field='.'.join(str(part) if isinstance(part,int) or part in fields else '<extra_field>' for part in item['loc']),type=item['type'])
+            for item in error.errors(include_input=False,include_context=False,include_url=False)[:12]]
+
+
 def reusable_state(origin, fresh):
     """Only a version counter may differ; every actionable state field is hashed."""
     if (not fresh.get('connected') or fresh.get('error') or not fresh.get('ready')
@@ -244,6 +253,9 @@ class Agent:
                 if proof['eligible']:
                     self.phase = 'local_deterministic'
                     result = await self.deterministic.execute(uuid4().hex)
+                    if result.get('status') in {'ai_required','wait'} or (result.get('status')=='rejected' and result.get('reason') in {'STATE_CHANGED','EXECUTOR_BUSY'}):
+                        await asyncio.sleep(.2)
+                        continue
                     if result.get('status') not in {'completed', 'awaiting_choice'}:
                         raise ValueError('LOCAL_ACTION_'+str(result.get('status', 'UNKNOWN')).upper())
                     previous = token
@@ -254,6 +266,21 @@ class Agent:
                     continue
                 self.phase = 'calculating'
                 report = await asyncio.to_thread(self.analyze, snapshot)
+                # The strict fast path runs before analysis. A fully covered
+                # local strategy can qualify only after the combat search.
+                strategy=assess(report,snapshot)
+                if strategy['eligible']:
+                    self.phase='local_deterministic'
+                    kwargs={'bounded':True} if strategy.get('decision_basis')=='bounded_combat_strategy' else {}
+                    result=await self.deterministic.execute(uuid4().hex,**kwargs)
+                    if result.get('status') in {'completed','awaiting_choice'}:
+                        previous=token
+                        self.last=dict(source='local_deterministic',status=result['status'],rule_id=strategy['rule_id'],decision_basis=strategy.get('decision_basis'))
+                        continue
+                    if result.get('status') in {'ai_required','wait'} or (result.get('status')=='rejected' and result.get('reason') in {'STATE_CHANGED','EXECUTOR_BUSY'}):
+                        await asyncio.sleep(.2)
+                        continue
+                    raise ValueError('LOCAL_ACTION_'+str(result.get('status','UNKNOWN')).upper())
                 packet = build(snapshot, report, self.recent)
                 p = self.store.profiles[self.store.active]
                 provider = self.factory(p, self.store.key(p))
@@ -307,24 +334,34 @@ class Agent:
         raw,usage=await provider.decide(packet)
         try:
             return validate_plan(raw,snapshot),usage
+        except (ValidationError,json.JSONDecodeError) as exc:
+            code='MODEL_INVALID_DECISION'
+            issues=validation_issues(exc)
         except ValueError as exc:
             if str(exc)!='MULTI_ACTION_REQUIRES_COMBAT':raise
+            code='MULTI_ACTION_REQUIRES_COMBAT';issues=[]
         # No part of the rejected plan was submitted. Retry once only after
         # verifying that the same visible state is still waiting for a choice.
         fresh=await self.fetch()
         if not self.running or generation!=self.generation or not reusable_state(snapshot,fresh):
             return None,usage
-        correction=dict(packet,validation_feedback=dict(code='MULTI_ACTION_REQUIRES_COMBAT',
-            instruction='Previous response was rejected and NO actions were executed. Return steps with exactly one currently legal action.'))
-        if self.model_wait:self.model_wait.update(validation_attempt=2,retry_reason='MULTI_ACTION_REQUIRES_COMBAT',started_at=time.time())
+        instruction=('Return steps with exactly one currently legal action.' if code=='MULTI_ACTION_REQUIRES_COMBAT' else
+                     'Return valid JSON matching the schema exactly, with state_token, steps and reason; copy state_token exactly and use only current legal action/target IDs.')
+        correction=dict(packet,validation_feedback=dict(code=code,issues=issues,
+            instruction='Previous response was rejected and NO actions were executed. '+instruction))
+        if self.model_wait:self.model_wait.update(validation_attempt=2,retry_reason=code,started_at=time.time())
         if self.record:
+            self.request_event(snapshot,identity,'retrying',retry_reason=code,attempt=2,validation_attempt=2,validation_issues=issues)
             await asyncio.to_thread(runs.stage,'agent_packet',snapshot,dict(analysis_id=report['analysis_id'],
                 request_id=identity,provider=profile.id,model=profile.model,validation_attempt=2,packet=correction))
         raw,retry_usage=await provider.decide(correction)
         combined={k:usage.get(k,0)+retry_usage.get(k,0) for k in set(usage)|set(retry_usage)}
         combined['request_attempts']=usage.get('request_attempts',1)+retry_usage.get('request_attempts',1)
         combined['validation_attempts']=2
-        return validate_plan(raw,snapshot),combined
+        try:
+            return validate_plan(raw,snapshot),combined
+        except (ValidationError,json.JSONDecodeError) as exc:
+            raise ProviderError('MODEL_INVALID_DECISION',dict(validation_attempts=2,validation_issues=validation_issues(exc),usage=combined)) from None
 
     def save_error(self, code, snapshot, request_id, provider_details=None):
         self.error=code

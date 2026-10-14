@@ -1,4 +1,5 @@
 """Compose replaceable modules into a read-only report for Codex."""
+from autoslay.knowledge_base.repository import scoped
 from autoslay.configuration import decision_config
 import hashlib
 import json
@@ -26,6 +27,7 @@ def load_policy(path: Path) -> combat_eval.CombatPolicy:
     return combat_eval.CombatPolicy(**decision_config(path))
 
 
+@scoped
 def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
             policy: combat_eval.CombatPolicy | None = None, journal_path: Path | None = None,
             timing_context: OpeningContext | None = None, timing_policy: TimingPolicy | None = None,
@@ -48,7 +50,7 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
         report["relic_timing"] = relic_timing.analyze_timing(initial, report, context=timing_context, policy=timing_policy)
     if lookahead_settings is not None:
         from autoslay.planning.lookahead import evaluate_lookahead,VERSION as LOOKAHEAD_VERSION
-        from autoslay.knowledge.templates import index
+        from autoslay.knowledge_base.templates import index
         with clock.stage('lookahead'):
             entries, knowledge_hash = index(expected_version=snapshot['game_version'])
             report['lookahead'] = evaluate_lookahead(snapshot, initial, report['candidates'], report['observation_boundaries'],

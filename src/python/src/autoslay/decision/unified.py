@@ -1,4 +1,5 @@
 """One read-only report for all supported phases, adaptive budgets and versioned caching."""
+from autoslay.knowledge_base.repository import scoped, current_snapshot
 from autoslay.configuration import decision_config
 import json
 import uuid
@@ -8,7 +9,7 @@ from autoslay.paths import ROOT
 from autoslay.decision.cache import AnalysisCache,digest
 from autoslay.decision.service import analyze,load_policy
 from autoslay.planning.search import SearchBudget
-from autoslay.knowledge.templates import index
+from autoslay.knowledge_base.templates import index
 from autoslay.evaluation.run import RunContext,RunPolicy,deck_value
 from autoslay.evaluation.run import VERSION as RUN_VERSION
 from autoslay.evaluation.choices import cards_report
@@ -17,22 +18,22 @@ from autoslay.evaluation.events import evaluate_events
 from autoslay.evaluation.route import evaluate_routes
 from autoslay.evaluation.rest import evaluate_rest
 from autoslay.evaluation.contextual import load_interactions,VERSION as CONTEXT_VERSION
-from autoslay.knowledge.rulebook import Rulebook
+from autoslay.knowledge_base.rulebook import Rulebook
 from autoslay.evaluation.event_sequences import evaluate_event_sequence
 from autoslay.decision.autonomy import assess
 from autoslay.telemetry.decisions import packet
-from autoslay.knowledge.events import rules as event_rules,resource_hook_warnings
+from autoslay.knowledge_base.events import rules as event_rules,resource_hook_warnings
 from autoslay.decision.contracts import CONTRACT_VERSION
 from autoslay.simulation.engine import VERSION as SIMULATION_VERSION
 from autoslay.decision.service import VERSION as COMBAT_SERVICE_VERSION
 from autoslay.evaluation.combat import VERSION as COMBAT_EVALUATION_VERSION
 from autoslay.planning.lookahead import VERSION as LOOKAHEAD_VERSION
-from autoslay.knowledge.behavior import relevant as behavior_references
+from autoslay.knowledge_base.behavior import relevant as behavior_references
 from autoslay.decision.mechanisms import attach as attach_mechanisms
-from autoslay.knowledge.behavior import load as load_behavior
+from autoslay.knowledge_base.behavior import load as load_behavior
 from autoslay.evaluation.event_adapters import VERSION as EVENT_ADAPTER_VERSION
 
-VERSION='1.6.0'
+VERSION='1.7.0'
 CACHE=AnalysisCache()
 
 def relevant_entities(value):
@@ -63,6 +64,7 @@ def source(snapshot):
         run_id=s.get('command_context_id') or s.get('run_id'),game_version=snapshot.get('game_version'),
         state_sha256=digest(s))
 
+@scoped
 def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     started=perf_counter(); s=snapshot['state']; phase=s.get('phase'); context=context or {}
     if snapshot.get('game_version')!='0.111.0' or snapshot.get('schema_version')!='1.0': raise ValueError('Unsupported snapshot version')
@@ -85,7 +87,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     rulebook=Rulebook()
     if snapshot.get('game_assembly_sha256') and snapshot['game_assembly_sha256']!=rulebook.data.get('game_assembly_sha256'):
         raise ValueError('Game implementation changed; review rules before calculation')
-    key=digest(dict(state=s,game=snapshot['game_version'],context=context,scenarios=scenarios,adaptive=adaptive,
+    key=digest(dict(knowledge_revision=current_snapshot().revision,state=s,game=snapshot['game_version'],context=context,scenarios=scenarios,adaptive=adaptive,
                     run_policy=asdict(policy),combat_policy=asdict(combat_policy),interactions=asdict(interactions),context_version=CONTEXT_VERSION,knowledge=knowledge_hash,
                     version=VERSION,combat=COMBAT_SERVICE_VERSION,simulation=SIMULATION_VERSION,contract=CONTRACT_VERSION,
                     monster_source=digest(load_behavior()) if phase=='combat' else None,
@@ -168,11 +170,13 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                           'unknown card/event/item choices remain unranked; deck totals cover known components only']
     report['request_elapsed_ms']=(perf_counter()-started)*1000
     report['autonomy']=assess(report,snapshot)
+    report['ai_required']=report['autonomy']['mode']=='ai_required'
     attach_mechanisms(report,snapshot)
     report['ai_packet']=packet(report)
     if use_cache: CACHE.put(key,report)
     return report
 
+@scoped
 def evaluate_run_choices(snapshot,kind,options,context=None):
     entries,_=index(expected_version=snapshot['game_version']); run=context_for(snapshot,context or {})
     book=Rulebook()

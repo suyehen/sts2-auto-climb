@@ -8,7 +8,7 @@ import json
 import re
 from pathlib import Path
 from autoslay.paths import ROOT
-from autoslay.knowledge.rulebook import entry_fingerprint,validate_rulebook
+from autoslay.knowledge_base.rulebook import entry_fingerprint,validate_rulebook
 
 SOURCE=ROOT/'.runtime/cache/game-source'
 

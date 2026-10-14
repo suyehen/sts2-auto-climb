@@ -27,6 +27,8 @@ jobs:
           python -m pytest src/python/tests/test_configuration.py src/python/tests/test_launch.py src/python/tests/test_agent_service.py -q --basetemp=.runtime/ci-pytest
       - name: Monster graph and provenance checks without game assets
         run: python -m pytest -c src/python/pyproject.toml src/python/tests/test_monster_simulation.py -m 'not local_knowledge' -q --basetemp=.runtime/ci-monsters
+      - name: Offline knowledge cache, snapshots and retrieval
+        run: python -m pytest src/python/tests/test_knowledge_repository.py src/python/tests/test_catalog.py src/python/tests/test_behavior_knowledge.py src/python/tests/test_knowledge_browse.py -q --basetemp=.runtime/ci-knowledge
       - name: Frontend tests
         run: node --test src/web/tests/*.test.mjs
       - name: C# command checks without game assemblies

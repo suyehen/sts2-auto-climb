@@ -1,7 +1,7 @@
 """Refresh event source-reference audit; does not certify execution rules."""
 import json
 from autoslay.paths import ROOT
-from autoslay.knowledge.behavior import load
+from autoslay.knowledge_base.behavior import load
 
 
 def audit():

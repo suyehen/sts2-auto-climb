@@ -1,11 +1,13 @@
 """Bounded visible state and relevant local references, never the full encyclopedia."""
 import json
 from copy import deepcopy
-from autoslay.paths import ROOT
+from autoslay.knowledge_base.service import SERVICE
+from autoslay.knowledge_base.repository import scoped, current_snapshot, dataset_path
 from autoslay.decision.deterministic import source
 from autoslay.telemetry.decisions import public_snapshot, packet as report_packet
 
 
+@scoped(report_argument='report')
 def build(snapshot, report, recent=(), max_bytes=180_000):
     state = deepcopy(public_snapshot(snapshot))
     ids = set()
@@ -20,13 +22,16 @@ def build(snapshot, report, recent=(), max_bytes=180_000):
     # Narrative is useful for the encyclopedia; decisions use options and hover tips.
     event=(state.get('state') or {}).get('event_screen')
     if event:event.pop('description',None)
-    from autoslay.knowledge.behavior import relevant
+    from autoslay.knowledge_base.behavior import relevant
     behavior=relevant(snapshot)
     visit(behavior)
-    path = ROOT / 'data/knowledge/catalog/encyclopedia.json'
-    catalog = json.loads(path.read_text(encoding='utf-8-sig')) if path.exists() else {}
-    entries = [e for e in catalog.get('entries', []) if e['entity_id'] in ids]
-    from autoslay.knowledge.behavior import relevant
+    knowledge = current_snapshot()
+    catalog = knowledge.documents[str(dataset_path('catalog'))]
+    catalog = catalog.data if catalog is not None else {}
+    reference_ids = sorted(i for i in ids if i.startswith(('CARD.', 'POTION.', 'RELIC.')))
+    references = SERVICE.build_context(reference_ids, snapshot=knowledge,
+                                      max_bytes=min(max_bytes, SERVICE.settings['context_bytes']))
+    entries = references['entries']
     result = dict(state_token=source(snapshot)['state_sha256'], source=source(snapshot),
                   visible_state=state, calculator=report_packet(report) if report else {},
                   recent_results=list(recent)[-4:], reference_entries=entries,
@@ -34,6 +39,7 @@ def build(snapshot, report, recent=(), max_bytes=180_000):
                   reference_version_matches=catalog.get('game_version') == snapshot.get('game_version'),
                   behavior_references=behavior,
                   mechanism_audit=(report or {}).get('mechanism_audit'),
+                  knowledge_revision=knowledge.revision, omitted_reference_ids=references['omitted_ids'],
                   limitations=['Reference coverage does not imply simulation support.'])
     size = lambda: len(json.dumps(result, ensure_ascii=False).encode())
     if size() > max_bytes:

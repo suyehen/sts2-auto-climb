@@ -77,7 +77,7 @@ def record_action(report,before,after,action_id,result,directory=None):
 
 def runtime_validation(snapshot):
     """Check actually observed event transport fields; never certify future semantics."""
-    from autoslay.knowledge.behavior import load
+    from autoslay.knowledge_base.behavior import load
     event=(snapshot.get('state') or {}).get('event_screen') or {}; data=load()
     entry=next((e for e in data['entries'] if e['entity_id']==event.get('entity_id')),None)
     observed=(event.get('runtime_state') or {}).get('fields') or {}

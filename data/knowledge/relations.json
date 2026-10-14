@@ -1,0 +1,8 @@
+{
+  "schema_version": "knowledge-relations/1.0",
+  "entries": [
+    {"source": "mechanics:hand_capacity_draw", "target": "mechanics:hand_capacity_generated", "kind": "shared_hand_capacity"},
+    {"source": "mechanics:hand_capacity_generated", "target": "mechanics:hand_capacity_draw", "kind": "shared_hand_capacity"},
+    {"source": "mechanics:hand_capacity_draw", "target": "mechanics:draw_prevention", "kind": "draw_condition"}
+  ]
+}

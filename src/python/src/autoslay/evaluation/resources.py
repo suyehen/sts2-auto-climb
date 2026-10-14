@@ -6,7 +6,7 @@ VERSION='1.0.0'
 def item_value(value, context, deck, entries, policy):
     entity=value.get('entity_id')
     entry=entries.get(entity,{})
-    from autoslay.knowledge.rulebook import Rulebook
+    from autoslay.knowledge_base.rulebook import Rulebook
     book=Rulebook()
     status=book.status(entity)
     if status!='compatible': return dict(utility=None,basis='rule compatibility: '+status,reference=entry)

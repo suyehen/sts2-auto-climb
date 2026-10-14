@@ -1,6 +1,6 @@
 from copy import deepcopy
 import pytest
-from autoslay.knowledge.browse import query_catalog
+from autoslay.knowledge_base.browse import query_catalog
 
 def catalog():
     return dict(game_version='test',game_assembly_sha256='same',entries=[

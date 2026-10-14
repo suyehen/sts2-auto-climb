@@ -83,7 +83,9 @@ def test_dashboard_switch_proxy_and_assets(tmp_path,monkeypatch):
             assert 'agent-controls' in html and 'agent.js' in html
         assert b'api_key' in urlopen(url+'/agent.js').read()
         sidebar=urlopen(url+'/sidebar.html').read().decode()
-        assert 'id="decision-disclosure" open' in sidebar
+        # Candidate details are collapsed; the always-visible decision flow is separate.
+        assert 'id="decision-flow"' in sidebar
+        assert 'id="decision-disclosure"><summary>' in sidebar
         assert 'id="enemy-intents"' in sidebar and 'id="decision-forecast"' in sidebar
         assert b'renderSidebarCombat' in urlopen(url+'/sidebar.js').read()
         with urlopen(url+'/sidebar-combat.js') as response:

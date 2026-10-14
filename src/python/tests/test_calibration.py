@@ -7,7 +7,7 @@ from autoslay.decision.unified import analyze_decision
 from autoslay.evaluation.contextual import score,InteractionPolicy
 from autoslay.evaluation.run import RunContext,RunPolicy,deck_value,intrinsic_value
 from autoslay.evaluation.choices import cards_report
-from autoslay.knowledge.templates import index
+from autoslay.knowledge_base.templates import index
 from autoslay.calibration import store
 from autoslay.calibration.report import summarize
 from autoslay.calibration.tuning import compare_profiles,partition

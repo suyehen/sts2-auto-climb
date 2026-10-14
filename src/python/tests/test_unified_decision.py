@@ -6,7 +6,7 @@ from autoslay.paths import ROOT
 from autoslay.decision.cache import AnalysisCache
 from autoslay.decision.contracts import Card,CombatState,Enemy,Potion,Operation
 from autoslay.decision.unified import analyze_decision,CACHE
-from autoslay.knowledge.templates import index,canonical
+from autoslay.knowledge_base.templates import index,canonical
 from autoslay.planning.lookahead import draw_branches,evaluate_lookahead,templates_for
 from autoslay.evaluation.run import RunContext,RunPolicy,deck_value
 from autoslay.evaluation.choices import cards_report

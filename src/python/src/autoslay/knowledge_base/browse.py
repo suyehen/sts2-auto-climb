@@ -1,8 +1,7 @@
 """Presentation taxonomy, separate from reference and executable rule fingerprints."""
 import json
 from collections import Counter
-from pathlib import Path
-from autoslay.paths import ROOT
+from autoslay.knowledge_base.repository import read_json, dataset_path
 
 SCOPES={'ironclad':'铁甲战士','silent':'静默猎手','defect':'故障机器人','necrobinder':'亡灵契约师','regent':'储君',
         'shared':'通用','colorless':'无色','event':'事件来源','curse':'诅咒','status':'状态',
@@ -11,8 +10,8 @@ CHARACTERS=set(('ironclad','silent','defect','necrobinder','regent'))
 RARITIES={'Basic':'基础','Common':'普通','Uncommon':'罕见','Rare':'稀有','Ancient':'远古',
           'Starter':'初始遗物','Shop':'商店','Event':'事件','Curse':'诅咒','Status':'状态','Token':'生成专用','Quest':'任务','None':'未记录'}
 TYPES={'Attack':'攻击','Skill':'技能','Power':'能力','Curse':'诅咒','Status':'状态','Quest':'任务'}
-SIDECAR=ROOT/'data/knowledge/catalog/classification.json'
-PORTRAITS=ROOT/'data/knowledge/assets/portraits.json'
+SIDECAR=dataset_path('classification')
+PORTRAITS=dataset_path('portraits')
 
 def scope(pool):
     value=(pool or '').split('.')[-1].lower()
@@ -34,11 +33,11 @@ def query_catalog(catalog,*,q='',category='',owner='',rarity='',card_type='',inc
     if category and category not in {'card','potion','relic'}:raise ValueError('Invalid category')
     if owner and owner not in SCOPES:raise ValueError('Invalid scope')
     if page<1 or not 1<=limit<=100:raise ValueError('Invalid pagination')
-    if sidecar is None:sidecar=json.loads(SIDECAR.read_text(encoding='utf-8')) if SIDECAR.exists() else {}
+    if sidecar is None:sidecar=read_json(SIDECAR, default={})
     # Old derived memberships cannot silently classify a changed game build.
     if not catalog.get('game_assembly_sha256') or sidecar.get('game_assembly_sha256')!=catalog['game_assembly_sha256']:sidecar={}
     all_rows=[project(e,sidecar) for e in catalog['entries'] if not category or e['category']==category]
-    portraits=json.loads(PORTRAITS.read_text(encoding='utf-8')) if PORTRAITS.exists() else {}
+    portraits=read_json(PORTRAITS, default={})
     if portraits.get('game_assembly_sha256')==catalog.get('game_assembly_sha256'):
         for e in all_rows:
             image=portraits.get('entries',{}).get(e['entity_id'])

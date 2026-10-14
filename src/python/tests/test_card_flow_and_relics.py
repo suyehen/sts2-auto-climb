@@ -7,7 +7,7 @@ from autoslay.simulation.card_flow import add_generated, plan_draw
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.rules.periodic_relics import advance, read_periodic
 from autoslay.evaluation.relic_timing import DelayCost, OpeningContext, TimingPolicy, evaluate_timing
-from autoslay.knowledge.mechanics import references
+from autoslay.knowledge_base.mechanics import references
 
 
 def card(n, entity="STRIKE_IRONCLAD", text="Deal 6 damage.", target="AnyEnemy"):
