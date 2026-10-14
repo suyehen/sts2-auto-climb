@@ -90,6 +90,7 @@ def test_identity_binding_and_backup_restores_credentials(store,monkeypatch):
     assert store.key(store.profiles['deepseek'])=='test-private-key'
     changed=deepcopy(p)
     next(v for v in changed['settings']['agent']['profiles'] if v['id']=='deepseek')['base_url']='https://different.example/v1'
+    next(v for v in changed['settings']['agent']['profiles'] if v['id']=='deepseek')['output_mode']='json'
     monkeypatch.setenv('DEEPSEEK_API_KEY','old-environment-key')
     result=c.install(store,changed)
     assert 'deepseek' in result['credentials_need_reentry']

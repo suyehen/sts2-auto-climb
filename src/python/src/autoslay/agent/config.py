@@ -27,7 +27,7 @@ class Profile(BaseModel):
     kind: Literal['codex', 'api', 'local']
     base_url: str = ''
     model: str = Field(default='', max_length=200)
-    output_mode: Literal['json', 'schema', 'text'] = 'json'
+    output_mode: Literal['json', 'schema', 'text', 'deepseek_strict'] = 'json'
     timeout_seconds: int = Field(default=120, ge=5, le=600)
     max_tokens: int = Field(default=4096, ge=256, le=131072)
     reasoning_effort: Literal['', 'none', 'low', 'medium', 'high', 'max'] = ''
@@ -45,6 +45,10 @@ class Profile(BaseModel):
                 raise ValueError('HTTPS_OR_LOOPBACK_REQUIRED')
             if self.kind == 'local' and not loopback:
                 raise ValueError('LOCAL_ENDPOINT_MUST_BE_LOOPBACK')
+        if self.output_mode == 'deepseek_strict' and (self.kind != 'api' or
+                urlsplit(self.base_url).hostname != 'api.deepseek.com' or
+                urlsplit(self.base_url).path.rstrip('/') not in {'', '/v1', '/beta'}):
+            raise ValueError('DEEPSEEK_STRICT_REQUIRES_OFFICIAL_ENDPOINT')
         return self
 
 
@@ -52,7 +56,7 @@ def defaults():
     return [
         Profile(id='codex', label='本机 Codex 登录', kind='codex'),
         Profile(id='deepseek', label='DeepSeek', kind='api', base_url='https://api.deepseek.com',
-                model='deepseek-flash', key_env='DEEPSEEK_API_KEY', max_tokens=65536, timeout_seconds=300, reasoning_effort='low'),
+                model='deepseek-flash', output_mode='deepseek_strict', key_env='DEEPSEEK_API_KEY', max_tokens=65536, timeout_seconds=300, reasoning_effort='low'),
         Profile(id='openai', label='OpenAI API', kind='api', base_url='https://api.openai.com/v1',
                 output_mode='schema', key_env='OPENAI_API_KEY'),
         Profile(id='ollama', label='本地 Ollama', kind='local', base_url='http://127.0.0.1:11434/v1'),

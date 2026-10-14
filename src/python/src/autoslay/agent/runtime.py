@@ -331,9 +331,13 @@ class Agent:
                 if self.phase != 'finished': self.phase = 'error' if self.error else 'paused'
 
     async def decide_plan(self, provider, packet, snapshot, generation, identity, report, profile):
-        raw,usage=await provider.decide(packet)
+        usage={}
         try:
+            raw,usage=await provider.decide(packet)
             return validate_plan(raw,snapshot),usage
+        except ProviderError as exc:
+            if str(exc) not in {'MODEL_TOOL_CALL_REQUIRED','MODEL_INVALID_TOOL_CALL'}: raise
+            code=str(exc);issues=[];usage=exc.details.get('usage',{})
         except (ValidationError,json.JSONDecodeError) as exc:
             code='MODEL_INVALID_DECISION'
             issues=validation_issues(exc)
@@ -347,6 +351,10 @@ class Agent:
             return None,usage
         instruction=('Return steps with exactly one currently legal action.' if code=='MULTI_ACTION_REQUIRES_COMBAT' else
                      'Return valid JSON matching the schema exactly, with state_token, steps and reason; copy state_token exactly and use only current legal action/target IDs.')
+        if profile.output_mode=='deepseek_strict' and not getattr(provider,'strict_fallback',False):
+            instruction=('Submit exactly ONE submit_decision tool call, no text-only response. '
+                'Use the supplied tool schema, copy state_token exactly, and use an empty string for no target. '
+                + ('Return exactly one step.' if snapshot['state'].get('phase')!='combat' else 'Return one to sixteen steps.'))
         correction=dict(packet,validation_feedback=dict(code=code,issues=issues,
             instruction='Previous response was rejected and NO actions were executed. '+instruction))
         if self.model_wait:self.model_wait.update(validation_attempt=2,retry_reason=code,started_at=time.time())
@@ -354,7 +362,14 @@ class Agent:
             self.request_event(snapshot,identity,'retrying',retry_reason=code,attempt=2,validation_attempt=2,validation_issues=issues)
             await asyncio.to_thread(runs.stage,'agent_packet',snapshot,dict(analysis_id=report['analysis_id'],
                 request_id=identity,provider=profile.id,model=profile.model,validation_attempt=2,packet=correction))
-        raw,retry_usage=await provider.decide(correction)
+        try:
+            raw,retry_usage=await provider.decide(correction)
+        except ProviderError as exc:
+            retry_usage=exc.details.get('usage',{})
+            combined={k:usage.get(k,0)+retry_usage.get(k,0) for k in set(usage)|set(retry_usage)}
+            combined['request_attempts']=usage.get('request_attempts',1)+retry_usage.get('request_attempts',1)
+            exc.details.update(validation_attempts=2,usage=combined)
+            raise
         combined={k:usage.get(k,0)+retry_usage.get(k,0) for k in set(usage)|set(retry_usage)}
         combined['request_attempts']=usage.get('request_attempts',1)+retry_usage.get('request_attempts',1)
         combined['validation_attempts']=2

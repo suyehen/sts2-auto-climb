@@ -82,7 +82,46 @@ def schema_for(packet):
     return schema
 
 
-def prompt(packet):
+def tool_schema_for(packet):
+    """DeepSeek's strict subset excludes null, string lengths and array bounds.
+
+    An empty target string represents no target on the wire only. Full length,
+    plan count, source and game legality checks still run locally.
+    """
+    token = dict(type='string')
+    if isinstance(packet.get('state_token'), str):
+        token['enum'] = [packet['state_token']]
+    step = dict(type='object', properties=dict(
+        action_id=dict(type='string'),
+        target_id=dict(type='string', description='Target instance ID, or an empty string for no target.')),
+        required=['action_id', 'target_id'], additionalProperties=False)
+    return dict(type='object', properties=dict(state_token=token,
+        steps=dict(type='array', items=step, description='One to sixteen steps in combat; exactly one outside combat.'),
+        reason=dict(type='string', description='Brief Chinese decision explanation.')),
+        required=['state_token', 'steps', 'reason'], additionalProperties=False)
+
+
+def tool_result(raw):
+    """Translate only the documented no-target sentinel; never repair a plan."""
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw  # Let the existing state-checked correction handle invalid JSON.
+    if isinstance(value, dict) and isinstance(value.get('steps'), list):
+        for step in value['steps']:
+            if isinstance(step, dict) and step.get('target_id') == '':
+                step['target_id'] = None
+    return json.dumps(value, ensure_ascii=False)
+
+
+def prompt(packet, *, tool_mode=False):
     phase=(packet.get('visible_state') or {}).get('state',{}).get('phase')
     constraint=('\nCurrent phase is '+phase+'. Return exactly ONE step. Choose only one currently legal action; wait for the next observed state before choosing another. Never collect multiple rewards, select a card then proceed, or navigate to a map node in the same response.') if phase and phase!='combat' else ''
-    return SYSTEM + constraint + '\nJSON schema:\n' + json.dumps(schema_for(packet)) + '\nGame data:\n' + json.dumps(packet, ensure_ascii=False)
+    system = SYSTEM
+    schema = schema_for(packet)
+    if tool_mode:
+        system = system.replace('Return only a JSON object matching the supplied schema.',
+            'Submit exactly one submit_decision tool call matching the supplied schema. Use an empty string for no target.')
+        system = system.replace('Do not use tools, files,', 'Do not access files,')
+        schema = tool_schema_for(packet)
+    return system + constraint + '\nJSON schema:\n' + json.dumps(schema) + '\nGame data:\n' + json.dumps(packet, ensure_ascii=False)

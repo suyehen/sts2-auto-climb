@@ -12,7 +12,19 @@ from pathlib import Path
 from urllib.parse import urlsplit
 import httpx
 from autoslay.paths import ROOT
-from .contracts import prompt, schema_for
+from .contracts import prompt, schema_for, tool_schema_for, tool_result
+
+
+def strict_unsupported(status, payload):
+    """Downgrade only an explicit unsupported-feature response, never bad schema/auth."""
+    if status != 400 or not isinstance(payload, dict):
+        return False
+    error = payload.get('error')
+    if not isinstance(error, dict):
+        return False
+    code, param = error.get('code'), error.get('param')
+    return (code in {'unsupported_parameter', 'unsupported_value', 'unsupported_feature', 'not_supported'}
+            and param in {'tools', 'tool_choice', 'strict', 'tools[0].function.strict'})
 
 class ProviderError(Exception):
     """Sanitized code: no provider response, credentials, or stderr in public errors."""
@@ -51,6 +63,7 @@ class APIProvider:
     def __init__(self, profile, key='', transport=None):
         self.profile, self.key, self.transport = profile, key, transport
         self.on_retry = None
+        self.strict_fallback = False
 
     async def decide(self, packet):
         # Only the official DeepSeek transport has reviewed recovery limits.
@@ -69,20 +82,33 @@ class APIProvider:
                 for k,v in exc.details.get('usage',{}).items():consumed[k]=consumed.get(k,0)+v
                 temporary=str(exc) in {'MODEL_TIMEOUT','MODEL_UNAVAILABLE','MODEL_HTTP_429','MODEL_GENERATION_INTERRUPTED','MODEL_EMPTY_RESPONSE'} or bool(re.fullmatch(r'MODEL_HTTP_5\d\d',str(exc)))
                 grow=str(exc)=='MODEL_OUTPUT_LIMIT' and not enlarged and budget<131072
-                if not recover or attempt==3 or not (grow or temporary):
+                fallback = str(exc)=='MODEL_STRICT_UNSUPPORTED' and not self.strict_fallback
+                if not recover or attempt==3 or not (grow or temporary or fallback):
                     if attempt>1:exc.details.update(attempts=attempt,total_usage=consumed)
                     raise
                 if grow:
                     budget=min(budget*2,131072);enlarged=True
+                if fallback:
+                    self.strict_fallback = True
                 if self.on_retry:self.on_retry(dict(attempt=attempt+1,retry_reason=str(exc),max_tokens=budget,started_at=time.time()))
-                if not grow:await asyncio.sleep(attempt)
+                if not (grow or fallback):await asyncio.sleep(attempt)
 
     async def decide_once(self, packet, max_tokens):
         p = self.profile
         if not p.model or p.kind == 'api' and not self.key: raise ProviderError('PROVIDER_NOT_CONFIGURED')
-        body = dict(model=p.model, messages=[dict(role='user', content=prompt(packet))],
+        strict = p.output_mode == 'deepseek_strict' and not self.strict_fallback
+        endpoint = p.base_url.rstrip('/') + '/chat/completions'
+        body = dict(model=p.model, messages=[dict(role='user', content=prompt(packet, tool_mode=strict))],
                     stream=False, max_tokens=max_tokens)
-        if p.output_mode == 'json': body['response_format'] = dict(type='json_object')
+        if p.output_mode == 'json' or self.strict_fallback: body['response_format'] = dict(type='json_object')
+        if strict:
+            endpoint = 'https://api.deepseek.com/beta/chat/completions'
+            body['tools'] = [dict(type='function', function=dict(name='submit_decision', strict=True,
+                description='Submit a proposed game decision for local validation. This does not execute game actions.',
+                parameters=tool_schema_for(packet)))]
+            # Thinking mode accepts auto only; named/required choices return 400.
+            body['tool_choice'] = (dict(type='function', function=dict(name='submit_decision'))
+                if p.reasoning_effort == 'none' else 'auto')
         if p.output_mode == 'schema':
             body['response_format'] = dict(type='json_schema', json_schema=dict(
                 name='game_decision', strict=True, schema=schema_for(packet)))
@@ -93,13 +119,18 @@ class APIProvider:
                                         timeout=p.timeout_seconds, transport=self.transport) as client:
                 # Bound total request time AND response size, including whitespace-only output.
                 async with asyncio.timeout(p.timeout_seconds):
-                    async with client.stream('POST', p.base_url.rstrip('/') + '/chat/completions',
+                    async with client.stream('POST', endpoint,
                                              json=body, headers=headers) as r:
-                        if r.status_code != 200: raise ProviderError('MODEL_HTTP_' + str(r.status_code))
                         chunks = bytearray()
                         async for chunk in r.aiter_bytes():
                             chunks.extend(chunk)
                             if len(chunks) > 2_000_000: raise ProviderError('MODEL_RESPONSE_TOO_LARGE')
+                        if r.status_code != 200:
+                            try: error_payload = json.loads(chunks)
+                            except (ValueError, UnicodeError): error_payload = None
+                            if strict and strict_unsupported(r.status_code, error_payload):
+                                raise ProviderError('MODEL_STRICT_UNSUPPORTED')
+                            raise ProviderError('MODEL_HTTP_' + str(r.status_code))
             data = json.loads(chunks)
             choice = data['choices'][0]
             usage = {k: v for k, v in (data.get('usage') or {}).items()
@@ -107,13 +138,25 @@ class APIProvider:
             reasoning=(data.get('usage') or {}).get('completion_tokens_details') or {}
             if type(reasoning.get('reasoning_tokens')) is int and reasoning['reasoning_tokens'] >= 0:
                 usage['reasoning_tokens']=reasoning['reasoning_tokens']
-            if choice['finish_reason'] != 'stop':
+            if strict and choice['finish_reason'] == 'stop':
+                raise ProviderError('MODEL_TOOL_CALL_REQUIRED', dict(usage=usage))
+            if choice['finish_reason'] != ('tool_calls' if strict else 'stop'):
                 finish=choice['finish_reason']
                 details=dict(finish_reason=finish if finish in {'length','content_filter','tool_calls','function_call','insufficient_system_resource','aborted'} else 'other',
                              max_tokens=max_tokens)
                 details['usage']=usage
                 raise ProviderError('MODEL_OUTPUT_LIMIT' if finish=='length' else 'MODEL_GENERATION_INTERRUPTED' if finish in {'insufficient_system_resource','aborted'} else 'MODEL_RESPONSE_INCOMPLETE',details)
             msg = choice['message']
+            if strict:
+                calls = msg.get('tool_calls')
+                if (msg.get('refusal') or not isinstance(calls, list) or len(calls) != 1
+                        or not isinstance(calls[0], dict) or calls[0].get('type') != 'function'):
+                    raise ProviderError('MODEL_INVALID_TOOL_CALL', dict(usage=usage))
+                function = calls[0].get('function')
+                if (not isinstance(function, dict) or function.get('name') != 'submit_decision'
+                        or not isinstance(function.get('arguments'), str)):
+                    raise ProviderError('MODEL_INVALID_TOOL_CALL', dict(usage=usage))
+                return tool_result(function['arguments']), usage
             if msg.get('refusal') or msg.get('tool_calls'): raise ProviderError('MODEL_REFUSAL_OR_TOOL_CALL')
             if not isinstance(msg.get('content'), str) or not msg['content'].strip():
                 raise ProviderError('MODEL_EMPTY_RESPONSE',dict(finish_reason='stop',max_tokens=max_tokens,usage=usage))
