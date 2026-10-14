@@ -16,7 +16,7 @@ from autoslay.knowledge_base.templates import canonical
 from autoslay.planning.search import search, SearchBudget
 from autoslay.evaluation.combat import CombatEvaluator
 
-VERSION='1.3.0'
+VERSION='1.3.1'
 
 class ScenarioRules(IroncladRules):
     def card(self,card,state):
@@ -45,8 +45,10 @@ def templates_for(snapshot,entries):
     for raw in raw_cards:
         entity=raw.get('variant_key') or raw['entity_id']
         signature=(raw.get('upgrade_level',0),raw.get('enchantment_id'),raw.get('affliction_id'),
-                   raw.get('energy_cost'),raw.get('star_cost'),raw.get('enchantment_amount'))
+                   raw.get('energy_cost'),raw.get('star_cost'),raw.get('enchantment_amount'),
+                   bool(raw.get('costs_x')),bool(raw.get('costs_star_x')))
         variants.setdefault(entity,set()).add(signature)
+        if raw.get('costs_x') or raw.get('costs_star_x'):continue
         if raw.get('affliction_id'):continue
         enchant=raw.get('enchantment_id')
         if enchant and (enchant!='ENCHANTMENT.SHARP' or raw['entity_id'] not in modifiers.get(enchant,{}).get('card_ids',[])
@@ -56,8 +58,11 @@ def templates_for(snapshot,entries):
             template=canonical(raw,entries)[0]
             base_cost=raw.get('base_energy_cost',template.cost)
             if raw.get('energy_cost',base_cost)!=base_cost:continue
+            star_cost=raw.get('star_cost',template.star_cost)
+            if type(star_cost) is not int or star_cost < -1:continue
             templates[entity]=replace(template,canonical=True,variant_key=raw.get('variant_key',''),
-                                     cost=base_cost,enchantment_id=enchant,enchantment_amount=raw.get('enchantment_amount'))
+                                     cost=base_cost,star_cost=star_cost,
+                                     enchantment_id=enchant,enchantment_amount=raw.get('enchantment_amount'))
         except ValueError: pass
     for entity,levels in variants.items():
         if len(levels)>1: templates.pop(entity,None)

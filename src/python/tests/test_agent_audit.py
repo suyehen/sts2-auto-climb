@@ -33,6 +33,33 @@ def test_historical_action_names_survive_changed_state(tmp_path):
     assert d['usage']=={'total_tokens':8} and 'never-store' not in json.dumps(saved)
 
 
+@pytest.mark.parametrize('phase', ['event', 'rewards', 'map', 'shop', 'rest_site'])
+def test_noncombat_plan_audit_accepts_null_combat_fields(tmp_path, phase):
+    async def run():
+        agent, s, _, submit = make_agent(tmp_path)
+        s['state'].update(phase=phase, enemies=None)
+        s['state']['player'].update(hand=None, potions=None)
+        s['state']['legal_actions'] = [dict(action_id='choose_option',
+            type='choose_event_option', allows_no_target=True, allowed_target_ids=[])]
+        s['state']['event_screen'] = dict(options=[dict(action_id='choose_option', title='离开')])
+        agent.running = True
+        agent.generation = 1
+        agent.trace_id = 'trace'
+        class Provider:
+            async def decide(self, packet):
+                from autoslay.decision.deterministic import source
+                return json.dumps(dict(state_token=source(s)['state_sha256'],
+                    steps=[dict(action_id='choose_option', target_id=None)], reason='离开事件')), {}
+        plan, _ = await agent.decide_plan(Provider(), {}, s, 1, 'plan', {}, agent.store.profiles['codex'])
+        assert plan.steps[0].action_id == 'choose_option'
+        validated = next(e['details'] for e in events(agent) if e['details']['event'] == 'plan_validated')
+        assert validated['step_labels'][0]['action_label'] == '选择「离开」'
+        assert validated['step_labels'][0]['target_label'] == '无目标'
+        assert not agent.audit.status()['degraded']
+        assert submit.await_count == 0
+    asyncio.run(run())
+
+
 def test_archive_failure_is_durable_visible_and_recoverable(tmp_path,monkeypatch):
     repo=Repository(tmp_path/'runs')
     monkeypatch.setattr(collector,'for_legacy',lambda directory=None:repo)

@@ -44,9 +44,9 @@ def action_labels(snapshot, step):
     """Capture names at event time; missing evidence stays explicitly unknown."""
     state = snapshot.get('state') or {}
     action_id, target_id = step.get('action_id'), step.get('target_id')
-    action = next((a for a in state.get('legal_actions', []) if a.get('action_id') == action_id), {})
+    action = next((a for a in state.get('legal_actions') or [] if a.get('action_id') == action_id), {})
     name = action.get('name') or action.get('label') or ACTION_LABELS.get(action.get('type') or action_id)
-    for card in (state.get('player') or {}).get('hand', []):
+    for card in (state.get('player') or {}).get('hand') or []:
         if action_id == 'play_'+str(card.get('instance_id')):
             name = '打出「'+(card.get('name') or '未记录牌名')+'」'
     for potion in (state.get('player') or {}).get('potions') or []:
@@ -76,7 +76,7 @@ def action_labels(snapshot, step):
     for reward in (state.get('reward_screen') or {}).get('rewards') or []:
         if reward.get('action_id') == action_id:
             name = '打开卡牌奖励' if reward.get('type') == 'CardReward' else '领取奖励：'+str(reward.get('description') or '未记录奖励名称')[:500]
-    target = next((e for e in state.get('enemies', []) if e.get('instance_id') == target_id), {}) if target_id else {}
+    target = next((e for e in state.get('enemies') or [] if e.get('instance_id') == target_id), {}) if target_id else {}
     return dict(action_id=action_id, action_label=str(name or '未知动作（当时未记录释义）')[:500],
                 target_id=target_id, target_label=target.get('name') or ('无目标' if target_id is None else '未知目标（当时未记录名称）'))
 

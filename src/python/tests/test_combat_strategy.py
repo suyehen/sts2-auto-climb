@@ -168,7 +168,8 @@ def test_calibrated_potion_interval_does_not_charge_reserve_twice():
 def reference_records():
     identity=dict(game_version='0.111.0',policy_fingerprint='weights',model_fingerprint='code',knowledge_revision='source')
     actions=[dict(first_step=dict(action_id='end_turn',target_id=None),Q_hat=10,reference_value=11,
-                  simulation_error=0,search_error=0,sampling_error=0,terminal_error=1)]
+                  simulation_error=0,search_error=0,sampling_error=0,terminal_error=1,
+                  predicted_safe=True,reference_safe=True)]
     rows=[dict(**identity,run_id=f'run{i}',split='calibration' if i<10 else 'holdout',state_class='known',
                reference_source='exhaustive_reference',legal_first_steps=[a['first_step'] for a in actions],actions=deepcopy(actions)) for i in range(15)]
     return identity,rows
@@ -253,6 +254,119 @@ def test_public_card_variants_keep_upgrade_cost_and_effect_separate():
     assert {(c.upgrade_level,c.cost) for c in drawn}=={(0,1),(1,0)}
     sim=CombatSimulator(branches[0][1])
     assert {sim.compiled[c.instance_id].effects[0].amount for c in drawn}=={6,9}
+
+
+@pytest.mark.parametrize('stars',[0,1,2,3])
+def test_draw_continuation_preserves_and_pays_observed_star_cost(stars):
+    from autoslay.planning.lookahead import templates_for,draw_branches,ScenarioRules
+    from autoslay.knowledge_base.templates import index
+    snapshot=live();snapshot['state']['player'].update(hand=[],discard=[],exhaust=[],deck=[
+        dict(entity_id='CARD.STRIKE_IRONCLAD',variant_key='star-2',upgrade_level=0,
+             energy_cost=1,base_energy_cost=1,star_cost=2)])
+    initial=replace(state(),hand=(),stars=stars,draw_composition=(('star-2',1),),discard_known=True)
+    drawn=draw_branches(initial,1,templates_for(snapshot,index()[0]),8,42)[0][0][1]
+    assert drawn.hand[0].star_cost==2
+    sim=CombatSimulator(drawn,ScenarioRules());action=Operation('play_'+drawn.hand[0].instance_id,'enemy')
+    assert (action in sim.actions(drawn))==(stars>=2)
+    if stars>=2:assert sim.apply(drawn,action).state.stars==stars-2
+    else:
+        with pytest.raises(UnsupportedEffect):sim.apply(drawn,action)
+
+
+@pytest.mark.parametrize('changes',[{'star_cost':-2},{'star_cost':True},{'star_cost':None},
+                                   {'costs_star_x':True},{'costs_x':True}])
+def test_unknown_or_variable_draw_star_cost_retains_unknown_mass(changes):
+    from autoslay.planning.lookahead import templates_for,draw_branches
+    from autoslay.knowledge_base.templates import index
+    raw=dict(entity_id='CARD.STRIKE_IRONCLAD',variant_key='unknown-cost',upgrade_level=0,star_cost=2)
+    raw.update(changes)
+    snapshot=live();snapshot['state']['player'].update(hand=[],discard=[],exhaust=[],deck=[raw])
+    initial=replace(state(),hand=(),stars=10,draw_composition=(('unknown-cost',1),),discard_known=True)
+    assert draw_branches(initial,1,templates_for(snapshot,index()[0]),8,42)[0]==[(1.0,None)]
+
+
+@pytest.mark.parametrize('split',['calibration','holdout'])
+def test_false_survival_prediction_blocks_calibration_even_with_zero_value_error(split):
+    identity,records=reference_records()
+    for row in records:
+        value=row['actions'][0];value.update(reference_value=value['Q_hat'],terminal_error=0)
+    row=next(r for r in records if r['split']==split)
+    row['actions'][0]['reference_safe']=False
+    cohort=build(records,identity)['cohorts']['known']
+    assert not cohort['authorized'] and not cohort['survival_validated']
+    assert cohort['radius']==0 and cohort['misses']==[]
+    assert cohort['survival_misses'][0]['run_id']==row['run_id']
+    assert cohort['holdout_false_safe_actions']==(1 if split=='holdout' else 0)
+
+
+@pytest.mark.parametrize('value',[None,1,'true'])
+def test_calibration_rejects_missing_or_non_boolean_survival_labels(value):
+    identity,records=reference_records()
+    records[0]['actions'][0]['predicted_safe']=value
+    with pytest.raises(ValueError,match='survival labels'):build(records,identity)
+
+
+def test_legacy_calibration_without_survival_validation_is_rejected():
+    identity,records=reference_records();artifact=build(records,identity)
+    artifact['schema_version']='combat-calibration/1.0'
+    artifact['cohorts']['known'].pop('survival_validated')
+    artifact['fingerprint']=digest({k:v for k,v in artifact.items() if k!='fingerprint'})
+    assert apply([],artifact,identity,'known')==['combat_calibration_invalid']
+
+
+@pytest.mark.parametrize('field,change,power,amount',[
+    ('player.strength',{'strength_delta':2},'POWER.STRENGTH_POWER',2),
+    ('player.weak_turns',{'weak_turns':2,'player_weak':True},'POWER.WEAK_POWER',2),
+    ('player.frail_turns',{'frail_turns':2,'player_frail':True},'POWER.FRAIL_POWER',2),
+    ('player.colossus',{'colossus':True},'POWER.COLOSSUS_POWER',1),
+    ('player.draw_blocked',{'effect_draw_blocked':True},'POWER.NO_DRAW_POWER',1)])
+def test_transition_verification_detects_missing_player_power_and_accepts_matching(field,change,power,amount):
+    from autoslay.decision.normalize import normalize
+    from autoslay.telemetry.verification import compare_transition
+    snapshot=live();initial=normalize(snapshot);prediction=Transition(replace(initial,**change))
+    result=compare_transition(prediction,snapshot)
+    assert not result['numeric_fields_match']
+    assert any(c['field']==field and not c['matches'] for c in result['checks'])
+    snapshot['state']['player']['creature']['powers']=[dict(entity_id=power,amount=amount)]
+    assert compare_transition(prediction,snapshot)['numeric_fields_match']
+
+
+@pytest.mark.parametrize('matches',[False,True])
+def test_calibrated_executor_disables_policy_on_missing_strength_gain(tmp_path,monkeypatch,matches):
+    import asyncio
+    from autoslay.execution import deterministic
+    from autoslay.decision.combat_circuit import blocked
+    from autoslay.decision.normalize import normalize
+    before=live();before['state']['enemies'][0]['hp']=100
+    # Use a reviewed Strength potion; this is a fake local bridge, never a game dispatch.
+    step=dict(action_id='use_potion_p',target_id=None)
+    before['state']['player']['potions']=[dict(instance_id='p',entity_id='POTION.STRENGTH_POTION',
+        description='Gain 2 Strength.',use_action_id=step['action_id'])]
+    before['state']['legal_actions'].append(dict(action_id=step['action_id'],type='use_potion',
+        allows_no_target=True,allowed_target_ids=[]))
+    initial=normalize(before);transition=CombatSimulator(initial).apply(initial,Operation(**step))
+    assert transition.boundary is None and transition.state.strength_delta==2
+    after=deepcopy(before);after['state_version']+=1
+    after['state']['player']['potions']=[]
+    if matches:after['state']['player']['creature']['powers']=[dict(entity_id='POWER.STRENGTH_POWER',amount=2)]
+    def qualify(snapshot,bounded):
+        return dict(eligible=True,source=source(snapshot),selected_steps=[step],reason='test',
+            rule_id='calibrated_combat_strategy',decision_basis='calibrated_combat_strategy',
+            evidence=dict(policy_identity=dict(policy_fingerprint='survival-policy')))
+    monkeypatch.setattr(deterministic,'qualify',qualify)
+    async def run():
+        submitted=[]
+        async def fetch():return deepcopy(after if submitted else before)
+        async def submit(request):submitted.append(request);return dict(status='completed')
+        executor=deterministic.DeterministicExecutor(tmp_path/'execution',fetch,submit,record=False)
+        result=await executor.execute('strength-check',bounded=True)
+        assert result['prediction_comparison']['numeric_fields_match']==matches
+        assert result.get('new_strategy_disabled',False)==(not matches)
+        assert blocked('survival-policy',deterministic.ROOT)==(not matches)
+        # The durable receipt retains mismatch evidence and cannot resubmit.
+        again=await executor.execute('strength-check',bounded=True)
+        assert again['status']=='completed' and len(submitted)==1
+    asyncio.run(run())
 
 
 def test_unobserved_cost_expiration_and_unknown_enchantment_keep_draw_mass_unknown():
