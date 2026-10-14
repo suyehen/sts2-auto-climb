@@ -159,6 +159,15 @@ def score_review(report):
         automatic_gap_selection=False,error_bound=None,
         reason='收益分是启发式估算；同分不证明结果等价，分差尚无校准误差界，不能单独用于跳过 AI。')
 
+def event_options_settling(snapshot):
+    state=snapshot.get('state') or {}
+    event=state.get('event_screen') or {}
+    if state.get('phase')!='event' or event.get('supported') is not True:
+        return False
+    return (event.get('decision_ready') is False or not any(
+        a.get('type') in {'choose_event_option','proceed_event'} for a in state.get('legal_actions',[])))
+
+
 @scoped
 def assess(report,snapshot,policy=None):
     policy=load_policy() if policy is None else policy
@@ -172,6 +181,7 @@ def assess(report,snapshot,policy=None):
     s=snapshot.get('state') or {}
     if s.get('control_mode')=='paused': return reject('control_paused','wait')
     if not snapshot.get('connected') or snapshot.get('error') or not snapshot.get('ready') or snapshot.get('busy'): return reject('state_not_ready','wait')
+    if event_options_settling(snapshot): return reject('event_options_not_ready','wait')
     if s.get('pending_combat_action') or s.get('pending_event_action'): return reject('nested_choice_requires_context')
     if not all(result['source'].get(k) is not None for k in ('session_epoch','state_version','run_id')): return reject('missing_execution_identity')
     cert=certificates(snapshot)

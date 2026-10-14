@@ -1,5 +1,5 @@
 /* One status projection for every Agent control surface. */
-export const phaseNames={paused:'已暂停',reading_state:'读取游戏状态',calculating:'计算候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',executing:'执行游戏动作',local_deterministic:'执行本地策略',finished:'本局已结束',error:'异常停止'};
+export const phaseNames={paused:'已暂停',reading_state:'读取游戏状态',calculating:'计算候选方案',waiting_model:'等待 AI 决策',waiting_reward_cards:'等待奖励牌就绪',waiting_event_options:'等待事件选项就绪',executing:'执行游戏动作',local_deterministic:'执行本地策略',finished:'本局已结束',error:'异常停止'};
 export function decisionActivity(status,fallback='等待分析'){
  if(!status?.running)return fallback;
  if(status.phase==='executing'&&status.last?.plan_length>1)return '执行动作计划 · 第 '+status.last.plan_step+'/'+status.last.plan_length+' 步';
@@ -25,6 +25,7 @@ Object.assign(agentErrors,{
  MODEL_INVALID_RESPONSE:'模型接口返回的数据格式无法读取。请检查服务兼容性。',
  MODEL_EMPTY_RESPONSE:'模型没有返回决策内容；自动恢复未成功，Agent 已停止。请重试或切换模型。',
  REWARD_CARDS_NOT_READY:'奖励牌超过 15 秒仍未可选。Agent 已暂停，请检查游戏内选牌界面。',
+ EVENT_OPTIONS_NOT_READY:'事件选项超过 15 秒仍未就绪。Agent 已暂停，请检查游戏内事件界面。',
  MODEL_REFUSAL_OR_TOOL_CALL:'模型返回了拒绝或工具调用，未提供可执行的决策。',
  MODEL_RESPONSE_TOO_LARGE:'模型回复超过接收大小限制。请缩短输出。',
  MODEL_HTTP_400:'模型服务拒绝请求（HTTP 400）。请检查模型名称、结构化输出和推理设置。',

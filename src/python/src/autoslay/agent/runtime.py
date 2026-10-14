@@ -7,7 +7,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 from autoslay.paths import ROOT
 from autoslay.bridge.client import fetch_state, set_control_mode, submit_action, get_action_status, ActionRequest
-from autoslay.decision.deterministic import assess, source
+from autoslay.decision.deterministic import assess, source, event_options_settling
 from autoslay.decision.unified import analyze_decision
 from autoslay.execution.deterministic import DeterministicExecutor
 from autoslay.execution.lock import dispatch_lock
@@ -180,7 +180,9 @@ class Agent:
             return self.status()
 
     async def unresolved(self):
-        for path in self.journal.glob('*.json'):
+        # Only dispatch() owns this filename namespace. Diagnostics and probes
+        # are not pending game actions and must never enter recovery.
+        for path in self.journal.glob('agent-*.json'):
             record = json.loads(path.read_text(encoding='utf-8'))
             if record['status'] not in {'completed', 'failed', 'rejected', 'awaiting_choice'}:
                 receipt = await self.action_status(record['request']['request_id'])
@@ -217,6 +219,7 @@ class Agent:
         snapshot = None
         identity = None
         reward_wait = None
+        event_wait = None
         try:
             while self.running and generation == self.generation:
                 identity = None
@@ -233,6 +236,15 @@ class Agent:
                     await asyncio.sleep(.4)
                     continue
                 reward_wait=None
+                if event_options_settling(snapshot):
+                    screen=(s.get('event_screen') or {}).get('screen_id')
+                    key=(snapshot.get('session_epoch'),s.get('run_id'),screen)
+                    if event_wait is None or event_wait[0]!=key:event_wait=(key,time.monotonic())
+                    if time.monotonic()-event_wait[1]>15:raise ValueError('EVENT_OPTIONS_NOT_READY')
+                    self.phase='waiting_event_options'
+                    await asyncio.sleep(.4)
+                    continue
+                event_wait=None
                 current_run = (snapshot.get('session_epoch'), s.get('run_id'))
                 if current_run != run_identity:
                     self.recent = []
@@ -342,8 +354,8 @@ class Agent:
             code='MODEL_INVALID_DECISION'
             issues=validation_issues(exc)
         except ValueError as exc:
-            if str(exc)!='MULTI_ACTION_REQUIRES_COMBAT':raise
-            code='MULTI_ACTION_REQUIRES_COMBAT';issues=[]
+            if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'}:raise
+            code=str(exc);issues=[]
         # No part of the rejected plan was submitted. Retry once only after
         # verifying that the same visible state is still waiting for a choice.
         fresh=await self.fetch()
@@ -355,6 +367,7 @@ class Agent:
             instruction=('Submit exactly ONE submit_decision tool call, no text-only response. '
                 'Use the supplied tool schema, copy state_token exactly, and use an empty string for no target. '
                 + ('Return exactly one step.' if snapshot['state'].get('phase')!='combat' else 'Return one to sixteen steps.'))
+        instruction+=' Use only action_id and target_id values from visible_state.state.legal_actions. Never invent IDs or reuse an action from a previous screen.'
         correction=dict(packet,validation_feedback=dict(code=code,issues=issues,
             instruction='Previous response was rejected and NO actions were executed. '+instruction))
         if self.model_wait:self.model_wait.update(validation_attempt=2,retry_reason=code,started_at=time.time())
@@ -377,6 +390,9 @@ class Agent:
             return validate_plan(raw,snapshot),combined
         except (ValidationError,json.JSONDecodeError) as exc:
             raise ProviderError('MODEL_INVALID_DECISION',dict(validation_attempts=2,validation_issues=validation_issues(exc),usage=combined)) from None
+        except ValueError as exc:
+            if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'}:raise
+            raise ProviderError(str(exc),dict(validation_attempts=2,validation_issues=[dict(type=str(exc))],usage=combined)) from None
 
     def save_error(self, code, snapshot, request_id, provider_details=None):
         self.error=code

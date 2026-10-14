@@ -17,6 +17,7 @@ async def probe():
     profile=type(current).model_validate(profile.model_dump())
     packet=dict(state_token='synthetic-transport-probe',visible_state=dict(state=dict(
         phase='reward',legal_actions=[dict(action_id='skip_reward',type='skip_reward',
+            allows_no_target=True,allowed_target_ids=[]),dict(action_id='collect_reward',type='claim_reward',
             allows_no_target=True,allowed_target_ids=[])])),
         instruction='Synthetic transport test. Choose skip_reward with no target. No game action will be executed.')
     result=dict(model=profile.model,occurred_at=time.time(),game_actions_executed=0)
@@ -32,7 +33,7 @@ async def probe():
         result.update(status='failed',code=str(exc))
     except ValueError:
         result.update(status='failed',code='MODEL_INVALID_DECISION')
-    atomic(ROOT/'.runtime/logs/agent/deepseek-strict-probe.json',result)
+    atomic(ROOT/'.runtime/logs/agent/diagnostics/deepseek-strict-probe.json',result)
     print(json.dumps(result,ensure_ascii=False))
 
 

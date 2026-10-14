@@ -329,6 +329,45 @@ def test_dispatch_persists_before_submit_and_recovers_without_retry(tmp_path):
     asyncio.run(run())
 
 
+def test_recovery_only_queries_action_journals_with_probe_in_same_directory(tmp_path):
+    async def run():
+        agent,s,_,submit=make_agent(tmp_path)
+        agent.journal.mkdir(parents=True,exist_ok=True)
+        (agent.journal/'deepseek-strict-probe.json').write_text(json.dumps(dict(status='passed',game_actions_executed=0)))
+        (agent.journal/'unrelated.json').write_text('{not an action journal')
+        path=agent.journal/'agent-pending.json'
+        path.write_text(json.dumps(dict(status='dispatch_pending',request=dict(request_id='agent-pending'))))
+        agent.action_status=AsyncMock(return_value=dict(status='unknown'))
+        with pytest.raises(ValueError,match='PREVIOUS_ACTION_UNRESOLVED'):
+            await agent.unresolved()
+        agent.action_status.assert_awaited_once_with('agent-pending')
+        agent.action_status=AsyncMock(return_value=dict(status='completed'))
+        await agent.unresolved()
+        assert json.loads(path.read_text())['status']=='completed'
+        assert submit.await_count==0
+    asyncio.run(run())
+
+
+def test_probe_record_cannot_crash_agent_before_model_request(tmp_path):
+    async def run():
+        entered=asyncio.Event()
+        class Provider:
+            async def decide(self,packet):
+                entered.set()
+                await asyncio.Event().wait()
+        agent,s,_,submit=make_agent(tmp_path,factory=lambda *_:Provider())
+        agent.journal.mkdir(parents=True,exist_ok=True)
+        (agent.journal/'deepseek-strict-probe.json').write_text(json.dumps(dict(status='passed')))
+        await agent.command('/start',{})
+        try:
+            await asyncio.wait_for(entered.wait(),3)
+            assert agent.phase=='waiting_model' and agent.error is None
+            assert submit.await_count==0
+        finally:
+            await agent.pause()
+    asyncio.run(run())
+
+
 def test_ai_loop_one_decision_and_no_repeat_on_unchanged_state(tmp_path):
     async def run():
         calls=[];submitted=asyncio.Event()

@@ -7,6 +7,7 @@ import pytest
 
 from autoslay.agent.contracts import DecisionPlan, PlanStep, validate_plan, schema_for, prompt
 from autoslay.agent.plans import prepare
+from autoslay.agent.providers import ProviderError
 from autoslay.decision.deterministic import source
 from test_agent import make_agent, payload
 from test_deterministic import live
@@ -70,7 +71,7 @@ def test_reward_multistep_reply_is_corrected_once_before_any_dispatch(tmp_path,o
         origin=deepcopy(s);agent.running=True;agent.generation=1;agent.model_wait={}
         packet={'visible_state':origin}
         if outcome=='invalid_again':
-            with pytest.raises(ValueError,match='MULTI_ACTION_REQUIRES_COMBAT'):
+            with pytest.raises(ProviderError,match='MULTI_ACTION_REQUIRES_COMBAT'):
                 await agent.decide_plan(Provider(),packet,origin,1,'request',{},agent.store.profiles['codex'])
         else:
             plan,usage=await agent.decide_plan(Provider(),packet,origin,1,'request',{},agent.store.profiles['codex'])

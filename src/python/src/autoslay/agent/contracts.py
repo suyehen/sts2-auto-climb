@@ -95,6 +95,21 @@ def tool_schema_for(packet):
         action_id=dict(type='string'),
         target_id=dict(type='string', description='Target instance ID, or an empty string for no target.')),
         required=['action_id', 'target_id'], additionalProperties=False)
+    state=(packet.get('visible_state') or {}).get('state') or {}
+    if state.get('phase') and state['phase']!='combat':
+        choices=[]
+        for action in state.get('legal_actions',[]):
+            action_id=action.get('action_id')
+            if not isinstance(action_id,str) or action_id in ADMIN or action.get('type') in ADMIN:
+                continue
+            targets=[t for t in action.get('allowed_target_ids',[]) if isinstance(t,str) and t]
+            if action.get('allows_no_target'):targets.append('')
+            if not targets:continue
+            choices.append(dict(type='object',properties=dict(
+                action_id=dict(type='string',enum=[action_id]),
+                target_id=dict(type='string',enum=list(dict.fromkeys(targets)))),
+                required=['action_id','target_id'],additionalProperties=False))
+        if choices:step=choices[0] if len(choices)==1 else dict(anyOf=choices)
     return dict(type='object', properties=dict(state_token=token,
         steps=dict(type='array', items=step, description='One to sixteen steps in combat; exactly one outside combat.'),
         reason=dict(type='string', description='Brief Chinese decision explanation.')),
