@@ -1,0 +1,1525 @@
+{
+  "schema_version": "combat-batch-validation/1.0",
+  "date": "2026-10-15",
+  "verification": {
+    "python_tests_passed": 698,
+    "python_seconds": 150.16,
+    "web_tests_passed": 80,
+    "git_diff_check": "passed",
+    "project_model_requests": 0,
+    "game_actions_submitted": 0,
+    "services_started": false
+  },
+  "source_replay": ".runtime\\combat-batch-first-battle-20261015-04.json",
+  "code_fingerprint": "2bf1195e81a053c5a6788a50dc9fb4308631205a337cf8c360e47fb617e80eff",
+  "policies": {
+    "combat": {
+      "version": "1.0.0",
+      "damage_weight": 1.0,
+      "block_weight": 1.5,
+      "permanent_strength_weight": 3.0,
+      "draw_option_weight": 0.0,
+      "short_term": {
+        "version": "1.0.0",
+        "hp_weight": 1.0,
+        "hp_sensitivity": 2.0,
+        "finish_weight": 50.0,
+        "discount": 0.9,
+        "enemy_hp_weight": 0.4,
+        "enemy_block_weight": 0.15,
+        "enemy_strength_weight": 2.0,
+        "pollution_weight": 1.0,
+        "future_attack_segments": 2.0,
+        "strength_discount": 0.5,
+        "strength_value_cap": 12.0,
+        "worst_loss_weight": 0.5
+      },
+      "batch": {
+        "hp_weight": 2.0,
+        "hp_sensitivity": 3.0,
+        "rest_opportunity": 8.0,
+        "reserve_fraction": 0.4,
+        "unknown_penalty": 3.0,
+        "tie_margin": 1.0,
+        "terminal_enemy_hp_weight": 0.4,
+        "death_penalty": 10000.0
+      },
+      "potion_reserve": {
+        "costs": {
+          "POTION.FIRE_POTION": {
+            "lower": 8.0,
+            "upper": 20.0
+          },
+          "POTION.BLOCK_POTION": {
+            "lower": 6.0,
+            "upper": 14.0
+          },
+          "POTION.ENERGY_POTION": {
+            "lower": 6.0,
+            "upper": 18.0
+          },
+          "POTION.STRENGTH_POTION": {
+            "lower": 8.0,
+            "upper": 20.0
+          }
+        },
+        "substitute_discount": 0.75
+      }
+    },
+    "analysis": {
+      "version": "1.0.0",
+      "normal": {
+        "max_nodes": 2000,
+        "time_ms": 200,
+        "top_k": 5
+      },
+      "danger": {
+        "max_nodes": 6000,
+        "time_ms": 400,
+        "top_k": 5
+      },
+      "low_hp_fraction": 0.35,
+      "lookahead": {
+        "horizon": 2,
+        "branches": 8,
+        "time_ms": 600,
+        "seed": 42,
+        "draws": 5,
+        "energy": 3
+      },
+      "strategy": {
+        "version": "1.0.0",
+        "horizon": 2,
+        "branches": 32,
+        "seed": 42,
+        "draws": 5,
+        "energy": 3,
+        "extra_budget_enabled": false,
+        "outcome_limit": 128
+      }
+    },
+    "autonomy": {
+      "version": "2.0.0",
+      "deterministic_enabled": true,
+      "combat_batches_enabled": true,
+      "enabled_rules": [
+        "forced_action",
+        "forced_end_turn",
+        "mandatory_card_selection",
+        "certain_combat_finish",
+        "eliminate_certain_death",
+        "equivalent_outcomes",
+        "dominant_outcome",
+        "common_first_step",
+        "open_card_reward",
+        "bounded_combat_search"
+      ],
+      "complex_strategy_enabled": false,
+      "minimum_probability_coverage": 1.0,
+      "require_future_threat_coverage": true,
+      "require_fresh_action_validation": true,
+      "strategy_mode": "off",
+      "combat_calibration_id": "",
+      "robust_margin": 0.0,
+      "regret_epsilon": 0.0,
+      "low_risk_epsilon": 0.0
+    }
+  },
+  "policy_fingerprint": "fd33bf5cccfd5ce2fb06e92cac14d23e7d927f1972067713deda30437bd48106",
+  "turns": [
+    {
+      "turn": 1,
+      "source_event_id": "befe3550f758429f851a980c36f8401e",
+      "illustration_only": false,
+      "original_snapshot_fingerprint": "784e42a9987e0eacae72f3dddb1384e6cefee95480732536c5976888dda05ea5",
+      "copied_fields": {
+        "state.control_mode": "auto"
+      },
+      "resources": {
+        "hp": 64,
+        "energy": 3,
+        "block": 0,
+        "hand": [
+          {
+            "instance_id": "790ea36e7b034baf89437c54f06eef24",
+            "entity_id": "CARD.STRIKE_IRONCLAD",
+            "name": "打击",
+            "energy_cost": 1,
+            "description": "造成6点伤害。"
+          },
+          {
+            "instance_id": "708ff913d6b043d5a0d4da7f90b3d7d1",
+            "entity_id": "CARD.STRIKE_IRONCLAD",
+            "name": "打击",
+            "energy_cost": 1,
+            "description": "造成6点伤害。"
+          },
+          {
+            "instance_id": "f552bf47560f49f389e32d4742e5a857",
+            "entity_id": "CARD.STRIKE_IRONCLAD",
+            "name": "打击",
+            "energy_cost": 1,
+            "description": "造成6点伤害。"
+          },
+          {
+            "instance_id": "07e0f48f7d96447d9cd33b6303860acb",
+            "entity_id": "CARD.DEFEND_IRONCLAD",
+            "name": "防御",
+            "energy_cost": 1,
+            "description": "获得5点[gold]格挡[/gold]。"
+          },
+          {
+            "instance_id": "48aadbe329824efbab90f0b82735d4f7",
+            "entity_id": "CARD.DEFEND_IRONCLAD",
+            "name": "防御",
+            "energy_cost": 1,
+            "description": "获得5点[gold]格挡[/gold]。"
+          }
+        ],
+        "enemies": [
+          {
+            "instance_id": "2f901c2dd9e441b4aa41bea3940e89e1",
+            "name": "毛绒伏地虫",
+            "hp": 58,
+            "block": 0,
+            "powers": [],
+            "intents": [
+              {
+                "type": "Attack",
+                "label": "6",
+                "hover_tip": {
+                  "type": "text",
+                  "id": "LocString with Title=intents.ATTACK.title and Description=intents.ATTACK.description",
+                  "title": "攻势",
+                  "description": "这个敌人将要[gold]攻击[/gold]造成[blue]6[/blue]点伤害。",
+                  "entity_id": null,
+                  "supported": true
+                },
+                "attack_damage": 6,
+                "attack_repeats": 1
+              }
+            ]
+          }
+        ]
+      },
+      "selected_batch": {
+        "batch_id": "f678b76153c4d6d7",
+        "steps": [
+          {
+            "action_id": "play_07e0f48f7d96447d9cd33b6303860acb",
+            "target_id": null
+          },
+          {
+            "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+            "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+          },
+          {
+            "action_id": "play_790ea36e7b034baf89437c54f06eef24",
+            "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+          },
+          {
+            "action_id": "end_turn",
+            "target_id": null
+          }
+        ],
+        "stop_reason": "next_turn_requires_observation",
+        "score": -42.90632983031097,
+        "utility_components": {
+          "run_hp_value": -2.2553125000000023,
+          "estimated_future_hp_cost": -29.05101733031097,
+          "finish": 0.0,
+          "remaining_enemy": -11.600000000000001,
+          "enemy_growth": 0.0,
+          "player_growth": 0.0,
+          "pollution": 0.0,
+          "potion_reserve": 0.0,
+          "unknown": 0.0,
+          "death_penalty": 0.0
+        },
+        "resource_forecast": {
+          "run_hp_value": -2.2553125000000023,
+          "actual_trajectory_healing": 0.0,
+          "victory_heal": 0.0,
+          "baseline_victory_heal": 0.0,
+          "projected_hp_after_heal": 63.0,
+          "rest_opportunity_included": 1.0
+        },
+        "future_pressure": {
+          "basis": "capability proxy; actual future intents and draws may differ"
+        },
+        "estimated_death_probability": 0.0,
+        "estimated_worst_hp_loss": 1,
+        "approximation_count": 1,
+        "consumed_potions": [],
+        "forecast_kind": "heuristic_batch_continuation",
+        "bound_kind": "uncalibrated_estimate",
+        "endpoint": {
+          "hp": 64,
+          "energy": 0,
+          "block": 5,
+          "enemy_hp": 46
+        }
+      },
+      "top_batches": [
+        {
+          "batch_id": "f678b76153c4d6d7",
+          "steps": [
+            {
+              "action_id": "play_07e0f48f7d96447d9cd33b6303860acb",
+              "target_id": null
+            },
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_790ea36e7b034baf89437c54f06eef24",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -42.90632983031097,
+          "utility_components": {
+            "run_hp_value": -2.2553125000000023,
+            "estimated_future_hp_cost": -29.05101733031097,
+            "finish": 0.0,
+            "remaining_enemy": -11.600000000000001,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": 0.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": -2.2553125000000023,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 63.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 1,
+          "approximation_count": 1,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 64,
+            "energy": 0,
+            "block": 5,
+            "enemy_hp": 46
+          }
+        },
+        {
+          "batch_id": "a273194ed3bf938a",
+          "steps": [
+            {
+              "action_id": "play_07e0f48f7d96447d9cd33b6303860acb",
+              "target_id": null
+            },
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_790ea36e7b034baf89437c54f06eef24",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -42.90632983031097,
+          "utility_components": {
+            "run_hp_value": -2.2553125000000023,
+            "estimated_future_hp_cost": -29.05101733031097,
+            "finish": 0.0,
+            "remaining_enemy": -11.600000000000001,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": 0.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": -2.2553125000000023,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 63.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 1,
+          "approximation_count": 1,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 64,
+            "energy": 0,
+            "block": 5,
+            "enemy_hp": 46
+          }
+        },
+        {
+          "batch_id": "d4f27e4030186f95",
+          "steps": [
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_790ea36e7b034baf89437c54f06eef24",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_f552bf47560f49f389e32d4742e5a857",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -47.46074661396168,
+          "utility_components": {
+            "run_hp_value": -14.0475,
+            "estimated_future_hp_cost": -24.21324661396168,
+            "finish": 0.0,
+            "remaining_enemy": -9.200000000000001,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": 0.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": -14.0475,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 6,
+          "approximation_count": 1,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 64,
+            "energy": 0,
+            "block": 0,
+            "enemy_hp": 40
+          }
+        },
+        {
+          "batch_id": "34f69007e5546b26",
+          "steps": [
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_790ea36e7b034baf89437c54f06eef24",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_f552bf47560f49f389e32d4742e5a857",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -47.46074661396168,
+          "utility_components": {
+            "run_hp_value": -14.0475,
+            "estimated_future_hp_cost": -24.21324661396168,
+            "finish": 0.0,
+            "remaining_enemy": -9.200000000000001,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": 0.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": -14.0475,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 6,
+          "approximation_count": 1,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 64,
+            "energy": 0,
+            "block": 0,
+            "enemy_hp": 40
+          }
+        },
+        {
+          "batch_id": "7b7d6ce098991234",
+          "steps": [
+            {
+              "action_id": "play_07e0f48f7d96447d9cd33b6303860acb",
+              "target_id": null
+            },
+            {
+              "action_id": "play_48aadbe329824efbab90f0b82735d4f7",
+              "target_id": null
+            },
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -50.06537546934906,
+          "utility_components": {
+            "run_hp_value": 0.0,
+            "estimated_future_hp_cost": -36.06537546934906,
+            "finish": 0.0,
+            "remaining_enemy": -14.0,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": 0.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": 0.0,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 64.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 0,
+          "approximation_count": 1,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 64,
+            "energy": 0,
+            "block": 10,
+            "enemy_hp": 52
+          }
+        }
+      ],
+      "candidate_count": 17,
+      "nodes": 126,
+      "limits": [
+        "time_limit"
+      ],
+      "assumptions": [
+        "UNMODELED_RELIC:RELIC.PRECISE_SCISSORS",
+        "current_move_ambiguous:MONSTER.FUZZY_WURM_CRAWLER",
+        "inferred_first_move_from_turn_one:MONSTER.FUZZY_WURM_CRAWLER"
+      ],
+      "deck_capabilities": {
+        "cards": 10,
+        "attack_ratio": 0.5,
+        "damage_per_draw": 3.2,
+        "block_per_draw": 2.0,
+        "persistent_strength_per_draw": 0.0,
+        "extra_draw_per_draw": 0.0,
+        "energy_per_draw": 0.0,
+        "attack_segments_per_draw": 0.5,
+        "energy_demand_per_draw": 1.0,
+        "cheap_ratio": 0.8,
+        "healing_cards": [],
+        "victory_heal": 6,
+        "unknown_card_ids": [],
+        "basis": "overlapping capabilities, not a fixed archetype or guaranteed draw"
+      },
+      "run_resources": {
+        "reserve_fraction": 0.4,
+        "nearest_possible_rest": null,
+        "pressure": 0,
+        "rest_weight": 8.0,
+        "basis": "visible reachable rooms within four steps; route choice and future damage are estimates"
+      },
+      "recorded_choice_event_ids": [
+        "8e9cbb20e0344769aba626930adb52d7",
+        "fed8be4ab10b4b20b88ef5ac0c2ad191",
+        "a588c44f929b4ff183f29aa7ce06f0a6",
+        "3366c16a41c54864b943d2a1a94d4dac"
+      ],
+      "recommendation": [
+        "防御",
+        "打击",
+        "打击",
+        "end_turn"
+      ]
+    },
+    {
+      "turn": 2,
+      "source_event_id": "f6621751408947cd9f93b57c9d177c9c",
+      "illustration_only": false,
+      "original_snapshot_fingerprint": "5f88dd3039601d5c7c7c4903aea10c67345823c38f62579486f8624afc373c44",
+      "copied_fields": {
+        "state.control_mode": "auto"
+      },
+      "resources": {
+        "hp": 58,
+        "energy": 3,
+        "block": 0,
+        "hand": [
+          {
+            "instance_id": "121549348e374920a35ec7f0231ff964",
+            "entity_id": "CARD.DEFEND_IRONCLAD",
+            "name": "防御",
+            "energy_cost": 1,
+            "description": "获得5点[gold]格挡[/gold]。"
+          },
+          {
+            "instance_id": "8b35585865224846928c58b10ed77a22",
+            "entity_id": "CARD.STRIKE_IRONCLAD",
+            "name": "打击",
+            "energy_cost": 1,
+            "description": "造成6点伤害。"
+          },
+          {
+            "instance_id": "f3f854dc98e746c48d57d411611beff5",
+            "entity_id": "CARD.BASH",
+            "name": "痛击",
+            "energy_cost": 2,
+            "description": "造成8点伤害。\n给予2层[gold]易伤[/gold]。"
+          },
+          {
+            "instance_id": "c24bbbc07a3543ecab25e233cf8f63a1",
+            "entity_id": "CARD.DEFEND_IRONCLAD",
+            "name": "防御",
+            "energy_cost": 1,
+            "description": "获得5点[gold]格挡[/gold]。"
+          },
+          {
+            "instance_id": "a42b7a3c515f42af8b96b90cbf1f1e6d",
+            "entity_id": "CARD.ASCENDERS_BANE",
+            "name": "进阶之灾",
+            "energy_cost": -1,
+            "description": "[gold]不能被打出[/gold]。\n[gold]虚无[/gold]。\n[gold]永恒[/gold]。"
+          }
+        ],
+        "enemies": [
+          {
+            "instance_id": "2f901c2dd9e441b4aa41bea3940e89e1",
+            "name": "毛绒伏地虫",
+            "hp": 40,
+            "block": 0,
+            "powers": [],
+            "intents": [
+              {
+                "type": "Buff",
+                "label": "",
+                "hover_tip": {
+                  "type": "text",
+                  "id": "LocString with Title=intents.BUFF.title and Description=intents.BUFF.description",
+                  "title": "强化",
+                  "description": "这个敌人将要使用一个[gold]强化效果[/gold]。",
+                  "entity_id": null,
+                  "supported": true
+                },
+                "attack_damage": null,
+                "attack_repeats": null
+              }
+            ]
+          }
+        ]
+      },
+      "selected_batch": {
+        "batch_id": "2bc5375db805a063",
+        "steps": [
+          {
+            "action_id": "play_f3f854dc98e746c48d57d411611beff5",
+            "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+          },
+          {
+            "action_id": "play_8b35585865224846928c58b10ed77a22",
+            "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+          },
+          {
+            "action_id": "end_turn",
+            "target_id": null
+          }
+        ],
+        "stop_reason": "next_turn_requires_observation",
+        "score": -36.41324661396168,
+        "utility_components": {
+          "run_hp_value": 0.0,
+          "estimated_future_hp_cost": -24.21324661396168,
+          "finish": 0.0,
+          "remaining_enemy": -9.200000000000001,
+          "enemy_growth": 0.0,
+          "player_growth": 0.0,
+          "pollution": 0.0,
+          "potion_reserve": 0.0,
+          "unknown": -3.0,
+          "death_penalty": 0.0
+        },
+        "resource_forecast": {
+          "run_hp_value": 0.0,
+          "actual_trajectory_healing": 0.0,
+          "victory_heal": 0.0,
+          "baseline_victory_heal": 0.0,
+          "projected_hp_after_heal": 58.0,
+          "rest_opportunity_included": 1.0
+        },
+        "future_pressure": {
+          "basis": "capability proxy; actual future intents and draws may differ"
+        },
+        "estimated_death_probability": 0.0,
+        "estimated_worst_hp_loss": 0,
+        "approximation_count": 2,
+        "consumed_potions": [],
+        "forecast_kind": "heuristic_batch_continuation",
+        "bound_kind": "uncalibrated_estimate",
+        "endpoint": {
+          "hp": 58,
+          "energy": 0,
+          "block": 0,
+          "enemy_hp": 23
+        }
+      },
+      "top_batches": [
+        {
+          "batch_id": "2bc5375db805a063",
+          "steps": [
+            {
+              "action_id": "play_f3f854dc98e746c48d57d411611beff5",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_8b35585865224846928c58b10ed77a22",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -36.41324661396168,
+          "utility_components": {
+            "run_hp_value": 0.0,
+            "estimated_future_hp_cost": -24.21324661396168,
+            "finish": 0.0,
+            "remaining_enemy": -9.200000000000001,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": -3.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": 0.0,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 0,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 0,
+            "enemy_hp": 23
+          }
+        },
+        {
+          "batch_id": "042f155d9a61c085",
+          "steps": [
+            {
+              "action_id": "play_f3f854dc98e746c48d57d411611beff5",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_8b35585865224846928c58b10ed77a22",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -36.41324661396168,
+          "utility_components": {
+            "run_hp_value": 0.0,
+            "estimated_future_hp_cost": -24.21324661396168,
+            "finish": 0.0,
+            "remaining_enemy": -9.200000000000001,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": -3.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": 0.0,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 0,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 0,
+            "enemy_hp": 23
+          }
+        },
+        {
+          "batch_id": "516bc437aa4064bb",
+          "steps": [
+            {
+              "action_id": "play_8b35585865224846928c58b10ed77a22",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_f3f854dc98e746c48d57d411611beff5",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -41.43069090666595,
+          "utility_components": {
+            "run_hp_value": 0.0,
+            "estimated_future_hp_cost": -28.03069090666595,
+            "finish": 0.0,
+            "remaining_enemy": -10.4,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": -3.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": 0.0,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 0,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 0,
+            "enemy_hp": 26
+          }
+        },
+        {
+          "batch_id": "20cef69ca2297af6",
+          "steps": [
+            {
+              "action_id": "play_8b35585865224846928c58b10ed77a22",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_f3f854dc98e746c48d57d411611beff5",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -41.43069090666595,
+          "utility_components": {
+            "run_hp_value": 0.0,
+            "estimated_future_hp_cost": -28.03069090666595,
+            "finish": 0.0,
+            "remaining_enemy": -10.4,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": -3.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": 0.0,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 0,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 0,
+            "enemy_hp": 26
+          }
+        },
+        {
+          "batch_id": "583717466f4343a4",
+          "steps": [
+            {
+              "action_id": "play_121549348e374920a35ec7f0231ff964",
+              "target_id": null
+            },
+            {
+              "action_id": "play_f3f854dc98e746c48d57d411611beff5",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -52.02662037037037,
+          "utility_components": {
+            "run_hp_value": 0.0,
+            "estimated_future_hp_cost": -36.22662037037037,
+            "finish": 0.0,
+            "remaining_enemy": -12.8,
+            "enemy_growth": 0.0,
+            "player_growth": 0.0,
+            "pollution": 0.0,
+            "potion_reserve": 0.0,
+            "unknown": -3.0,
+            "death_penalty": 0.0
+          },
+          "resource_forecast": {
+            "run_hp_value": 0.0,
+            "actual_trajectory_healing": 0.0,
+            "victory_heal": 0.0,
+            "baseline_victory_heal": 0.0,
+            "projected_hp_after_heal": 58.0,
+            "rest_opportunity_included": 1.0
+          },
+          "future_pressure": {
+            "basis": "capability proxy; actual future intents and draws may differ"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 0,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 5,
+            "enemy_hp": 32
+          }
+        }
+      ],
+      "candidate_count": 19,
+      "nodes": 114,
+      "limits": [
+        "time_limit"
+      ],
+      "assumptions": [
+        "UNMODELED_RELIC:RELIC.PRECISE_SCISSORS"
+      ],
+      "deck_capabilities": {
+        "cards": 10,
+        "attack_ratio": 0.5,
+        "damage_per_draw": 3.2,
+        "block_per_draw": 2.0,
+        "persistent_strength_per_draw": 0.0,
+        "extra_draw_per_draw": 0.0,
+        "energy_per_draw": 0.0,
+        "attack_segments_per_draw": 0.5,
+        "energy_demand_per_draw": 1.0,
+        "cheap_ratio": 0.8,
+        "healing_cards": [],
+        "victory_heal": 6,
+        "unknown_card_ids": [],
+        "basis": "overlapping capabilities, not a fixed archetype or guaranteed draw"
+      },
+      "run_resources": {
+        "reserve_fraction": 0.4,
+        "nearest_possible_rest": null,
+        "pressure": 0,
+        "rest_weight": 8.0,
+        "basis": "visible reachable rooms within four steps; route choice and future damage are estimates"
+      },
+      "recorded_choice_event_ids": [
+        "60a285ff224e4a7597ad87349bc861b1",
+        "b1c6efac02f44cebba5ca4ab230467b4",
+        "816cef276f19446e835dc62db2b0bcf0"
+      ],
+      "recommendation": [
+        "痛击",
+        "打击",
+        "end_turn"
+      ]
+    },
+    {
+      "turn": 3,
+      "source_event_id": "8b28db5d935d4c02930c3d508d631536",
+      "illustration_only": true,
+      "original_snapshot_fingerprint": "dc39ee68d152f5fceae00de6d19259f6c5755b101e95dbaf07c222e84b6a9bd1",
+      "copied_fields": {
+        "state.control_mode": "auto",
+        "snapshot.ready": true,
+        "state.legal_actions": "synthetic cost/target-only catalogue"
+      },
+      "resources": {
+        "hp": 58,
+        "energy": 3,
+        "block": 0,
+        "hand": [
+          {
+            "instance_id": "708ff913d6b043d5a0d4da7f90b3d7d1",
+            "entity_id": "CARD.STRIKE_IRONCLAD",
+            "name": "打击",
+            "energy_cost": 1,
+            "description": "造成6点伤害。"
+          },
+          {
+            "instance_id": "f3f854dc98e746c48d57d411611beff5",
+            "entity_id": "CARD.BASH",
+            "name": "痛击",
+            "energy_cost": 2,
+            "description": "造成8点伤害。\n给予2层[gold]易伤[/gold]。"
+          },
+          {
+            "instance_id": "8b35585865224846928c58b10ed77a22",
+            "entity_id": "CARD.STRIKE_IRONCLAD",
+            "name": "打击",
+            "energy_cost": 1,
+            "description": "造成6点伤害。"
+          },
+          {
+            "instance_id": "121549348e374920a35ec7f0231ff964",
+            "entity_id": "CARD.DEFEND_IRONCLAD",
+            "name": "防御",
+            "energy_cost": 1,
+            "description": "获得5点[gold]格挡[/gold]。"
+          },
+          {
+            "instance_id": "c24bbbc07a3543ecab25e233cf8f63a1",
+            "entity_id": "CARD.DEFEND_IRONCLAD",
+            "name": "防御",
+            "energy_cost": 1,
+            "description": "获得5点[gold]格挡[/gold]。"
+          }
+        ],
+        "enemies": [
+          {
+            "instance_id": "2f901c2dd9e441b4aa41bea3940e89e1",
+            "name": "毛绒伏地虫",
+            "hp": 23,
+            "block": 0,
+            "powers": [
+              {
+                "entity_id": "POWER.VULNERABLE_POWER",
+                "amount": 1,
+                "name": "易伤",
+                "hover_tips": [
+                  {
+                    "type": "text",
+                    "id": "POWER.VULNERABLE_POWER",
+                    "title": "易伤",
+                    "description": "[blue]1[/blue]回合内，受到的攻击伤害增加[blue]50%[/blue]。",
+                    "entity_id": null,
+                    "supported": true
+                  }
+                ]
+              },
+              {
+                "entity_id": "POWER.STRENGTH_POWER",
+                "amount": 7,
+                "name": "力量",
+                "hover_tips": [
+                  {
+                    "type": "text",
+                    "id": "POWER.STRENGTH_POWER",
+                    "title": "力量",
+                    "description": "增加攻击牌造成的伤害值[blue]7[/blue]点。",
+                    "entity_id": null,
+                    "supported": true
+                  }
+                ]
+              }
+            ],
+            "intents": [
+              {
+                "type": "Attack",
+                "label": "13",
+                "hover_tip": {
+                  "type": "text",
+                  "id": "LocString with Title=intents.ATTACK.title and Description=intents.ATTACK.description",
+                  "title": "攻势",
+                  "description": "这个敌人将要[gold]攻击[/gold]造成[blue]13[/blue]点伤害。",
+                  "entity_id": null,
+                  "supported": true
+                },
+                "attack_damage": 13,
+                "attack_repeats": 1
+              }
+            ]
+          }
+        ]
+      },
+      "selected_batch": {
+        "batch_id": "486751ce866b68da",
+        "steps": [
+          {
+            "action_id": "play_121549348e374920a35ec7f0231ff964",
+            "target_id": null
+          },
+          {
+            "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+            "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+          },
+          {
+            "action_id": "play_c24bbbc07a3543ecab25e233cf8f63a1",
+            "target_id": null
+          },
+          {
+            "action_id": "end_turn",
+            "target_id": null
+          }
+        ],
+        "stop_reason": "next_turn_requires_observation",
+        "score": -30.741800729257093,
+        "utility_components": {
+          "run_hp_value": -7.555312499999999,
+          "estimated_future_hp_cost": -14.586488229257093,
+          "finish": 0.0,
+          "remaining_enemy": -5.6000000000000005,
+          "enemy_growth": 0,
+          "player_growth": 0,
+          "pollution": 0,
+          "potion_reserve": 0,
+          "unknown": -3.0,
+          "death_penalty": 0
+        },
+        "resource_forecast": {
+          "run_hp_value": -7.555312499999999,
+          "actual_trajectory_healing": 0,
+          "victory_heal": 0,
+          "baseline_victory_heal": 0,
+          "projected_hp_after_heal": 55,
+          "rest_opportunity_included": true
+        },
+        "future_pressure": {
+          "estimated_future_hp_cost": -14.586488229257093,
+          "estimated_turns_to_finish": 1.4583333333333335,
+          "sustainable_damage_proxy": 9.6,
+          "sustainable_block_proxy": 6.0,
+          "basis": "discounted capability/pressure proxy beyond horizon; no exact repeated-intent assumption"
+        },
+        "estimated_death_probability": 0.0,
+        "estimated_worst_hp_loss": 3,
+        "approximation_count": 2,
+        "consumed_potions": [],
+        "forecast_kind": "heuristic_batch_continuation",
+        "bound_kind": "uncalibrated_estimate",
+        "endpoint": {
+          "hp": 58,
+          "energy": 0,
+          "block": 10,
+          "enemy_hp": 14
+        }
+      },
+      "top_batches": [
+        {
+          "batch_id": "486751ce866b68da",
+          "steps": [
+            {
+              "action_id": "play_121549348e374920a35ec7f0231ff964",
+              "target_id": null
+            },
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_c24bbbc07a3543ecab25e233cf8f63a1",
+              "target_id": null
+            },
+            {
+              "action_id": "end_turn",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "next_turn_requires_observation",
+          "score": -30.741800729257093,
+          "utility_components": {
+            "run_hp_value": -7.555312499999999,
+            "estimated_future_hp_cost": -14.586488229257093,
+            "finish": 0.0,
+            "remaining_enemy": -5.6000000000000005,
+            "enemy_growth": 0,
+            "player_growth": 0,
+            "pollution": 0,
+            "potion_reserve": 0,
+            "unknown": -3.0,
+            "death_penalty": 0
+          },
+          "resource_forecast": {
+            "run_hp_value": -7.555312499999999,
+            "actual_trajectory_healing": 0,
+            "victory_heal": 0,
+            "baseline_victory_heal": 0,
+            "projected_hp_after_heal": 55,
+            "rest_opportunity_included": true
+          },
+          "future_pressure": {
+            "estimated_future_hp_cost": -14.586488229257093,
+            "estimated_turns_to_finish": 1.4583333333333335,
+            "sustainable_damage_proxy": 9.6,
+            "sustainable_block_proxy": 6.0,
+            "basis": "discounted capability/pressure proxy beyond horizon; no exact repeated-intent assumption"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 3,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 10,
+            "enemy_hp": 14
+          }
+        },
+        {
+          "batch_id": "6be296f3d12b3683",
+          "steps": [
+            {
+              "action_id": "play_121549348e374920a35ec7f0231ff964",
+              "target_id": null
+            },
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            },
+            {
+              "action_id": "play_c24bbbc07a3543ecab25e233cf8f63a1",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -30.741800729257093,
+          "utility_components": {
+            "run_hp_value": -7.555312499999999,
+            "estimated_future_hp_cost": -14.586488229257093,
+            "finish": 0.0,
+            "remaining_enemy": -5.6000000000000005,
+            "enemy_growth": 0,
+            "player_growth": 0,
+            "pollution": 0,
+            "potion_reserve": 0,
+            "unknown": -3.0,
+            "death_penalty": 0
+          },
+          "resource_forecast": {
+            "run_hp_value": -7.555312499999999,
+            "actual_trajectory_healing": 0,
+            "victory_heal": 0,
+            "baseline_victory_heal": 0,
+            "projected_hp_after_heal": 55,
+            "rest_opportunity_included": true
+          },
+          "future_pressure": {
+            "estimated_future_hp_cost": -14.586488229257093,
+            "estimated_turns_to_finish": 1.4583333333333335,
+            "sustainable_damage_proxy": 9.6,
+            "sustainable_block_proxy": 6.0,
+            "basis": "discounted capability/pressure proxy beyond horizon; no exact repeated-intent assumption"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 3,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 0,
+            "block": 10,
+            "enemy_hp": 14
+          }
+        },
+        {
+          "batch_id": "094195f57c34f386",
+          "steps": [
+            {
+              "action_id": "play_121549348e374920a35ec7f0231ff964",
+              "target_id": null
+            },
+            {
+              "action_id": "play_c24bbbc07a3543ecab25e233cf8f63a1",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -30.741800729257093,
+          "utility_components": {
+            "run_hp_value": -7.555312499999999,
+            "estimated_future_hp_cost": -14.586488229257093,
+            "finish": 0.0,
+            "remaining_enemy": -5.6000000000000005,
+            "enemy_growth": 0,
+            "player_growth": 0,
+            "pollution": 0,
+            "potion_reserve": 0,
+            "unknown": -3.0,
+            "death_penalty": 0
+          },
+          "resource_forecast": {
+            "run_hp_value": -7.555312499999999,
+            "actual_trajectory_healing": 0,
+            "victory_heal": 0,
+            "baseline_victory_heal": 0,
+            "projected_hp_after_heal": 55,
+            "rest_opportunity_included": true
+          },
+          "future_pressure": {
+            "estimated_future_hp_cost": -14.586488229257093,
+            "estimated_turns_to_finish": 1.4583333333333335,
+            "sustainable_damage_proxy": 9.6,
+            "sustainable_block_proxy": 6.0,
+            "basis": "discounted capability/pressure proxy beyond horizon; no exact repeated-intent assumption"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 3,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 1,
+            "block": 10,
+            "enemy_hp": 23
+          }
+        },
+        {
+          "batch_id": "88c4860a7fd2de79",
+          "steps": [
+            {
+              "action_id": "play_121549348e374920a35ec7f0231ff964",
+              "target_id": null
+            },
+            {
+              "action_id": "play_708ff913d6b043d5a0d4da7f90b3d7d1",
+              "target_id": "2f901c2dd9e441b4aa41bea3940e89e1"
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -30.741800729257093,
+          "utility_components": {
+            "run_hp_value": -7.555312499999999,
+            "estimated_future_hp_cost": -14.586488229257093,
+            "finish": 0.0,
+            "remaining_enemy": -5.6000000000000005,
+            "enemy_growth": 0,
+            "player_growth": 0,
+            "pollution": 0,
+            "potion_reserve": 0,
+            "unknown": -3.0,
+            "death_penalty": 0
+          },
+          "resource_forecast": {
+            "run_hp_value": -7.555312499999999,
+            "actual_trajectory_healing": 0,
+            "victory_heal": 0,
+            "baseline_victory_heal": 0,
+            "projected_hp_after_heal": 55,
+            "rest_opportunity_included": true
+          },
+          "future_pressure": {
+            "estimated_future_hp_cost": -14.586488229257093,
+            "estimated_turns_to_finish": 1.4583333333333335,
+            "sustainable_damage_proxy": 9.6,
+            "sustainable_block_proxy": 6.0,
+            "basis": "discounted capability/pressure proxy beyond horizon; no exact repeated-intent assumption"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 3,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 1,
+            "block": 5,
+            "enemy_hp": 14
+          }
+        },
+        {
+          "batch_id": "a0a3aed2a38f2c64",
+          "steps": [
+            {
+              "action_id": "play_121549348e374920a35ec7f0231ff964",
+              "target_id": null
+            }
+          ],
+          "stop_reason": "batch_goal_completed",
+          "score": -30.741800729257093,
+          "utility_components": {
+            "run_hp_value": -7.555312499999999,
+            "estimated_future_hp_cost": -14.586488229257093,
+            "finish": 0.0,
+            "remaining_enemy": -5.6000000000000005,
+            "enemy_growth": 0,
+            "player_growth": 0,
+            "pollution": 0,
+            "potion_reserve": 0,
+            "unknown": -3.0,
+            "death_penalty": 0
+          },
+          "resource_forecast": {
+            "run_hp_value": -7.555312499999999,
+            "actual_trajectory_healing": 0,
+            "victory_heal": 0,
+            "baseline_victory_heal": 0,
+            "projected_hp_after_heal": 55,
+            "rest_opportunity_included": true
+          },
+          "future_pressure": {
+            "estimated_future_hp_cost": -14.586488229257093,
+            "estimated_turns_to_finish": 1.4583333333333335,
+            "sustainable_damage_proxy": 9.6,
+            "sustainable_block_proxy": 6.0,
+            "basis": "discounted capability/pressure proxy beyond horizon; no exact repeated-intent assumption"
+          },
+          "estimated_death_probability": 0.0,
+          "estimated_worst_hp_loss": 3,
+          "approximation_count": 2,
+          "consumed_potions": [],
+          "forecast_kind": "heuristic_batch_continuation",
+          "bound_kind": "uncalibrated_estimate",
+          "endpoint": {
+            "hp": 58,
+            "energy": 2,
+            "block": 5,
+            "enemy_hp": 23
+          }
+        }
+      ],
+      "candidate_count": 21,
+      "nodes": 62,
+      "limits": [],
+      "assumptions": [
+        "UNMODELED_RELIC:RELIC.PRECISE_SCISSORS",
+        "current_move_ambiguous:MONSTER.FUZZY_WURM_CRAWLER",
+        "current_move_unknown:MONSTER.FUZZY_WURM_CRAWLER"
+      ],
+      "deck_capabilities": {
+        "cards": 10,
+        "attack_ratio": 0.5,
+        "damage_per_draw": 3.2,
+        "block_per_draw": 2.0,
+        "persistent_strength_per_draw": 0.0,
+        "extra_draw_per_draw": 0.0,
+        "energy_per_draw": 0.0,
+        "attack_segments_per_draw": 0.5,
+        "energy_demand_per_draw": 1.0,
+        "cheap_ratio": 0.8,
+        "healing_cards": [],
+        "victory_heal": 6,
+        "unknown_card_ids": [],
+        "basis": "overlapping capabilities, not a fixed archetype or guaranteed draw"
+      },
+      "run_resources": {
+        "reserve_fraction": 0.4,
+        "nearest_possible_rest": null,
+        "pressure": 0,
+        "rest_weight": 8.0,
+        "basis": "visible reachable rooms within four steps; route choice and future damage are estimates"
+      },
+      "recorded_choice_event_ids": [],
+      "recommendation": [
+        "防御",
+        "打击",
+        "防御",
+        "end_turn"
+      ]
+    }
+  ],
+  "execution_authorized": false,
+  "limitations": [
+    "Only copied control_mode is overridden for read-only recommendation.",
+    "No model requests, game actions or original archive changes. Time budgets may cause estimate variation.",
+    "Independent archived states are not one counterfactual game trajectory.",
+    "Paused turn 3 uses an explicitly synthetic cost-only action catalogue."
+  ]
+}
