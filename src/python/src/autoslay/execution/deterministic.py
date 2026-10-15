@@ -39,10 +39,21 @@ class DeterministicExecutor:
                 if not acquired: return dict(status='rejected',reason='EXECUTOR_BUSY')
                 path=self.directory/(request_id+'.json')
                 if path.exists(): return json.loads(path.read_text(encoding='utf-8'))
+                before=await self.fetch()
+                current_source=source(before)
                 # An interrupted dispatch blocks later IDs until the bridge confirms settlement.
                 for old_path in self.directory.glob('*.json'):
                     old=json.loads(old_path.read_text(encoding='utf-8'))
                     if old.get('status') not in {'completed','failed','rejected'}:
+                        request=old.get('request') or {}
+                        # The bridge's receipts belong to one runtime session. Historical
+                        # unknown results remain evidence, but cannot block a different run.
+                        if (before.get('connected') and not before.get('error')
+                                and current_source['session_epoch'] and current_source['run_id']
+                                and request.get('session_epoch') and request.get('run_id')
+                                and (request['session_epoch']!=current_source['session_epoch']
+                                     or request['run_id']!=current_source['run_id'])):
+                            continue
                         receipt=await self.status(old['request']['request_id'])
                         if receipt.get('status')=='awaiting_choice':
                             choice_snapshot=await self.fetch();choice_state=choice_snapshot.get('state') or {}
@@ -51,7 +62,7 @@ class DeterministicExecutor:
                         if receipt.get('status') not in {'completed','failed','rejected'}:
                             return dict(status='unresolved',reason='PREVIOUS_ACTION_UNRESOLVED',request=old['request'])
                         old.update(status=receipt['status'],receipt=receipt,recovered_by_status_query=True);save(old_path,old)
-                before=await self.fetch();started=perf_counter();proof=await asyncio.to_thread(qualify,before,bounded)
+                started=perf_counter();proof=await asyncio.to_thread(qualify,before,bounded)
                 analysis_ms=(perf_counter()-started)*1000
                 if not proof['eligible']: return dict(status=proof['mode'],autonomy=proof)
                 # Re-evaluate, rather than accepting a proof/candidate supplied by callers.

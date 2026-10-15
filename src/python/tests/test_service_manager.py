@@ -232,6 +232,38 @@ def test_manager_rejects_arbitrary_process_or_scope_parameters(service):
 
 
 @pytest.mark.skipif(os.name != 'nt', reason='Windows process identity guard')
+def test_reused_foreign_pid_is_absent_without_requesting_termination(tmp_path, monkeypatch):
+    from autoslay.services import processes
+    from autoslay.services.manager import Backend as RealBackend
+    pidfile = tmp_path/'.runtime/local/dashboard.pid'
+    pidfile.parent.mkdir(parents=True)
+    pidfile.write_text('12345', encoding='ascii')
+    monkeypatch.setattr(processes, 'process_executable', lambda pid: tmp_path/'foreign.exe')
+    # A foreign executable is rejected before opening a handle with termination rights.
+    monkeypatch.setattr(processes.ctypes, 'WinDLL', lambda *a, **k: pytest.fail('termination handle requested'))
+    monkeypatch.setattr('autoslay.services.manager.occupied', lambda port: False)
+    assert RealBackend(tmp_path).owner('dashboard') is None
+    monkeypatch.setattr('autoslay.services.manager.occupied', lambda port: True)
+    with pytest.raises(ValueError, match='PROCESS_IDENTITY_UNVERIFIED'):
+        RealBackend(tmp_path).owner('dashboard')
+
+
+@pytest.mark.parametrize('name', ['WmiPrvSE', 'python', None])
+@pytest.mark.skipif(os.name != 'nt', reason='Windows process identity guard')
+def test_protected_pid_requires_evidence_of_a_different_process_name(tmp_path, monkeypatch, name):
+    from autoslay.services import processes
+    def denied(pid):
+        raise ValueError('PROCESS_IDENTITY_UNVERIFIED')
+    monkeypatch.setattr(processes, 'process_executable', denied)
+    monkeypatch.setattr(processes.subprocess, 'run', lambda *a, **k:
+        subprocess.CompletedProcess(a, 0, stdout=json.dumps(name)))
+    monkeypatch.setattr(processes.ctypes, 'WinDLL', lambda *a, **k: pytest.fail('termination handle requested'))
+    expected = ProcessLookupError if name == 'WmiPrvSE' else ValueError
+    with pytest.raises(expected):
+        processes.OwnedProcess(12345, tmp_path/'python.exe', tmp_path/'dashboard.py')
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows process identity guard')
 def test_windows_owned_handle_rejects_wrong_script_and_stops_only_test_child(tmp_path):
     from autoslay.services.processes import OwnedProcess
     script = tmp_path/'harmless-service.py'

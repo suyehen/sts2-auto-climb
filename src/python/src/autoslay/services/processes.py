@@ -32,11 +32,51 @@ def service_command(args, executable, script):
             args[index+1:] in ([], expected_tail))
 
 
+def process_executable(pid):
+    """Read identity without requesting permission to terminate a foreign process."""
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    handle = kernel.OpenProcess(0x1000, False, pid)
+    if not handle:
+        if ctypes.get_last_error() == 87:
+            raise ProcessLookupError(pid)
+        raise ValueError('PROCESS_IDENTITY_UNVERIFIED')
+    try:
+        size = wintypes.DWORD(32768)
+        image = ctypes.create_unicode_buffer(size.value)
+        if not kernel.QueryFullProcessImageNameW(handle, 0, image, ctypes.byref(size)):
+            raise ValueError('PROCESS_IDENTITY_UNVERIFIED')
+        return Path(image.value).resolve()
+    finally:
+        kernel.CloseHandle(handle)
+
+
 class OwnedProcess:
     """No PID-only kill: a reused PID cannot retarget the retained process handle."""
     def __init__(self, pid, executable, script):
         if os.name != 'nt' or not isinstance(pid, int) or pid <= 0 or pid == os.getpid():
             raise ValueError('PROCESS_IDENTITY_UNVERIFIED')
+        # A PID file can outlive its service and be reused by an unrelated app.
+        # The caller still checks the service port before treating it as absent.
+        try:
+            foreign = process_executable(pid) != Path(executable).resolve()
+        except ValueError:
+            # Protected Windows processes can deny even limited image queries.
+            # Process enumeration still exposes their executable name.
+            query = (f"Get-Process -Id {pid} -ErrorAction SilentlyContinue | "
+                     "Select-Object -ExpandProperty ProcessName | ConvertTo-Json -Compress")
+            result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', query],
+                                    capture_output=True, encoding='utf-8', timeout=8,
+                                    creationflags=subprocess.CREATE_NO_WINDOW, check=True)
+            name = json.loads(result.stdout) if result.stdout.strip() else None
+            if not isinstance(name, str) or name.casefold() == Path(executable).stem.casefold():
+                raise ValueError('PROCESS_IDENTITY_UNVERIFIED') from None
+            foreign = True
+        if foreign:
+            raise ProcessLookupError(pid)
         self.kernel = ctypes.WinDLL('kernel32', use_last_error=True)
         k = self.kernel
         k.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]

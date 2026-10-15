@@ -1,8 +1,9 @@
 import asyncio
 import json
 from copy import deepcopy
+from unittest.mock import AsyncMock
 import pytest
-from autoslay.decision.deterministic import assess,load_policy,CERTIFICATES
+from autoslay.decision.deterministic import assess,load_policy,CERTIFICATES,source
 from autoslay.decision.outcomes import Outcome,compare
 from autoslay.execution.deterministic import DeterministicExecutor
 from test_execution import snapshot
@@ -208,6 +209,32 @@ def test_new_id_blocked_by_unresolved_dispatch_then_status_recovery(tmp_path):
         assert (await ex.execute('next'))['status']=='completed' and len(calls)==2
         assert (await ex.execute('first'))['recovered_by_status_query'] is True
     asyncio.run(run())
+
+@pytest.mark.parametrize('changed', ['session_epoch', 'run_id', 'same', 'unknown'])
+def test_historical_pending_dispatch_only_blocks_its_own_context(tmp_path, changed):
+    async def run():
+        s=live()
+        old_request=dict(request_id='old-action', session_epoch=s['session_epoch'],
+                         run_id=source(s)['run_id'], action_id='end_turn')
+        if changed in {'session_epoch','run_id'}:old_request[changed]='old-context'
+        old=dict(status='dispatch_pending',request=old_request)
+        path=tmp_path/'old.json';path.write_text(json.dumps(old),encoding='utf-8')
+        if changed=='unknown':s['session_epoch']=None
+        async def fetch():return deepcopy(s)
+        submit=AsyncMock(return_value=dict(status='completed'))
+        status=AsyncMock(return_value=dict(status='unknown'))
+        executor=DeterministicExecutor(tmp_path,fetch,submit,record=False,status=status)
+        result=await executor.execute('new')
+        if changed in {'session_epoch','run_id'}:
+            assert result['status']=='completed'
+            assert submit.await_count==1 and status.await_count==0
+        else:
+            assert result['reason']=='PREVIOUS_ACTION_UNRESOLVED'
+            assert submit.await_count==0 and status.await_count==1
+        assert json.loads(path.read_text(encoding='utf-8'))==old
+        assert (await executor.execute('old'))==old
+    asyncio.run(run())
+
 
 def test_local_proof_archived_as_local_choice_not_ai(tmp_path):
     from autoslay.telemetry import decisions
