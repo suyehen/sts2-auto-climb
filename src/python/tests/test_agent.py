@@ -228,6 +228,8 @@ def make_agent(tmp_path, **options):
     control=AsyncMock(return_value={})
     submit=AsyncMock(return_value=dict(status='completed'))
     st=store(tmp_path);st.active='codex'
+    # These fixtures exercise the explicitly retained optional AI path.
+    st.decision={'autonomy':{'combat_batches_enabled':False}}
     agent=Agent(st,fetch=fetch,control=control,submit=submit,record=False,
         journal=tmp_path/'journal',analyze=lambda snap:dict(source=source(snap),phase='combat',analysis_id='test'),**options)
     return agent,s,control,submit

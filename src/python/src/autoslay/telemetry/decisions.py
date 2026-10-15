@@ -100,6 +100,7 @@ def packet(report):
                 coverage=(report.get('combat') or {}).get('coverage'),combat_forecast=forecast_packet((report.get('combat') or {}).get('lookahead')),
                 autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),
                 combat_strategy=strip_details((report.get('combat') or {}).get('strategy')),
+                combat_batches=strip_details((report.get('combat') or {}).get('batches')),
                 combat_diagnostics=report.get('combat_diagnostics'),
                 limitations=report.get('limitations'),knowledge=report.get('knowledge_compatibility'))
 

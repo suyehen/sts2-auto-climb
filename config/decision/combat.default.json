@@ -19,6 +19,16 @@
     "strength_value_cap": 12.0,
     "worst_loss_weight": 0.5
   },
+  "batch": {
+    "hp_weight": 2.0,
+    "hp_sensitivity": 3.0,
+    "rest_opportunity": 8.0,
+    "reserve_fraction": 0.4,
+    "unknown_penalty": 3.0,
+    "tie_margin": 1.0,
+    "terminal_enemy_hp_weight": 0.4,
+    "death_penalty": 10000.0
+  },
   "potion_reserve": {
     "costs": {
       "POTION.FIRE_POTION": {

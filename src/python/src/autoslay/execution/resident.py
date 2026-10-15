@@ -6,7 +6,7 @@ from pathlib import Path
 from autoslay.bridge.client import load_config, persistent_transport, fetch_state
 from autoslay.decision.service import analyze
 from autoslay.execution.sequence import SequenceExecutor
-from autoslay.execution.deterministic import DeterministicExecutor
+from autoslay.execution.deterministic import DeterministicExecutor,qualify
 from autoslay.decision.deterministic import assess as deterministic_assess
 from autoslay.decision.unified import analyze_decision, evaluate_run_choices
 from autoslay.calibration import store as calibration
@@ -54,7 +54,7 @@ async def serve(port=PORT, ready=None):
                         result = await deterministic_executor.execute(body['request_id'])
                     else:
                         snapshot = await fetch_state()
-                        result = deterministic_assess({}, snapshot)
+                        result = await asyncio.to_thread(qualify,snapshot)
                 elif route == "/analyze":
                     snapshot=await fetch_state()
                     result = await asyncio.to_thread(analyze, snapshot)

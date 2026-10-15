@@ -2,7 +2,7 @@ from dataclasses import asdict, dataclass, field
 from math import isfinite
 from autoslay.decision.contracts import CombatState, Operation, Transition
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 
 @dataclass(frozen=True)
@@ -14,15 +14,21 @@ class CombatPolicy:
     draw_option_weight: float = 0.0
     short_term: dict = field(default_factory=dict)
     potion_reserve: dict = field(default_factory=dict)
+    batch: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.version, str) or not self.version:
             raise ValueError("Policy version required")
         for key, value in asdict(self).items():
-            if key not in {'version','short_term','potion_reserve'} and (type(value) not in {int, float} or not isfinite(value) or value < 0):
+            if key not in {'version','short_term','potion_reserve','batch'} and (type(value) not in {int, float} or not isfinite(value) or value < 0):
                 raise ValueError("Weights must be finite nonnegative numbers")
         from .combat_value import ValuePolicy
         ValuePolicy(**self.short_term)
+        from .combat_resources import DEFAULTS
+        if self.batch.keys()-DEFAULTS.keys() or any(type(v) not in (int,float) or not isfinite(v) or v<0 for v in self.batch.values()):
+            raise ValueError('Invalid combat batch parameters')
+        if not 0<self.batch.get('reserve_fraction',DEFAULTS['reserve_fraction'])<=1:
+            raise ValueError('Invalid HP reserve fraction')
         for cost in self.potion_reserve.get('costs',{}).values():
             if not isinstance(cost,dict) or set(cost)!={'lower','upper'} or any(
                 type(v) not in (int,float) or not isfinite(v) or v<0 for v in cost.values()) or cost['lower']>cost['upper']:

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {renderCombatStrategy} from '../public/sidebar-combat.js';
+import {renderCombatStrategy,renderCombatBatches} from '../public/sidebar-combat.js';
 import {renderCombatMetrics} from '../public/presentation.js';
 
 class Element{
@@ -26,4 +26,14 @@ test('combat statistics separate active choices and model requests and preserve 
   active_choices:{local_rate:0,total:2},model_requests:{count:null},execution:{success_rate:null}}));
  assert.match(value,/战斗自主率 50.0%.*主动决策自主率 0.0%/);
  assert.match(value,/实际模型请求数 未记录/);assert.match(value,/缺少请求或质量证据时显示未知/);
+});
+
+test('batch display shows whole operations and the next decision boundary without a calibration gate',()=>{
+ const value=render(host=>renderCombatBatches(host,{selected_batch:{batch_id:'a'},top_batches:[
+  {batch_id:'a',steps:[{action_id:'play_a'},{action_id:'end_turn'}],score:12,stop_reason:'next_turn_requires_observation',
+   approximation_count:1,utility_components:{run_hp_value:-6}}],limits:['time_limit'],assumptions:['unknown relic']},{state:{}}));
+ assert.match(value,/本地操作批次.*不要求最优或校准/);
+ assert.match(value,/已选择.*下一玩家回合/);
+ assert.match(value,/整局生命价值变化 -6/);
+ assert.match(value,/仍由本地选择/);
 });

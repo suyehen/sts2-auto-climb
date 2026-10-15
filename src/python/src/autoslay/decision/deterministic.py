@@ -10,7 +10,7 @@ from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge_base.events import resource_hook_warnings
 from autoslay.decision.outcomes import Outcome,compare
 
-VERSION='1.2.0'
+VERSION='1.3.0'
 POLICY_PATH=ROOT/'config/decision/autonomy.default.json'
 CERTIFICATES=dataset_path('certificates')
 ADMIN={'return_to_main_menu','quit_game'}
@@ -182,10 +182,19 @@ def assess(report,snapshot,policy=None):
     if s.get('control_mode')=='paused': return reject('control_paused','wait')
     if not snapshot.get('connected') or snapshot.get('error') or not snapshot.get('ready') or snapshot.get('busy'): return reject('state_not_ready','wait')
     if event_options_settling(snapshot): return reject('event_options_not_ready','wait')
+    if s.get('pending_combat_action') and s.get('phase')=='card_selection' and policy.get('combat_batches_enabled',False):
+        if not certificates(snapshot) or not all(result['source'].get(k) is not None for k in ('session_epoch','state_version','run_id')):
+            return reject('selection_execution_identity_unavailable','wait')
+        from .local_combat import select_combat_selection
+        selected=select_combat_selection(snapshot)
+        if not selected:return reject('combat_selection_not_ready','wait')
+        result.update(eligible=True,mode='local_deterministic',rule_id=selected['rule_id'],reason=selected['reason'],
+            selected_steps=selected['steps'],evidence=selected['evidence'],decision_basis=selected['decision_basis'])
+        return result
     if s.get('pending_combat_action') or s.get('pending_event_action'): return reject('nested_choice_requires_context')
     if not all(result['source'].get(k) is not None for k in ('session_epoch','state_version','run_id')): return reject('missing_execution_identity')
     cert=certificates(snapshot)
-    if not cert: return reject('game_source_not_certified')
+    if not cert: return reject('game_source_not_certified','wait' if s.get('phase')=='combat' and policy.get('combat_batches_enabled',False) else 'ai_required')
     actions=[a for a in s.get('legal_actions',[]) if a.get('type') not in ADMIN];ops=operations(actions)
     if not ops: return reject('no_legal_operation','wait')
     enabled=set(policy.get('enabled_rules',[]));proof=None
@@ -209,6 +218,19 @@ def assess(report,snapshot,policy=None):
                     steps=[dict(action_id=chosen,target_id=None)],evidence=dict(min_select=minimum,card_count=len(cards),selected_count=sum(c.get('selected') is True for c in cards)))
     if proof is None and s.get('phase')=='combat' and 'forced_end_turn' in enabled and len(ops)==1 and actions[0].get('type')=='end_turn':
         proof=dict(rule_id='forced_end_turn',reason='没有可执行的牌、药水或其他回合内操作，只能结束回合。',steps=ops,evidence=dict(operation_count=1))
+    batch_mode=s.get('phase')=='combat' and policy.get('combat_batches_enabled',False)
+    if batch_mode and report and (report.get('combat') or {}).get('batches'):
+        from autoslay.decision.local_combat import select_batch
+        proof,reasons=select_batch(report,snapshot)
+        result['checks'].append(dict(rule_id='local_combat_batch',blockers=reasons))
+        if proof:
+            result.update(eligible=True,mode='local_deterministic',rule_id=proof['rule_id'],reason=proof['reason'],
+                selected_steps=proof['steps'],evidence=proof['evidence'],decision_basis=proof['decision_basis'])
+            batches=report['combat']['batches'];scores=[r['score'] for r in batches.get('top_batches') or []]
+            result['score_review']=dict(leading_score=scores[0] if scores else None,runner_up_score=scores[1] if len(scores)>1 else None,
+                automatic_gap_selection=True,reason='操作批次按统一资源价值比较；接近分数由本地取舍，校准不是行动前置条件。')
+            return result
+        return reject(reasons[0] if reasons else 'combat_batch_analysis_required','wait')
     rules=[('certain_combat_finish','combat',finish),('eliminate_certain_death','event',event_survival),
            ('open_card_reward','rewards',open_card_reward)]
     for identity,phase,rule in rules:

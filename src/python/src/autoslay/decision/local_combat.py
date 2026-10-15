@@ -8,6 +8,54 @@ from autoslay.knowledge_base.repository import read_json, dataset_path
 VERSION = '1.2.0'
 
 
+def select_batch(report,snapshot):
+    from .deterministic import source,operations,ADMIN
+    if any((report.get('source') or {}).get(k)!=v for k,v in source(snapshot).items()):
+        return None,['local_combat_requires_matching_analysis']
+    batches=(report.get('combat') or {}).get('batches') or {}
+    batch=batches.get('selected_batch')
+    if not batch or not batch.get('steps'):return None,['combat_batch_analysis_required']
+    legal=operations([a for a in snapshot['state'].get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}])
+    if batch['steps'][0] not in legal:return None,['combat_batch_first_operation_stale']
+    return dict(rule_id='local_combat_batch',decision_basis='local_combat_batch',
+        reason='本地按操作批次比较战斗与整局资源；接近分数自行取舍，到观察或目标边界重新决策。收益和风险是估计，允许策略误差。',
+        steps=batch['steps'],evidence=dict(module_version=batches['module_version'],optimality_proven=False,
+            selected_batch=batch,top_batches=batches.get('top_batches'),deck_capabilities=batches.get('deck_capabilities'),
+            run_resources=batches.get('run_resources'),assumptions=batches.get('assumptions'),limits=batches.get('limits'),
+            decision_unit='operation_batch',stop_reason=batch['stop_reason'])),[]
+
+
+def select_combat_selection(snapshot):
+    """Resolve a public nested combat selector locally, one observed choice at a time."""
+    from .deterministic import operations,ADMIN
+    from autoslay.planning.combat_batches import visible_action_score
+    from autoslay.evaluation.combat_resources import DEFAULTS
+    selection=snapshot['state'].get('card_selection') or {}
+    if selection.get('decision_ready') is False:return None
+    actions=[a for a in snapshot['state'].get('legal_actions') or [] if a.get('type') not in ADMIN]
+    ops=operations(actions);cards=selection.get('cards') or [];selected=sum(c.get('selected') is True for c in cards)
+    needed=selection.get('min_select')
+    needed=needed if type(needed) is int and needed>0 else 1
+    confirms={a['action_id'] for a in actions if a.get('type') in {'confirm_card_selection','preview_card_selection','close_card_selection'}}
+    chosen=next((op for op in ops if op['action_id'] in confirms),None) if selected>=needed else None
+    if chosen is None:
+        prompt=selection.get('prompt') or '';negative=any(word in prompt.lower() for word in ('discard','exhaust','移除','消耗','弃'))
+        ranked=[]
+        for row in cards:
+            op=next((op for op in ops if op['action_id']==row.get('action_id')),None)
+            if op and row.get('available') is True and row.get('selected') is not True:
+                card=row.get('card') or {}
+                proxy=dict(state=dict(snapshot['state'],player=dict(snapshot['state']['player'],hand=[card])))
+                score=visible_action_score(proxy,Operation('play_'+card['instance_id']),{},DEFAULTS) if card.get('instance_id') else 0
+                ranked.append(((-score if negative else score),op))
+        if ranked:chosen=max(ranked,key=lambda pair:(pair[0],pair[1]['action_id']))[1]
+    if chosen is None:chosen=next((op for op in ops if op['action_id'] in confirms),None)
+    if not chosen:return None
+    return dict(rule_id='local_combat_selection',decision_basis='local_combat_selection',
+        reason='本地按当前选牌提示和可见卡牌收益选择；完成后重新观察父动作与选择界面。',
+        steps=[chosen],evidence=dict(optimality_proven=False,decision_unit='observed_selection',prompt=selection.get('prompt')))
+
+
 def select(report, snapshot):
     from .deterministic import source, operations, ADMIN
     expected = source(snapshot)

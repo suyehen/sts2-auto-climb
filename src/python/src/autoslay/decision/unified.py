@@ -33,7 +33,7 @@ from autoslay.decision.mechanisms import attach as attach_mechanisms
 from autoslay.knowledge_base.behavior import load as load_behavior
 from autoslay.evaluation.event_adapters import VERSION as EVENT_ADAPTER_VERSION
 
-VERSION='1.8.0'
+VERSION='1.9.0'
 CACHE=AnalysisCache()
 
 def relevant_entities(value):
@@ -85,6 +85,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     autonomy_policy=decision_config(ROOT/'config/decision/autonomy.default.json')
     from autoslay.calibration.combat import load as load_combat_calibration
     calibration=load_combat_calibration(autonomy_policy.get('combat_calibration_id',''))
+    from autoslay.execution.batch_models import load as batch_model_status
     interactions=load_interactions()
     entries,knowledge_hash=index(expected_version=snapshot['game_version'])
     rulebook=Rulebook()
@@ -98,7 +99,8 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                     event_rules=digest(event_rules()),
                     event_adapter=EVENT_ADAPTER_VERSION,
                     event_source=digest(next((e for e in load_behavior()['entries'] if e['entity_id']==(s.get('event_screen') or {}).get('entity_id')),None)) if phase=='event' else None,
-                    combat_calibration=digest(calibration),autonomy=autonomy_policy))
+                    combat_calibration=digest(calibration),autonomy=autonomy_policy,
+                    batch_model_status=batch_model_status() if autonomy_policy.get('combat_batches_enabled') else None))
     cached=CACHE.get(key) if use_cache else None
     if cached is not None:
         cached.update(source=source(snapshot),analysis_id=uuid.uuid4().hex,cache_hit=True,
@@ -130,6 +132,9 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
         if not danger: settings.update(branches=4,time_ms=250)
         report.update(budget_tier=tier,combat=analyze(snapshot,budget=SearchBudget(**adaptive[tier]),policy=combat_policy,
                        lookahead_settings=settings,scenarios=scenarios))
+        if autonomy_policy.get('combat_batches_enabled',False):
+            from autoslay.planning.combat_batches import analyze as analyze_batches
+            report['combat']['batches']=analyze_batches(snapshot,entries,combat_policy,adaptive['strategy'],SearchBudget(**adaptive[tier]))
         if autonomy_policy.get('strategy_mode','off')!='off':
             from autoslay.planning.combat_strategy import analyze as analyze_strategy
             from autoslay.decision.normalize import normalize
@@ -151,6 +156,8 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
             report['combat']['strategy']=strategy
         report['shortlist']=report['combat']['candidates'][:3]
         report['observations']=report['combat']['observation_boundaries'][:3]
+        if report['combat'].get('batches'):
+            report['shortlist']=report['combat']['batches']['top_batches']
     elif s.get('player') and (s['player'].get('deck') or []):
         run=context_for(snapshot,context); deck=s['player']['deck']
         report.update(context=asdict(run),deck=deck_value(deck,run,entries,policy))

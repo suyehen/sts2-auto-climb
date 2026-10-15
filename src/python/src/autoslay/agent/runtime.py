@@ -74,6 +74,10 @@ class Agent:
         from .launch import LaunchCoordinator
         self.launch = LaunchCoordinator(self, self.journal/'launch')
 
+    def combat_batches_enabled(self):
+        from autoslay.decision.deterministic import load_policy
+        return (self.store.decision.get('autonomy') or {}).get('combat_batches_enabled',load_policy().get('combat_batches_enabled',False))
+
     def status(self):
         return dict(running=self.running, phase=self.phase, error=self.error, generation=self.generation,
                     last=self.last, model_wait=self.model_wait, error_details=self.error_details, launch_active=self.launch.active,
@@ -171,9 +175,10 @@ class Agent:
                 if self.running: return self.status()
                 await self.launch.recover()
                 p = self.store.profiles[self.store.active]
-                if not p.model and p.kind != 'codex' or p.kind == 'api' and not self.store.key(p):
-                    raise ValueError('PROVIDER_NOT_CONFIGURED')
                 snapshot = await self.fetch()
+                local_combat=(snapshot.get('state') or {}).get('phase')=='combat' and self.combat_batches_enabled()
+                if not local_combat and (not p.model and p.kind != 'codex' or p.kind == 'api' and not self.store.key(p)):
+                    raise ValueError('PROVIDER_NOT_CONFIGURED')
                 if not snapshot.get('connected') or snapshot.get('error'): raise ValueError('GAME_NOT_CONNECTED')
                 if (snapshot.get('state') or {}).get('phase') in {'main_menu', 'singleplayer_menu', 'character_selection', 'no_run', 'game_over'}:
                     raise ValueError('ENTER_OR_CONTINUE_RUN_FIRST')
@@ -316,7 +321,7 @@ class Agent:
                 strategy=assess(report,snapshot)
                 if strategy['eligible']:
                     self.phase='local_deterministic'
-                    kwargs={'bounded':True} if strategy.get('decision_basis') in {'bounded_combat_strategy','calibrated_combat_strategy'} else {}
+                    kwargs={'bounded':True} if strategy.get('decision_basis') in {'bounded_combat_strategy','calibrated_combat_strategy','local_combat_batch'} else {}
                     result=await self.local_execute(snapshot, strategy, **kwargs)
                     if result.get('status') in {'completed','awaiting_choice'}:
                         previous=token
@@ -326,6 +331,9 @@ class Agent:
                         await asyncio.sleep(.2)
                         continue
                     raise ValueError('LOCAL_ACTION_'+str(result.get('status','UNKNOWN')).upper())
+                if s.get('phase')=='combat':
+                    if self.combat_batches_enabled():
+                        self.phase='waiting_local_combat';await asyncio.sleep(.2);continue
                 packet = build(snapshot, report, self.recent)
                 p = self.store.profiles[self.store.active]
                 provider = self.factory(p, self.store.key(p))

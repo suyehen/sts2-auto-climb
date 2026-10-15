@@ -1,6 +1,7 @@
 {
   "version": "2.0.0",
   "deterministic_enabled": true,
+  "combat_batches_enabled": true,
   "enabled_rules": [
     "forced_action",
     "forced_end_turn",

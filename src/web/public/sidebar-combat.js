@@ -21,6 +21,24 @@ export function renderCombatStrategy(host,strategy,snapshot){
  host.append(panel);
 }
 
+export function renderCombatBatches(host,batches,snapshot){
+ if(!batches)return;
+ const panel=el('details');panel.id='combat-batches';panel.open=true;
+ panel.append(el('summary','本地操作批次 · 到决策边界重新选择'));
+ panel.append(el('p','比较当前批次及其后续资源收益；评分为启发式估计，不要求最优或校准后才能选择。','hint'));
+ const stops={batch_goal_completed:'批次目标完成',draw_requires_observation:'抽牌结算后重新决策',next_turn_requires_observation:'下一玩家回合',combat_victory:'战斗结束',unmodeled_effect_observation:'观察未建模效果',model_downgrade_observation:'降级模型，结算后重选'};
+ for(const row of batches.top_batches||[]){
+  const item=el('details');item.append(el('summary',(row.batch_id===batches.selected_batch?.batch_id?'已选择 · ':'')+row.steps.map(s=>actionName(s,snapshot)).join(' → ')));
+  item.append(definitions([['方案评分',row.score],['重新决策场景',stops[row.stop_reason]||row.stop_reason],['预计最大失血',row.estimated_worst_hp_loss],['近似项数量',row.approximation_count]]));
+  const labels={run_hp_value:'整局生命价值变化',victory_heal:'本方案胜利回血',baseline_victory_heal:'对照方案胜利回血',finish:'结束战斗',remaining_enemy:'剩余敌人生命',enemy_growth:'敌方成长',player_growth:'玩家成长',pollution:'牌堆污染',potion_reserve:'药水成本',unknown:'未知效果估计代价'};
+  item.append(definitions(Object.entries(row.utility_components||{}).map(([k,v])=>[labels[k]||k,v])));panel.append(item);
+  if(row.resource_forecast)item.append(definitions([['预计回血后生命',row.resource_forecast.projected_hp_after_heal],['本方案胜利回血',row.resource_forecast.victory_heal],['对照方案胜利回血',row.resource_forecast.baseline_victory_heal]]));
+ }
+ if(batches.assumptions?.length)panel.append(el('p','估计缺口：'+batches.assumptions.join('；'),'hint'));
+ if(batches.limits?.length)panel.append(el('p','预算限制：'+batches.limits.join('、')+'；仍由本地选择。','hint'));
+ host.append(panel);
+}
+
 export function renderSidebarCombat(intents,calculation,record,latest){
  intents.replaceChildren();calculation.replaceChildren();
  const snapshot=latest||{},s=snapshot.state||{},report=record?.report||{},forecast=report.combat?.lookahead;
@@ -44,6 +62,7 @@ export function renderSidebarCombat(intents,calculation,record,latest){
   intents.append(el('p',text,'decision-note'));calculation.append(el('p',text,'decision-note'));return;
  }
  renderCombatStrategy(calculation,report.combat?.strategy,record.snapshot);
+ renderCombatBatches(calculation,report.combat?.batches,record.snapshot);
  if(!forecast){
   const text='当前分析尚无后续意图模型，后续行动与失血未知。';
   intents.append(el('p',text,'hint'));calculation.append(el('p',text,'hint'));return;
@@ -90,7 +109,7 @@ export function renderDecisionFlow(host,record,choice=null,evidence=null,status=
   section.append(heading);for(const node of body)section.append(node);host.append(section);
  };
  const text=value=>el('p',value,'flow-copy');
- const localBody=[text(!report?'等待游戏状态与分析。':history&&!autonomy?'这条旧记录未保存自主检查依据。':autonomy?.eligible?(['bounded_combat_strategy','calibrated_combat_strategy'].includes(autonomy.decision_basis)?'本地当前回合策略覆盖检查通过；执行首步后重新观察，不代表整局最优证明。':'确定性检查通过，可自主执行。'):autonomy?.mode==='wait'?'状态尚未就绪，等待下一次检查。':'未通过确定性检查，交由 AI 综合判断。')];
+ const localBody=[text(!report?'等待游戏状态与分析。':history&&!autonomy?'这条旧记录未保存自主检查依据。':autonomy?.eligible?(autonomy.decision_basis==='local_combat_batch'?'本地选择一批操作，逐步确认结算，到决策边界重新选择；允许策略估计误差。':['bounded_combat_strategy','calibrated_combat_strategy'].includes(autonomy.decision_basis)?'本地当前回合策略覆盖检查通过；执行首步后重新观察，不代表整局最优证明。':'确定性检查通过，可自主执行。'):autonomy?.mode==='wait'?'状态尚未就绪，等待下一次检查。':'当前阶段尚未完成本地选择。')];
  if(autonomy?.eligible&&autonomy.selected_steps?.length)localBody.push(text(autonomy.selected_steps.map(s=>actionName(s,snapshot)).join(' → ')));
  if(autonomy?.reason)localBody.push(el('p',reason(autonomy.reason),'hint'));
  if(autonomy)localBody.push(autonomyPanel(autonomy,snapshot));
