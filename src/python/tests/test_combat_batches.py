@@ -161,6 +161,57 @@ def test_no_known_surviving_plan_still_selects_locally():
     assert assess(dict(source=source(s),combat=dict(batches=b)),s)['eligible']
 
 
+def test_downgraded_attack_cannot_hide_lethal_enemy_turn(monkeypatch):
+    from autoslay.execution import batch_models
+    monkeypatch.setattr(batch_models,'load',lambda:dict(entities={'CARD.STRIKE_IRONCLAD':{}}))
+    s=combat(turn=5);p=s['state']['player']
+    p['creature']['hp']=16
+    p['hand']=[p['deck'][-1],p['deck'][0],deepcopy(p['deck'][4]),p['deck'][5]]
+    p['hand'][0]['description']='Deal 10 damage. Apply 2 Vulnerable.'
+    p['hand'][2].update(upgrade_level=1,description='Gain 8 Block.')
+    s['state']['enemies'][0].update(hp=21,current_move_id=None,
+        intents=[dict(type='Attack',attack_damage=20,attack_repeats=1)])
+    actions(s)
+    b=plan(s)
+    chosen=b['selected_batch']
+    assert chosen['estimated_death_probability']==0
+    lethal=[r for r in b['top_batches'] if {x['action_id'] for x in r['steps']}=={'play_b','play_s0'}]
+    assert lethal and all(r['estimated_death_probability']==1 for r in lethal)
+    assert any(x['action_id'].startswith('play_d') for x in chosen['steps'])
+
+
+def test_unsupported_attack_does_not_beat_known_survival(monkeypatch):
+    from autoslay.execution import batch_models
+    monkeypatch.setattr(batch_models,'load',lambda:dict(entities={}))
+    s=combat(turn=5);p=s['state']['player'];p['creature']['hp']=20
+    unknown=deepcopy(p['deck'][0]);unknown.update(entity_id='CARD.NEW',description='Deal 15 damage.')
+    p['hand']=[unknown,p['deck'][4],p['deck'][5]]
+    s['state']['enemies'][0].update(hp=94,current_move_id=None,
+        intents=[dict(type='Attack',attack_damage=25,attack_repeats=1)])
+    actions(s)
+    b=plan(s)
+    assert b['selected_batch']['estimated_death_probability']==0
+    unsupported=[r for r in b['top_batches'] if r['stop_reason']=='unmodeled_effect_observation']
+    assert unsupported and all(r['estimated_death_probability']==1 for r in unsupported)
+    assert all(r['estimated_worst_hp_loss']==20 for r in unsupported)
+
+
+@pytest.mark.parametrize('branches',[[],[(1.0,None)]])
+def test_missing_draw_model_still_charges_visible_attack(monkeypatch,branches):
+    from autoslay.planning import combat_batches
+    monkeypatch.setattr(combat_batches,'draw_branches',lambda *a,**k:(branches,'unknown'))
+    s=combat(turn=5);p=s['state']['player'];p['creature']['hp']=16;p['energy']=1
+    draw=deepcopy(p['deck'][4])
+    draw.update(instance_id='draw',entity_id='CARD.SHRUG_IT_OFF',description='Gain 8 Block. Draw 1 card.')
+    p['hand']=[draw]
+    s['state']['enemies'][0].update(hp=21,current_move_id=None,
+        intents=[dict(type='Attack',attack_damage=20,attack_repeats=1)])
+    actions(s)
+    rows=[r for r in plan(s)['top_batches'] if r['stop_reason']=='draw_requires_observation']
+    assert rows and all(r['estimated_worst_hp_loss']==12 for r in rows)
+    assert all(r['estimated_death_probability']==0 for r in rows)
+
+
 def test_nested_combat_selection_is_local():
     s=combat();s['state'].update(phase='card_selection',pending_combat_action=dict(request_id='parent'))
     s['state']['card_selection']=dict(decision_ready=True,prompt='Choose a card',min_select=1,max_select=1,

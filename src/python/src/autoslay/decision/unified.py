@@ -28,6 +28,7 @@ from autoslay.simulation.engine import VERSION as SIMULATION_VERSION
 from autoslay.decision.service import VERSION as COMBAT_SERVICE_VERSION
 from autoslay.evaluation.combat import VERSION as COMBAT_EVALUATION_VERSION
 from autoslay.planning.lookahead import VERSION as LOOKAHEAD_VERSION
+from autoslay.planning.combat_batches import VERSION as BATCH_VERSION
 from autoslay.knowledge_base.behavior import relevant as behavior_references
 from autoslay.decision.mechanisms import attach as attach_mechanisms
 from autoslay.knowledge_base.behavior import load as load_behavior
@@ -96,6 +97,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                     version=VERSION,combat=COMBAT_SERVICE_VERSION,simulation=SIMULATION_VERSION,contract=CONTRACT_VERSION,
                     monster_source=digest(load_behavior()) if phase=='combat' else None,
                     combat_evaluation=COMBAT_EVALUATION_VERSION,rules=rulebook.fingerprint,lookahead=LOOKAHEAD_VERSION,
+                    combat_batches=BATCH_VERSION,
                     event_rules=digest(event_rules()),
                     event_adapter=EVENT_ADAPTER_VERSION,
                     event_source=digest(next((e for e in load_behavior()['entries'] if e['entity_id']==(s.get('event_screen') or {}).get('entity_id')),None)) if phase=='event' else None,

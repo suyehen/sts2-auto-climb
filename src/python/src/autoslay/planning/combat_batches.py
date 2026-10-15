@@ -19,7 +19,7 @@ from autoslay.rules.periodic_relics import advance
 from autoslay.rules.registry import clean
 import re
 
-VERSION='1.0.0'
+VERSION='1.1.0'
 
 
 def endpoint_key(transition):
@@ -197,12 +197,19 @@ def analyze(snapshot,entries,policy,settings,budget):
             meta={};drawn,_=draw_branches(state,transition.draw_count,templates,settings.get('branches',32),settings.get('seed',42)+ply,meta)
             sim=CombatSimulator(state,rules);values=[]
             for p,branch in drawn:
-                try:value=visit(sim.resume_draw(transition,branch),ply,depth) if branch is not None else terminal(state,1)
-                except (UnsupportedEffect,ValueError,KeyError):value=terminal(state,1)
+                try:value=visit(sim.resume_draw(transition,branch),ply,depth) if branch is not None else quick(state)
+                except (UnsupportedEffect,ValueError,KeyError):value=quick(state)
                 values.append((p,value))
-            result=combine(values,meta.get('method','exact'))
+            result=combine(values,meta.get('method','exact')) if values else quick(state)
         elif transition.boundary=='next_turn_requires_observation':result=end_turn(state,ply)
-        elif transition.boundary:result=terminal(state,1)
+        elif transition.boundary=='model_downgrade_observation':
+            # Execution must stop here, but scoring must still pay for the
+            # current enemy turn. Continue only the hypothetical forecast.
+            value=visit(replace(transition,boundary=None),ply,depth)
+            result=dict(value,parts=dict(value['parts']),unknown=value['unknown']+1)
+            result['parts']['unknown']-=parameters['unknown_penalty']
+            result['score']-=parameters['unknown_penalty']
+        elif transition.boundary:result=quick(state)
         else:
             values=[end_turn(state,ply)]
             if depth<min(5,budget.max_depth):
@@ -262,7 +269,11 @@ def analyze(snapshot,entries,policy,settings,budget):
     frontier.sort(key=lambda item:(item[0] is None,-len(item[1]),tuple((a.action_id,a.target_id or '') for a in item[1])))
     for transition,steps,boundary in frontier:
         if transition is None:
-            value=terminal(initial,1);estimate=visible_action_score(snapshot,steps[0],profile,parameters)
+            # An unavailable action model cannot establish zero incoming loss.
+            # Use the observed state's enemy-turn scenario, without inventing
+            # damage, block or healing from the unsupported action's text.
+            value=quick(initial);value=dict(value,parts=dict(value['parts']))
+            estimate=visible_action_score(snapshot,steps[0],profile,parameters)
             value['score']+=estimate;value['parts']['visible_action_estimate']=estimate
         else:value=visit(transition,1,len(steps))
         row=dict(batch_id=digest([asdict(s) for s in steps])[:16],steps=[asdict(s) for s in steps],
