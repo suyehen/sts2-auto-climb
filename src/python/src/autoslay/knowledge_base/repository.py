@@ -232,6 +232,16 @@ def read_view(path, kind, build):
     return REPOSITORY.view(document, kind, build)
 
 
+def document_sha256(path):
+    """Fingerprint the same pinned document used by read_json/read_view."""
+    snapshot = _active.get()
+    key = str(Path(path).resolve())
+    document = snapshot.documents[key] if snapshot is not None and key in snapshot.documents else REPOSITORY._document(path)
+    if document is None:
+        raise FileNotFoundError(str(path))
+    return document.sha256
+
+
 def current_snapshot():
     return _active.get()
 

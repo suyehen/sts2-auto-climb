@@ -17,7 +17,11 @@ namespace AutoSlayBridge;
 public static partial class Bridge
 {
     private static readonly CommandLedger Ledger = new();
-    private sealed record LegalAction(string ActionId, string Type, string? CardInstanceId, string[] AllowedTargetIds, bool AllowsNoTarget);
+    private sealed record LegalAction(string ActionId, string Type, string? CardInstanceId, string[] AllowedTargetIds, bool AllowsNoTarget,
+        ActionOrigin? Source = null)
+    {
+        public string DefinitionId => ActionCatalog.Require(Type).DefinitionId;
+    }
     private static readonly Dictionary<string, (CardModel? Card, Creature?[] Targets)> ActionBindings = new();
     private static GameAction? executing;
     private static ActionRequest? activeRequest;
@@ -53,10 +57,11 @@ public static partial class Bridge
             if (targets.Count == 0) continue;
             var actionId = "play_" + Id(card);
             ActionBindings[actionId] = (card, targets.ToArray());
-            actions.Add(new(actionId, "play_card", Id(card), targets.Where(c => c != null).Select(c => Id(c!)).ToArray(), targets.Contains(null)));
+            actions.Add(new(actionId, "play_card", Id(card), targets.Where(c => c != null).Select(c => Id(c!)).ToArray(), targets.Contains(null),
+                new("card", card.Id.ToString(), Id(card))));
         }
         ActionBindings["end_turn"] = (null, [null]);
-        actions.Add(new("end_turn", "end_turn", null, [], true));
+        actions.Add(new("end_turn", "end_turn", null, [], true, new("player_turn", player.Character.Id.ToString(), Id(player))));
         return actions.ToArray();
     }
 
@@ -278,6 +283,18 @@ public static partial class Bridge
         var run = RunManager.Instance.IsInProgress ? RunManager.Instance.DebugOnlyGetState() : null;
         var combat = manager.IsInProgress ? manager.DebugOnlyGetState() : null;
         var player = run?.Players.Count == 1 ? run.Players[0] : null;
+        // Manual save-and-exit can leave the old action awaiting a choice forever.
+        // It cannot block commands for the menu or a subsequently loaded run.
+        if (run == null || Id(run) != activeRequest.RunId)
+        {
+            var requestId = activeRequest.RequestId;
+            executing = null; activeRequest = null;
+            Ledger.Update(new(requestId, "failed", true, "RUN_CHANGED",
+                "The original run was unloaded; the dispatched action will not be replayed."), release: true);
+            Capture();
+            Ledger.Update(new(requestId, "failed", true, "RUN_CHANGED", SnapshotJson: snapshot));
+            return;
+        }
         if (action.State == GameActionState.GatheringPlayerChoice)
         {
             if (YieldCombatChoice()) return;

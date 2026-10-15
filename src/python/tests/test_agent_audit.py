@@ -10,7 +10,7 @@ from autoslay.archive.repository import Repository
 from autoslay.archive import collector
 from autoslay.agent.config import Profile
 from autoslay.agent.providers import APIProvider
-from test_agent import make_agent, payload
+from test_agent import make_agent, payload, choice_payload
 from test_execution import snapshot
 
 
@@ -49,7 +49,7 @@ def test_noncombat_plan_audit_accepts_null_combat_fields(tmp_path, phase):
             async def decide(self, packet):
                 from autoslay.decision.deterministic import source
                 return json.dumps(dict(state_token=source(s)['state_sha256'],
-                    steps=[dict(action_id='choose_option', target_id=None)], reason='离开事件')), {}
+                    candidate_id='option_1', reason='离开事件')), {}
         plan, _ = await agent.decide_plan(Provider(), {}, s, 1, 'plan', {}, agent.store.profiles['codex'])
         assert plan.steps[0].action_id == 'choose_option'
         validated = next(e['details'] for e in events(agent) if e['details']['event'] == 'plan_validated')
@@ -95,7 +95,7 @@ def test_transport_retry_and_validation_retry_have_distinct_attempts(tmp_path,mo
         def handler(request):
             calls.append(request)
             if len(calls)==1:return httpx.Response(503)
-            raw='invalid-private-response' if len(calls)==2 else payload(s)
+            raw='invalid-private-response' if len(calls)==2 else choice_payload(s)
             return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content=raw))],
                                   usage={'total_tokens':10,'secret':'never-store'}))
         monkeypatch.setattr('autoslay.agent.providers.asyncio.sleep',AsyncMock())

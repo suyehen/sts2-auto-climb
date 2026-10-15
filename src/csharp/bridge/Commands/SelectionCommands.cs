@@ -20,7 +20,7 @@ public static partial class Bridge
         int? MinSelect, int? MaxSelect, bool Cancelable, bool Preview, bool DecisionReady, object[] Cards, object[] Controls,
         object? Enchantment = null);
     private sealed record SelectionBinding(NCardGridSelectionScreen Screen, string Kind, string Before,
-        string RunId, Action Dispatch, Task Completion);
+        string RunId, Action Dispatch, Task Completion, CardModel? SourceCard = null);
     private static readonly Dictionary<string, SelectionBinding> SelectionBindings = new();
     private static SelectionBinding? activeSelection;
     private static Task[] pendingSelectionEffects = [];
@@ -70,7 +70,7 @@ public static partial class Bridge
             {
                 ready = true;
                 if (bind) SelectionBindings[actionId] = new(screen, "toggle_selection_card", before, Id(run!),
-                    () => grid.EmitSignal(NCardGrid.SignalName.HolderPressed, holder!), completion);
+                    () => grid.EmitSignal(NCardGrid.SignalName.HolderPressed, holder!), completion, card);
             }
         }
         var fields = screen is NSimpleCardSelectScreen
@@ -104,7 +104,9 @@ public static partial class Bridge
                     description = ReadUiField<MegaRichTextLabel>(screen, "_enchantmentDescription").Text }
                 : null);
     }
-    private static LegalAction[] SelectionActions() => SelectionBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true)).ToArray();
+    private static LegalAction[] SelectionActions() => SelectionBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true,
+        new(ActionCatalog.Require(p.Value.Kind).SourceKinds[0], p.Value.SourceCard?.Id.ToString(),
+            Id((object?)p.Value.SourceCard ?? p.Value.Screen)))).ToArray();
     private static void ObserveSelectionCompletion()
     {
         if (activeRequest == null || activeSelection == null || tick <= submittedTick) return;

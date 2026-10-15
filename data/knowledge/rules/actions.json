@@ -1,0 +1,944 @@
+{
+  "schema_version": "action-catalog/1.0",
+  "version": "1.0.0",
+  "scope": "all commands exposed by the current bridge; runtime availability remains game-owned",
+  "request_schema_ref": "contracts/action-request.schema.json",
+  "target_rules": {
+    "none": {
+      "request_target": "null",
+      "meaning": "The selected object is bound by action_id, not target_id."
+    },
+    "game_valid_creature_or_none": {
+      "request_target": "live allowed_target_ids or null only when allows_no_target",
+      "meaning": "Use the game predicate; effect area is separate from command targeting."
+    }
+  },
+  "actions": [
+    {
+      "type": "play_card",
+      "definition_id": "ACTION.play_card",
+      "group": "combat",
+      "source_kinds": [
+        "card"
+      ],
+      "phases": [
+        "combat"
+      ],
+      "target_rule": "game_valid_creature_or_none",
+      "preconditions_ref": "bridge.GameCommands.live_readiness",
+      "cost_rule_ref": "entity.current_cost_and_game_checks",
+      "effects_ref": "entity.card.effects",
+      "completion_boundary": "effect_dependent",
+      "execution_adapter": "bridge.GameCommands",
+      "simulation": "per_entity",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "card"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/GameCommands.cs"
+    },
+    {
+      "type": "end_turn",
+      "definition_id": "ACTION.end_turn",
+      "group": "combat",
+      "source_kinds": [
+        "player_turn"
+      ],
+      "phases": [
+        "combat"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.GameCommands.live_readiness",
+      "cost_rule_ref": "action.end_turn.game_checks",
+      "effects_ref": "bridge.GameCommands.end_turn",
+      "completion_boundary": "next_player_turn",
+      "execution_adapter": "bridge.GameCommands",
+      "simulation": "enemy_turn_model",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/GameCommands.cs"
+    },
+    {
+      "type": "use_potion",
+      "definition_id": "ACTION.use_potion",
+      "group": "combat",
+      "source_kinds": [
+        "potion"
+      ],
+      "phases": [
+        "combat",
+        "map",
+        "event",
+        "rewards",
+        "card_reward_selection",
+        "shop",
+        "rest_site",
+        "treasure",
+        "outside_combat"
+      ],
+      "target_rule": "game_valid_creature_or_none",
+      "preconditions_ref": "bridge.PotionCommands.live_readiness",
+      "cost_rule_ref": "entity.current_cost_and_game_checks",
+      "effects_ref": "entity.potion.effects",
+      "completion_boundary": "effect_dependent",
+      "execution_adapter": "bridge.PotionCommands",
+      "simulation": "per_entity",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "potion"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/PotionCommands.cs"
+    },
+    {
+      "type": "discard_potion",
+      "definition_id": "ACTION.discard_potion",
+      "group": "inventory",
+      "source_kinds": [
+        "potion"
+      ],
+      "phases": [
+        "combat",
+        "map",
+        "event",
+        "rewards",
+        "card_reward_selection",
+        "shop",
+        "rest_site",
+        "treasure",
+        "outside_combat"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.PotionCommands.live_readiness",
+      "cost_rule_ref": "action.discard_potion.game_checks",
+      "effects_ref": "bridge.PotionCommands.discard_potion",
+      "completion_boundary": "settled",
+      "execution_adapter": "bridge.PotionCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "potion"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/PotionCommands.cs"
+    },
+    {
+      "type": "claim_reward",
+      "definition_id": "ACTION.claim_reward",
+      "group": "rewards",
+      "source_kinds": [
+        "reward"
+      ],
+      "phases": [
+        "rewards"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.RewardCommands.live_readiness",
+      "cost_rule_ref": "action.claim_reward.game_checks",
+      "effects_ref": "bridge.RewardCommands.claim_reward",
+      "completion_boundary": "reward_or_selection",
+      "execution_adapter": "bridge.RewardCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "card",
+        "potion",
+        "relic"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/RewardCommands.cs"
+    },
+    {
+      "type": "choose_reward_card",
+      "definition_id": "ACTION.choose_reward_card",
+      "group": "rewards",
+      "source_kinds": [
+        "card"
+      ],
+      "phases": [
+        "card_reward_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.RewardCommands.live_readiness",
+      "cost_rule_ref": "action.choose_reward_card.game_checks",
+      "effects_ref": "bridge.RewardCommands.choose_reward_card",
+      "completion_boundary": "reward_settled",
+      "execution_adapter": "bridge.RewardCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "card"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/RewardCommands.cs"
+    },
+    {
+      "type": "reward_alternative",
+      "definition_id": "ACTION.reward_alternative",
+      "group": "rewards",
+      "source_kinds": [
+        "reward_screen"
+      ],
+      "phases": [
+        "card_reward_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.RewardCommands.live_readiness",
+      "cost_rule_ref": "action.reward_alternative.game_checks",
+      "effects_ref": "bridge.RewardCommands.reward_alternative",
+      "completion_boundary": "reward_settled",
+      "execution_adapter": "bridge.RewardCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/RewardCommands.cs"
+    },
+    {
+      "type": "proceed_rewards",
+      "definition_id": "ACTION.proceed_rewards",
+      "group": "rewards",
+      "source_kinds": [
+        "reward_screen"
+      ],
+      "phases": [
+        "rewards"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.RewardCommands.live_readiness",
+      "cost_rule_ref": "action.proceed_rewards.game_checks",
+      "effects_ref": "bridge.RewardCommands.proceed_rewards",
+      "completion_boundary": "phase_change",
+      "execution_adapter": "bridge.RewardCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/RewardCommands.cs"
+    },
+    {
+      "type": "new_game",
+      "definition_id": "ACTION.new_game",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "main_menu"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.new_game.game_checks",
+      "effects_ref": "bridge.MenuCommands.new_game",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "continue_game",
+      "definition_id": "ACTION.continue_game",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "main_menu"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.continue_game.game_checks",
+      "effects_ref": "bridge.MenuCommands.continue_game",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "abandon_run",
+      "definition_id": "ACTION.abandon_run",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "main_menu"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.abandon_run.game_checks",
+      "effects_ref": "bridge.MenuCommands.abandon_run",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "standard_run",
+      "definition_id": "ACTION.standard_run",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "singleplayer_menu"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.standard_run.game_checks",
+      "effects_ref": "bridge.MenuCommands.standard_run",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "select_character",
+      "definition_id": "ACTION.select_character",
+      "group": "menu",
+      "source_kinds": [
+        "character"
+      ],
+      "phases": [
+        "character_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.select_character.game_checks",
+      "effects_ref": "bridge.MenuCommands.select_character",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "character"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "ascension_down",
+      "definition_id": "ACTION.ascension_down",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "character_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.ascension_down.game_checks",
+      "effects_ref": "bridge.MenuCommands.ascension_down",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "ascension_up",
+      "definition_id": "ACTION.ascension_up",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "character_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.ascension_up.game_checks",
+      "effects_ref": "bridge.MenuCommands.ascension_up",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "embark",
+      "definition_id": "ACTION.embark",
+      "group": "menu",
+      "source_kinds": [
+        "menu"
+      ],
+      "phases": [
+        "character_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MenuCommands.live_readiness",
+      "cost_rule_ref": "action.embark.game_checks",
+      "effects_ref": "bridge.MenuCommands.embark",
+      "completion_boundary": "phase_or_menu_change",
+      "execution_adapter": "bridge.MenuCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MenuCommands.cs"
+    },
+    {
+      "type": "choose_map_node",
+      "definition_id": "ACTION.choose_map_node",
+      "group": "map",
+      "source_kinds": [
+        "map_node"
+      ],
+      "phases": [
+        "map"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.MapCommands.live_readiness",
+      "cost_rule_ref": "action.choose_map_node.game_checks",
+      "effects_ref": "bridge.MapCommands.choose_map_node",
+      "completion_boundary": "room_arrival",
+      "execution_adapter": "bridge.MapCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/MapCommands.cs"
+    },
+    {
+      "type": "choose_event_option",
+      "definition_id": "ACTION.choose_event_option",
+      "group": "event",
+      "source_kinds": [
+        "event_option"
+      ],
+      "phases": [
+        "event"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.EventCommands.live_readiness",
+      "cost_rule_ref": "action.choose_event_option.game_checks",
+      "effects_ref": "bridge.EventCommands.choose_event_option",
+      "completion_boundary": "event_or_child_selection",
+      "execution_adapter": "bridge.EventCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "event"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/EventCommands.cs"
+    },
+    {
+      "type": "proceed_event",
+      "definition_id": "ACTION.proceed_event",
+      "group": "event",
+      "source_kinds": [
+        "event_option"
+      ],
+      "phases": [
+        "event"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.EventCommands.live_readiness",
+      "cost_rule_ref": "action.proceed_event.game_checks",
+      "effects_ref": "bridge.EventCommands.proceed_event",
+      "completion_boundary": "event_or_child_selection",
+      "execution_adapter": "bridge.EventCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "event"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/EventCommands.cs"
+    },
+    {
+      "type": "toggle_selection_card",
+      "definition_id": "ACTION.toggle_selection_card",
+      "group": "selection",
+      "source_kinds": [
+        "card"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.SelectionCommands.live_readiness",
+      "cost_rule_ref": "action.toggle_selection_card.game_checks",
+      "effects_ref": "bridge.SelectionCommands.toggle_selection_card",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.SelectionCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "card"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/SelectionCommands.cs"
+    },
+    {
+      "type": "confirm_card_selection",
+      "definition_id": "ACTION.confirm_card_selection",
+      "group": "selection",
+      "source_kinds": [
+        "selection_screen"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.SelectionCommands.live_readiness",
+      "cost_rule_ref": "action.confirm_card_selection.game_checks",
+      "effects_ref": "bridge.SelectionCommands.confirm_card_selection",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.SelectionCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/SelectionCommands.cs"
+    },
+    {
+      "type": "preview_card_selection",
+      "definition_id": "ACTION.preview_card_selection",
+      "group": "selection",
+      "source_kinds": [
+        "selection_screen"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.SelectionCommands.live_readiness",
+      "cost_rule_ref": "action.preview_card_selection.game_checks",
+      "effects_ref": "bridge.SelectionCommands.preview_card_selection",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.SelectionCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/SelectionCommands.cs"
+    },
+    {
+      "type": "cancel_selection_preview",
+      "definition_id": "ACTION.cancel_selection_preview",
+      "group": "selection",
+      "source_kinds": [
+        "selection_screen"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.SelectionCommands.live_readiness",
+      "cost_rule_ref": "action.cancel_selection_preview.game_checks",
+      "effects_ref": "bridge.SelectionCommands.cancel_selection_preview",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.SelectionCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/SelectionCommands.cs"
+    },
+    {
+      "type": "close_card_selection",
+      "definition_id": "ACTION.close_card_selection",
+      "group": "selection",
+      "source_kinds": [
+        "selection_screen"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.SelectionCommands.live_readiness",
+      "cost_rule_ref": "action.close_card_selection.game_checks",
+      "effects_ref": "bridge.SelectionCommands.close_card_selection",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.SelectionCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/SelectionCommands.cs"
+    },
+    {
+      "type": "select_combat_card",
+      "definition_id": "ACTION.select_combat_card",
+      "group": "combat_selection",
+      "source_kinds": [
+        "card"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.CombatChoiceCommands.live_readiness",
+      "cost_rule_ref": "action.select_combat_card.game_checks",
+      "effects_ref": "bridge.CombatChoiceCommands.select_combat_card",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.CombatChoiceCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "card"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/CombatChoiceCommands.cs"
+    },
+    {
+      "type": "confirm_combat_selection",
+      "definition_id": "ACTION.confirm_combat_selection",
+      "group": "combat_selection",
+      "source_kinds": [
+        "selection_screen"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.CombatChoiceCommands.live_readiness",
+      "cost_rule_ref": "action.confirm_combat_selection.game_checks",
+      "effects_ref": "bridge.CombatChoiceCommands.confirm_combat_selection",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.CombatChoiceCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/CombatChoiceCommands.cs"
+    },
+    {
+      "type": "skip_combat_choice",
+      "definition_id": "ACTION.skip_combat_choice",
+      "group": "combat_selection",
+      "source_kinds": [
+        "selection_screen"
+      ],
+      "phases": [
+        "card_selection"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.CombatChoiceCommands.live_readiness",
+      "cost_rule_ref": "action.skip_combat_choice.game_checks",
+      "effects_ref": "bridge.CombatChoiceCommands.skip_combat_choice",
+      "completion_boundary": "selection_observation",
+      "execution_adapter": "bridge.CombatChoiceCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/CombatChoiceCommands.cs"
+    },
+    {
+      "type": "open_shop",
+      "definition_id": "ACTION.open_shop",
+      "group": "shop",
+      "source_kinds": [
+        "shop_screen"
+      ],
+      "phases": [
+        "shop"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.ShopCommands.live_readiness",
+      "cost_rule_ref": "action.open_shop.game_checks",
+      "effects_ref": "bridge.ShopCommands.open_shop",
+      "completion_boundary": "shop_or_child_selection",
+      "execution_adapter": "bridge.ShopCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/ShopCommands.cs"
+    },
+    {
+      "type": "buy_shop_item",
+      "definition_id": "ACTION.buy_shop_item",
+      "group": "shop",
+      "source_kinds": [
+        "shop_item"
+      ],
+      "phases": [
+        "shop"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.ShopCommands.live_readiness",
+      "cost_rule_ref": "entity.current_cost_and_game_checks",
+      "effects_ref": "bridge.ShopCommands.buy_shop_item",
+      "completion_boundary": "shop_or_child_selection",
+      "execution_adapter": "bridge.ShopCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "card",
+        "potion",
+        "relic"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/ShopCommands.cs"
+    },
+    {
+      "type": "close_shop",
+      "definition_id": "ACTION.close_shop",
+      "group": "shop",
+      "source_kinds": [
+        "shop_screen"
+      ],
+      "phases": [
+        "shop"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.ShopCommands.live_readiness",
+      "cost_rule_ref": "action.close_shop.game_checks",
+      "effects_ref": "bridge.ShopCommands.close_shop",
+      "completion_boundary": "shop_or_child_selection",
+      "execution_adapter": "bridge.ShopCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/ShopCommands.cs"
+    },
+    {
+      "type": "proceed_shop",
+      "definition_id": "ACTION.proceed_shop",
+      "group": "shop",
+      "source_kinds": [
+        "shop_screen"
+      ],
+      "phases": [
+        "shop"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.ShopCommands.live_readiness",
+      "cost_rule_ref": "action.proceed_shop.game_checks",
+      "effects_ref": "bridge.ShopCommands.proceed_shop",
+      "completion_boundary": "shop_or_child_selection",
+      "execution_adapter": "bridge.ShopCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/ShopCommands.cs"
+    },
+    {
+      "type": "choose_rest_option",
+      "definition_id": "ACTION.choose_rest_option",
+      "group": "rest",
+      "source_kinds": [
+        "rest_option"
+      ],
+      "phases": [
+        "rest_site"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.RestCommands.live_readiness",
+      "cost_rule_ref": "action.choose_rest_option.game_checks",
+      "effects_ref": "bridge.RestCommands.choose_rest_option",
+      "completion_boundary": "rest_or_child_selection",
+      "execution_adapter": "bridge.RestCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/RestCommands.cs"
+    },
+    {
+      "type": "proceed_rest",
+      "definition_id": "ACTION.proceed_rest",
+      "group": "rest",
+      "source_kinds": [
+        "rest_screen"
+      ],
+      "phases": [
+        "rest_site"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.RestCommands.live_readiness",
+      "cost_rule_ref": "action.proceed_rest.game_checks",
+      "effects_ref": "bridge.RestCommands.proceed_rest",
+      "completion_boundary": "rest_or_child_selection",
+      "execution_adapter": "bridge.RestCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/RestCommands.cs"
+    },
+    {
+      "type": "open_chest",
+      "definition_id": "ACTION.open_chest",
+      "group": "treasure",
+      "source_kinds": [
+        "treasure_screen"
+      ],
+      "phases": [
+        "treasure"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.TreasureCommands.live_readiness",
+      "cost_rule_ref": "action.open_chest.game_checks",
+      "effects_ref": "bridge.TreasureCommands.open_chest",
+      "completion_boundary": "treasure_observation",
+      "execution_adapter": "bridge.TreasureCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/TreasureCommands.cs"
+    },
+    {
+      "type": "take_treasure_relic",
+      "definition_id": "ACTION.take_treasure_relic",
+      "group": "treasure",
+      "source_kinds": [
+        "offered_relic"
+      ],
+      "phases": [
+        "treasure"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.TreasureCommands.live_readiness",
+      "cost_rule_ref": "action.take_treasure_relic.game_checks",
+      "effects_ref": "bridge.TreasureCommands.take_treasure_relic",
+      "completion_boundary": "treasure_observation",
+      "execution_adapter": "bridge.TreasureCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [
+        "relic"
+      ],
+      "source_ref": "src/csharp/bridge/Commands/TreasureCommands.cs"
+    },
+    {
+      "type": "skip_treasure_relic",
+      "definition_id": "ACTION.skip_treasure_relic",
+      "group": "treasure",
+      "source_kinds": [
+        "treasure_screen"
+      ],
+      "phases": [
+        "treasure"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.TreasureCommands.live_readiness",
+      "cost_rule_ref": "action.skip_treasure_relic.game_checks",
+      "effects_ref": "bridge.TreasureCommands.skip_treasure_relic",
+      "completion_boundary": "treasure_observation",
+      "execution_adapter": "bridge.TreasureCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/TreasureCommands.cs"
+    },
+    {
+      "type": "proceed_treasure",
+      "definition_id": "ACTION.proceed_treasure",
+      "group": "treasure",
+      "source_kinds": [
+        "treasure_screen"
+      ],
+      "phases": [
+        "treasure"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.TreasureCommands.live_readiness",
+      "cost_rule_ref": "action.proceed_treasure.game_checks",
+      "effects_ref": "bridge.TreasureCommands.proceed_treasure",
+      "completion_boundary": "treasure_observation",
+      "execution_adapter": "bridge.TreasureCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/TreasureCommands.cs"
+    },
+    {
+      "type": "return_to_main_menu",
+      "definition_id": "ACTION.return_to_main_menu",
+      "group": "lifecycle",
+      "source_kinds": [
+        "game"
+      ],
+      "phases": [
+        "*"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.LifecycleCommands.live_readiness",
+      "cost_rule_ref": "action.return_to_main_menu.game_checks",
+      "effects_ref": "bridge.LifecycleCommands.return_to_main_menu",
+      "completion_boundary": "phase_or_process_change",
+      "execution_adapter": "bridge.LifecycleCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": false,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/LifecycleCommands.cs"
+    },
+    {
+      "type": "quit_game",
+      "definition_id": "ACTION.quit_game",
+      "group": "lifecycle",
+      "source_kinds": [
+        "game"
+      ],
+      "phases": [
+        "*"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.LifecycleCommands.live_readiness",
+      "cost_rule_ref": "action.quit_game.game_checks",
+      "effects_ref": "bridge.LifecycleCommands.quit_game",
+      "completion_boundary": "phase_or_process_change",
+      "execution_adapter": "bridge.LifecycleCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": false,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/LifecycleCommands.cs"
+    },
+    {
+      "type": "close_map_overlay",
+      "definition_id": "ACTION.close_map_overlay",
+      "group": "lifecycle",
+      "source_kinds": [
+        "game"
+      ],
+      "phases": [
+        "*"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.LifecycleCommands.live_readiness",
+      "cost_rule_ref": "action.close_map_overlay.game_checks",
+      "effects_ref": "bridge.LifecycleCommands.close_map_overlay",
+      "completion_boundary": "phase_or_process_change",
+      "execution_adapter": "bridge.LifecycleCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/LifecycleCommands.cs"
+    },
+    {
+      "type": "continue_game_over",
+      "definition_id": "ACTION.continue_game_over",
+      "group": "lifecycle",
+      "source_kinds": [
+        "game"
+      ],
+      "phases": [
+        "game_over"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.LifecycleCommands.live_readiness",
+      "cost_rule_ref": "action.continue_game_over.game_checks",
+      "effects_ref": "bridge.LifecycleCommands.continue_game_over",
+      "completion_boundary": "phase_or_process_change",
+      "execution_adapter": "bridge.LifecycleCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/LifecycleCommands.cs"
+    },
+    {
+      "type": "return_after_game_over",
+      "definition_id": "ACTION.return_after_game_over",
+      "group": "lifecycle",
+      "source_kinds": [
+        "game"
+      ],
+      "phases": [
+        "game_over"
+      ],
+      "target_rule": "none",
+      "preconditions_ref": "bridge.LifecycleCommands.live_readiness",
+      "cost_rule_ref": "action.return_after_game_over.game_checks",
+      "effects_ref": "bridge.LifecycleCommands.return_after_game_over",
+      "completion_boundary": "phase_or_process_change",
+      "execution_adapter": "bridge.LifecycleCommands",
+      "simulation": "not_combat_simulated",
+      "agent_allowed": true,
+      "source_entity_categories": [],
+      "source_ref": "src/csharp/bridge/Commands/LifecycleCommands.cs"
+    }
+  ]
+}

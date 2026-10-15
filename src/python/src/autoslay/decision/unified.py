@@ -21,6 +21,7 @@ from autoslay.evaluation.contextual import load_interactions,VERSION as CONTEXT_
 from autoslay.knowledge_base.rulebook import Rulebook
 from autoslay.evaluation.event_sequences import evaluate_event_sequence
 from autoslay.decision.autonomy import assess
+from autoslay.actions import describe as describe_actions
 from autoslay.telemetry.decisions import packet
 from autoslay.knowledge_base.events import rules as event_rules,resource_hook_warnings
 from autoslay.decision.contracts import CONTRACT_VERSION
@@ -34,7 +35,7 @@ from autoslay.decision.mechanisms import attach as attach_mechanisms
 from autoslay.knowledge_base.behavior import load as load_behavior
 from autoslay.evaluation.event_adapters import VERSION as EVENT_ADAPTER_VERSION
 
-VERSION='1.9.0'
+VERSION='1.10.0'
 CACHE=AnalysisCache()
 
 def relevant_entities(value):
@@ -70,14 +71,16 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     started=perf_counter(); s=snapshot['state']; phase=s.get('phase'); context=context or {}
     if snapshot.get('game_version')!='0.111.0' or snapshot.get('schema_version')!='1.0': raise ValueError('Unsupported snapshot version')
     qualification=assess({},snapshot)
+    action_space=describe_actions(snapshot)
     if qualification['eligible']:
-        # Proof precedes heuristic search and AI packet construction. No game action here.
+        # Mandatory progression precedes analysis. Combat lethal still uses batch search.
         report=dict(schema_version='decision/unified/1.0',module_version=VERSION,analysis_id=uuid.uuid4().hex,
             source=source(snapshot),phase=phase,execution_authorized=False,cache_hit=False,live_state_ready=True,
             legal_actions=s.get('legal_actions',[]),autonomy=qualification,ai_required=False,ai_called=False,
             request_elapsed_ms=(perf_counter()-started)*1000,module_versions=dict(unified=VERSION,deterministic=qualification['module_version']),
-            limitations=['local proof only; executor independently rechecks fresh state'],shortlist=[])
+            limitations=['local progression only; executor independently rechecks fresh state'],shortlist=[])
         attach_mechanisms(report,snapshot)
+        report['action_space']=action_space
         report['ai_packet']=packet(report)
         return report
     adaptive=decision_config(ROOT/'config/decision/analysis.default.json')
@@ -105,6 +108,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                     batch_model_status=batch_model_status() if autonomy_policy.get('combat_batches_enabled') else None))
     cached=CACHE.get(key) if use_cache else None
     if cached is not None:
+        cached['action_space']=action_space
         cached.update(source=source(snapshot),analysis_id=uuid.uuid4().hex,cache_hit=True,
                       live_state_ready=bool(snapshot.get('ready') and not snapshot.get('busy')),
                       request_elapsed_ms=(perf_counter()-started)*1000)
@@ -123,6 +127,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
         knowledge_hash=knowledge_hash,weights=asdict(policy),interaction_weights=asdict(interactions),combat_weights=asdict(combat_policy),analysis_policy_hash=digest(adaptive),
         calibration_status='uncalibrated',knowledge_compatibility=rulebook.audit(relevant_entities(s)),
         module_versions=dict(unified=VERSION,run_evaluation=RUN_VERSION,contextual=CONTEXT_VERSION,rules=rulebook.data['version']))
+    report['action_space']=action_space
     if phase=='combat' and not s.get('pending_combat_action'):
         p=s['player']; hp=p['creature']['hp']; maximum=p['creature']['max_hp']
         incoming=sum((i.get('attack_damage') or 0)*(i.get('attack_repeats') or 0) for e in s.get('enemies') or [] for i in e.get('intents',[]))
@@ -196,6 +201,8 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
             mode='upgrade' if 'Upgrade' in screen else 'remove' if 'Remove' in screen else None
             if mode: report['choices']=cards_report(deck,offered,run,entries,policy=policy,mode=mode)
             else: report['selection_requires_context']='Selection meaning is not safely inferable from generic screen; use explicit evaluate_run_choices mode'
+    from autoslay.decision.options import decision_options
+    report['decision_options']=decision_options(report,snapshot)
     report['behavior_references']=behavior_references(snapshot)
     report['limitations']=['heuristic utility is not calibrated win probability','Codex chooses, then execution validates fresh state',
                           'unknown card/event/item choices remain unranked; deck totals cover known components only']

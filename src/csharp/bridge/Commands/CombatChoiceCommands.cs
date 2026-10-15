@@ -19,7 +19,7 @@ using System.Reflection;
 namespace AutoSlayBridge;
 public static partial class Bridge
 {
-    private sealed record CombatChoiceBinding(string Kind, string ChoiceId, string Before, Action Dispatch);
+    private sealed record CombatChoiceBinding(string Kind, string ChoiceId, string Before, Action Dispatch, CardModel? SourceCard = null);
     private static readonly Dictionary<string, CombatChoiceBinding> CombatChoiceBindings = new();
     private static CombatChoiceBinding? activeCombatChoice;
     private static ActionRequest? suspendedCombatRequest;
@@ -55,17 +55,22 @@ public static partial class Bridge
         Action<CardModel> select;
         Func<CardModel, bool> available;
         MegaCrit.Sts2.Core.Nodes.GodotExtensions.NButton confirm;
-        if (screen is NSimpleCardSelectScreen gridScreen && gridScreen.IsNodeReady() && IsActive(gridScreen)
+        if (screen is NCardGridSelectionScreen gridScreen
+            && gridScreen is NSimpleCardSelectScreen or NCombatPileCardSelectScreen
+            && gridScreen.IsNodeReady() && IsActive(gridScreen)
             && gridScreen.MouseFilter == Control.MouseFilterEnum.Stop
             && !ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(gridScreen, "_completionSource").Task.IsCompleted)
         {
             prefs = ReadUiField<CardSelectorPrefs>(gridScreen, "_prefs");
             selected = ReadUiField<HashSet<CardModel>>(gridScreen, "_selectedCards");
-            candidates = ReadUiField<IReadOnlyList<CardModel>>(gridScreen, "_cards");
             choiceId = Id(ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(gridScreen, "_completionSource"));
             screenType = gridScreen.GetType().Name;
             preview = false;
             var grid = ReadUiField<NCardGrid>(gridScreen, "_grid");
+            // Combat-pile screens populate the grid directly; their inherited _cards stays empty.
+            candidates = gridScreen is NCombatPileCardSelectScreen
+                ? grid.CurrentlyDisplayedCards.ToArray()
+                : ReadUiField<IReadOnlyList<CardModel>>(gridScreen, "_cards");
             available = card => grid.GetCardHolder(card) is { } holder && holder.IsNodeReady()
                 && !holder.IsQueuedForDeletion() && ReadUiField<bool>(holder, "_isClickable")
                 && (selected.Contains(card) || selected.Count < prefs.MaxSelect);
@@ -102,22 +107,25 @@ public static partial class Bridge
             var actionId = "combat_select_" + choiceId + "_" + Id(card);
             cards.Add(new { card = Card(card), selected = selected.Contains(card), available = enabled,
                 action_id = enabled ? actionId : null });
-            if (enabled && bind) CombatChoiceBindings[actionId] = new("select_combat_card", choiceId, before, () => select(card));
+            if (enabled && bind) CombatChoiceBindings[actionId] = new("select_combat_card", choiceId, before, () => select(card), card);
             currentCombatChoiceReady |= enabled;
         }
-        var canConfirm = SelectionButtonReady(confirm) && selected.Count >= prefs.MinSelect && selected.Count <= prefs.MaxSelect;
+        var minSelect = screen is NCombatPileCardSelectScreen ? Math.Min(prefs.MinSelect, candidates.Count) : prefs.MinSelect;
+        var canConfirm = SelectionButtonReady(confirm) && selected.Count >= minSelect && selected.Count <= prefs.MaxSelect;
         var confirmId = "confirm_combat_selection_" + choiceId;
         controls.Add(new { type = "confirm_combat_selection", available = canConfirm, action_id = canConfirm ? confirmId : null });
         if (canConfirm && bind) CombatChoiceBindings[confirmId] = new("confirm_combat_selection", choiceId, before, confirm.ForceClick);
         currentCombatChoiceReady |= canConfirm;
         currentCombatChoiceId = choiceId;
         currentCombatChoiceFingerprint = before;
-        return new(choiceId, screenType, prefs.Prompt.GetFormattedText(), prefs.MinSelect, prefs.MaxSelect,
+        return new(choiceId, screenType, prefs.Prompt.GetFormattedText(), minSelect, prefs.MaxSelect,
             prefs.Cancelable, preview, currentCombatChoiceReady, cards.ToArray(), controls.ToArray());
     }
 
     private static LegalAction[] CombatChoiceActions() => CombatChoiceBindings.Select(p =>
-        new LegalAction(p.Key, p.Value.Kind, null, [], true)).ToArray();
+        new LegalAction(p.Key, p.Value.Kind, null, [], true,
+            new(ActionCatalog.Require(p.Value.Kind).SourceKinds[0], p.Value.SourceCard?.Id.ToString(),
+                p.Value.SourceCard == null ? p.Value.ChoiceId : Id(p.Value.SourceCard)))).ToArray();
 
     private static SelectionView? ReadGeneratedCombatChoice(NChooseACardSelectionScreen screen, bool bind)
     {
@@ -144,7 +152,7 @@ public static partial class Bridge
                 var method = typeof(NChooseACardSelectionScreen).GetMethod("SelectHolder", BindingFlags.Instance | BindingFlags.NonPublic)
                     ?? throw new MissingMethodException("NChooseACardSelectionScreen.SelectHolder");
                 method.Invoke(screen, [holder]);
-            });
+            }, card);
             currentCombatChoiceReady |= enabled;
         }
         var skip = ReadUiField<MegaCrit.Sts2.Core.Nodes.GodotExtensions.NButton>(screen, "_skipButton");

@@ -4,7 +4,7 @@ from copy import deepcopy
 from autoslay.knowledge_base.service import SERVICE
 from autoslay.knowledge_base.repository import scoped, current_snapshot, dataset_path
 from autoslay.decision.deterministic import source
-from autoslay.telemetry.decisions import public_snapshot, packet as report_packet
+from autoslay.telemetry.decisions import public_snapshot, packet as report_packet, strip_details
 
 
 @scoped(report_argument='report')
@@ -32,7 +32,9 @@ def build(snapshot, report, recent=(), max_bytes=180_000):
     references = SERVICE.build_context(reference_ids, snapshot=knowledge,
                                       max_bytes=min(max_bytes, SERVICE.settings['context_bytes']))
     entries = references['entries']
+    from autoslay.decision.options import decision_options
     result = dict(state_token=source(snapshot)['state_sha256'], source=source(snapshot),
+                  decision_options=strip_details(decision_options(report or {},snapshot)),
                   visible_state=state, calculator=report_packet(report) if report else {},
                   recent_results=list(recent)[-4:], reference_entries=entries,
                   reference_version=catalog.get('game_version'),

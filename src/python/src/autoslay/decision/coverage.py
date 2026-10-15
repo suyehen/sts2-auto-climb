@@ -34,7 +34,8 @@ def diagnose(snapshot, report=None, primary=None):
             # Service reports may include additional transport metadata.
             if any(expected.get(k)!=v for k,v in source(snapshot).items()):
                 add('source','local_combat_requires_matching_analysis')
-    if any(a.get('type') not in {'play_card','end_turn','use_potion'} for a in actions):
+    from autoslay.actions import action_types
+    if any(a.get('type') not in action_types(group='combat') for a in actions):
         add('action','local_combat_action_not_modeled')
     reviewed=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
     legal_cards={a.get('card_instance_id') or a['action_id'].removeprefix('play_')

@@ -14,7 +14,7 @@ namespace AutoSlayBridge;
 public static partial class Bridge
 {
     private sealed record TreasureView(string? ScreenId, bool DecisionReady, bool Opened, bool Picking, object[] Relics, object[] Controls);
-    private sealed record TreasureBinding(NTreasureRoom Room, string Kind, NButton Button, string RunId);
+    private sealed record TreasureBinding(NTreasureRoom Room, string Kind, NButton Button, string RunId, string? EntityId = null);
     private static readonly Dictionary<string, TreasureBinding> TreasureBindings = new();
     private static TreasureBinding? activeTreasure;
     private static Task? treasureOpenTask;
@@ -55,13 +55,14 @@ public static partial class Bridge
                 relics.Add(new { entity_id = relic.Id.ToString(), name = relic.Title.GetFormattedText(),
                     description = relic.DynamicDescription.GetFormattedText(),
                     hover_tips = relic.HoverTipsExcludingRelic.Select(EventTip).ToArray(), available = enabled, action_id = enabled ? id : null });
-                if (enabled) { ready = true; if (bind) TreasureBindings[id] = new(room, "take_treasure_relic", holder, Id(run!)); }
+                if (enabled) { ready = true; if (bind) TreasureBindings[id] = new(room, "take_treasure_relic", holder, Id(run!), relic.Id.ToString()); }
             }
         }
         if (opened) Add(picking ? "skip_treasure_relic" : "proceed_treasure", room.ProceedButton);
         return new(Id(room), ready, opened, picking, relics.ToArray(), controls.ToArray());
     }
-    private static LegalAction[] TreasureActions() => TreasureBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true)).ToArray();
+    private static LegalAction[] TreasureActions() => TreasureBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true,
+        new(ActionCatalog.Require(p.Value.Kind).SourceKinds[0], p.Value.EntityId, Id(p.Value.Button)))).ToArray();
     private static void DispatchTreasure(TreasureBinding binding)
     {
         activeTreasure = binding;

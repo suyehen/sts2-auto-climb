@@ -130,7 +130,10 @@ public static partial class Bridge
                 actions = actions.Where(a => EventRewardChildAction(a.ActionId)).ToArray();
                 decisionReady = actions.Length > 0;
             }
+            foreach (var action in actions)
+                ActionCatalog.ValidateBinding(action.Type, action.AllowedTargetIds, action.AllowsNoTarget);
             var payload = JsonSerializer.Serialize(new {
+                action_catalog = new { version = ActionCatalog.Version, sha256 = ActionCatalog.Sha256 },
                 phase = menuView.Phase ?? (MegaCrit.Sts2.Core.Nodes.Screens.ScreenContext.ActiveScreenContext.Instance.GetCurrentScreen() is MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverScreen ? "game_over" : null) ?? (run == null ? "no_run" : (treasureView.ScreenId != null ? "treasure" : null) ?? (restView.ScreenId != null ? "rest_site" : null) ?? (shopView.ScreenId != null ? "shop" : null) ?? (selectionView.ScreenId != null ? "card_selection" : null) ?? rewardView.Phase ?? (mapView.Active ? "map" : null) ?? (eventView.Supported && IsActive(MegaCrit.Sts2.Core.Nodes.Rooms.NEventRoom.Instance!) ? "event" : null) ?? (combat != null ? "combat" : "outside_combat")),
                 command_context_id = run == null ? menuView.ContextId : Id(run),
                 combat_instance_id = combat == null ? null : Id(combat),
@@ -182,12 +185,12 @@ public static partial class Bridge
                 player_actions_disabled = manager.PlayerActionsDisabled,
                 decision_ready = decisionReady, control_mode = Ledger.Paused ? "paused" : "auto",
                 legal_actions = actions,
-                limitations = new[] { "single-player combat and basic rewards", "combat card/potion choices support NPlayerHand SimpleSelect/UpgradeSelect, NSimpleCardSelectScreen and NChooseACardSelectionScreen; other choices and linked rewards need additional backend adapters", "custom event layouts not supported", "intent descriptions contain only visible game tooltips; generic buff/debuff intents may omit exact effects" }
+                limitations = new[] { "single-player combat and basic rewards", "combat card/potion choices support NPlayerHand SimpleSelect/UpgradeSelect, NSimpleCardSelectScreen, NCombatPileCardSelectScreen and NChooseACardSelectionScreen; other choices and linked rewards need additional backend adapters", "custom event layouts not supported", "intent descriptions contain only visible game tooltips; generic buff/debuff intents may omit exact effects" }
             }, BridgeHttpServer.Options);
             if (payload != lastPayload) { version++; lastPayload = payload; }
             using var doc = JsonDocument.Parse(payload);
             Volatile.Write(ref snapshot, JsonSerializer.Serialize(new {
-                schema_version = "1.0", bridge_version = "0.29.0", game_version = "0.111.0",
+                schema_version = "1.0", bridge_version = "0.30.0", game_version = "0.111.0",
                 game_assembly_sha256 = gameAssemblySha256,
                 session_epoch = Epoch, state_version = version, ready = decisionReady && !Ledger.Paused && !Ledger.Busy, observation_only = false,
                 busy = Ledger.Busy,

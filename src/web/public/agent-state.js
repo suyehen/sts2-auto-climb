@@ -18,6 +18,8 @@ Object.assign(agentErrors,{
  MODEL_GENERATION_INTERRUPTED:'模型服务中途终止生成，有限重试仍未恢复。请稍后重试。',
  MODEL_RESPONSE_INCOMPLETE:'模型回复未正常结束，本次回复没有用于执行。可重试；若反复发生，请检查输出长度上限。',
  MODEL_OUTPUT_LIMIT:'模型输出达到长度上限，决策回复被截断。请提高输出长度上限，或降低推理强度后重试。',
+ UNKNOWN_DECISION_CANDIDATE:'模型选择了不存在的方案，本次没有执行。',
+ NO_DECISION_CANDIDATES:'当前没有可供选择的决策方案，等待重新分析。',
  MODEL_INVALID_DECISION:'模型返回的 JSON 或决策字段不符合要求，本次回复没有用于执行。请检查结构化输出设置后重试。',
  MODEL_TOOL_CALL_REQUIRED:'模型没有提交要求的决策工具调用，纠正后仍未成功，本次回复没有用于执行。',
  MODEL_INVALID_TOOL_CALL:'模型提交的工具调用不符合决策接口要求，本次回复没有用于执行。',

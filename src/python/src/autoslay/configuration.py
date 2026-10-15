@@ -12,6 +12,7 @@ FORMAT='autoslay-config'
 VERSION=2
 POLICIES=('run','combat','context','analysis','autonomy','relic-timing')
 SECRETS={'api_key','apikey','token','password','credentials','secret','authorization'}
+RETIRED_COMBAT_RULES=frozenset({'certain_combat_finish','equivalent_outcomes','dominant_outcome','common_first_step'})
 
 
 def backup_stamp(directory):
@@ -40,6 +41,12 @@ def merge(default,value):
         d=default[key]
         if isinstance(d,dict): result[key]=merge(d,v)
         elif isinstance(d,list):
+            # Older saved profiles and exports may still name removed combat
+            # proof shortcuts. Accept the old shape, but never reactivate them.
+            if key=='enabled_rules' and isinstance(v,list):
+                if any(not isinstance(x,str) for x in v) or len(v)!=len(set(v)):
+                    raise ValueError('CONFIG_INVALID_LIST')
+                v=[x for x in v if x not in RETIRED_COMBAT_RULES]
             if not isinstance(v,list) or any(x not in d for x in v) or len(v)!=len(set(v)): raise ValueError('CONFIG_INVALID_LIST')
             result[key]=v
         elif type(d) is bool:

@@ -59,7 +59,8 @@ public static partial class Bridge
         return new(Id(room), ready, options.ToArray(), proceedId);
     }
     private static LegalAction[] RestActions() => RestBindings.Select(p => new LegalAction(p.Key,
-        p.Value.Button == null ? "proceed_rest" : "choose_rest_option", null, [], true)).ToArray();
+        p.Value.Button == null ? "proceed_rest" : "choose_rest_option", null, [], true,
+        new(p.Value.Button == null ? "rest_screen" : "rest_option", null, Id((object?)p.Value.Button ?? p.Value.Room)))).ToArray();
     private static void DispatchRest(RestBinding binding)
     {
         activeRest = binding;

@@ -106,7 +106,8 @@ public static partial class Bridge
             ? "MAP." + name : null;
     }
 
-    private static LegalAction[] MapActions() => MapBindings.Select(pair => new LegalAction(pair.Key, "choose_map_node", null, [], true)).ToArray();
+    private static LegalAction[] MapActions() => MapBindings.Select(pair => new LegalAction(pair.Key, "choose_map_node", null, [], true,
+        new("map_node", null, MapNodeId(pair.Value.ActIndex, pair.Value.Generation, pair.Value.Coordinate)))).ToArray();
 
     private static void ObserveMapCompletion()
     {

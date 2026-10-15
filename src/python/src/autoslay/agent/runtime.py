@@ -14,7 +14,7 @@ from autoslay.execution.lock import dispatch_lock
 from autoslay.telemetry import runs, decisions
 from autoslay.telemetry.audit import Audit, error_code
 from .config import Store, Profile, atomic
-from .contracts import validate, validate_plan, Decision
+from .contracts import validate, validate_choice, Decision
 from .plans import prepare, matches
 from .context import build
 from .providers import create, ProviderError
@@ -32,7 +32,7 @@ def validation_issues(error):
     """Publish field locations and validator codes, never response/input text."""
     if isinstance(error,json.JSONDecodeError):
         return [dict(field='json',type='invalid_json',line=error.lineno,column=error.colno)]
-    fields={'state_token','steps','reason','action_id','target_id'}
+    fields={'state_token','candidate_id','steps','reason','action_id','target_id'}
     return [dict(field='.'.join(str(part) if isinstance(part,int) or part in fields else '<extra_field>' for part in item['loc']),type=item['type'])
             for item in error.errors(include_input=False,include_context=False,include_url=False)[:12]]
 
@@ -392,10 +392,13 @@ class Agent:
                 if self.phase != 'finished': self.phase = 'error' if self.error else 'paused'
 
     async def decide_plan(self, provider, packet, snapshot, generation, identity, report, profile):
+        from autoslay.decision.options import decision_options
+        packet=dict(packet,state_token=source(snapshot)['state_sha256'],decision_options=decisions.strip_details(decision_options(report,snapshot)))
+        if not packet['decision_options']:raise ValueError('NO_DECISION_CANDIDATES')
         usage={}
         try:
             raw,usage=await self.model_call(provider, packet, snapshot, identity, profile, 1)
-            plan=validate_plan(raw,snapshot)
+            plan=validate_choice(raw,snapshot,packet['decision_options'])
             self.audit.emit('plan_validated', snapshot, self.trace_id, plan_request_id=identity,
                 validation_attempt=1, steps=[s.model_dump() for s in plan.steps], reason=plan.reason)
             return plan,usage
@@ -406,7 +409,7 @@ class Agent:
             code='MODEL_INVALID_DECISION'
             issues=validation_issues(exc)
         except ValueError as exc:
-            if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'}:raise
+            if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT','UNKNOWN_DECISION_CANDIDATE'}:raise
             code=str(exc);issues=[]
         self.audit.emit('plan_rejected', snapshot, self.trace_id, plan_request_id=identity,
             validation_attempt=1, code=code, validation_issues=issues, usage=usage)
@@ -415,13 +418,9 @@ class Agent:
         fresh=await self.fetch()
         if not self.running or generation!=self.generation or not reusable_state(snapshot,fresh):
             return None,usage
-        instruction=('Return steps with exactly one currently legal action.' if code=='MULTI_ACTION_REQUIRES_COMBAT' else
-                     'Return valid JSON matching the schema exactly, with state_token, steps and reason; copy state_token exactly and use only current legal action/target IDs.')
+        instruction='Select exactly one candidate_id from decision_options. Return only state_token, candidate_id and reason. Do not submit steps or action IDs.'
         if profile.output_mode=='deepseek_strict' and not getattr(provider,'strict_fallback',False):
-            instruction=('Submit exactly ONE submit_decision tool call, no text-only response. '
-                'Use the supplied tool schema, copy state_token exactly, and use an empty string for no target. '
-                + ('Return exactly one step.' if snapshot['state'].get('phase')!='combat' else 'Return one to sixteen steps.'))
-        instruction+=' Use only action_id and target_id values from visible_state.state.legal_actions. Never invent IDs or reuse an action from a previous screen.'
+            instruction+=' Submit exactly one submit_decision tool call.'
         correction=dict(packet,validation_feedback=dict(code=code,issues=issues,
             instruction='Previous response was rejected and NO actions were executed. '+instruction))
         if self.model_wait:self.model_wait.update(validation_attempt=2,retry_reason=code,started_at=time.time())
@@ -441,7 +440,7 @@ class Agent:
         combined['request_attempts']=usage.get('request_attempts',1)+retry_usage.get('request_attempts',1)
         combined['validation_attempts']=2
         try:
-            plan=validate_plan(raw,snapshot)
+            plan=validate_choice(raw,snapshot,packet['decision_options'])
             self.audit.emit('plan_validated', snapshot, self.trace_id, plan_request_id=identity,
                 validation_attempt=2, steps=[s.model_dump() for s in plan.steps], reason=plan.reason)
             return plan,combined
@@ -452,7 +451,7 @@ class Agent:
         except ValueError as exc:
             self.audit.emit('plan_rejected', snapshot, self.trace_id, plan_request_id=identity,
                 validation_attempt=2, code=error_code(exc), usage=retry_usage)
-            if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'}:raise
+            if str(exc) not in {'MULTI_ACTION_REQUIRES_COMBAT','ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT','UNKNOWN_DECISION_CANDIDATE'}:raise
             raise ProviderError(str(exc),dict(validation_attempts=2,validation_issues=[dict(type=str(exc))],usage=combined)) from None
 
     def save_error(self, code, snapshot, request_id, provider_details=None):
@@ -530,6 +529,10 @@ class Agent:
         return raw, usage
 
     async def execute_plan(self, plan, snapshot, report, generation, profile, identity, model_ms, usage):
+        from autoslay.decision.options import decision_options
+        options=decision_options(report,snapshot)
+        selected=next((o for o in options if o['steps']==[s.model_dump() for s in plan.steps]),None)
+        if selected is None:raise ValueError('UNKNOWN_DECISION_CANDIDATE')
         prepared = prepare(plan, snapshot)
         previous = None
         current = snapshot
@@ -563,8 +566,9 @@ class Agent:
                     step_report = await asyncio.to_thread(self.analyze, current)
                 if index == 0:
                     await asyncio.to_thread(runs.stage, 'ai_choice', current,
-                        dict(analysis_id=report['analysis_id'], group='agent_explicit',
-                             steps=self.last['plan_steps'], **self.last))
+                        dict(analysis_id=report['analysis_id'], group=selected['group'],index=selected['index'],
+                             candidate_id=selected['candidate_id'],candidate=selected['candidate'],
+                             steps=selected['steps'], **self.last))
             result = await self.dispatch(decision, current, generation)
             if result is None:
                 self.last.update(status='not_executed',plan_interruption='state_changed_or_agent_paused')

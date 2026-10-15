@@ -11,7 +11,7 @@ DIRECTORY=ROOT/'data/decisions'
 LOCK=RLock()
 PUBLIC_STATE={'phase','floor','ascension','room_type','player','enemies','run_id','run_history_id','act_count','command_context_id','map',
               'legal_actions','event_screen','reward_screen','card_selection','rest_site','shop','treasure','menu',
-              'pending_event_action','pending_combat_action','control_mode','combat_instance_id','combat_quality'}
+              'pending_event_action','pending_combat_action','control_mode','combat_instance_id','combat_quality','action_catalog'}
 
 def safe_id(value):
     if not isinstance(value,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',value): raise ValueError('Invalid decision ID')
@@ -99,6 +99,7 @@ def packet(report):
                 candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','rest','route') if k in report},
                 coverage=(report.get('combat') or {}).get('coverage'),combat_forecast=forecast_packet((report.get('combat') or {}).get('lookahead')),
                 autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),
+                action_space={k:(report.get('action_space') or {}).get(k) for k in ('catalog_version','catalog_sha256','issues')},
                 combat_strategy=strip_details((report.get('combat') or {}).get('strategy')),
                 combat_batches=strip_details((report.get('combat') or {}).get('batches')),
                 combat_diagnostics=report.get('combat_diagnostics'),

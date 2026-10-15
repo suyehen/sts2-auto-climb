@@ -221,6 +221,20 @@ def test_nested_combat_selection_is_local():
     assert r['eligible'] and r['decision_basis']=='local_combat_selection'
 
 
+@pytest.mark.parametrize('minimum', [0, 1])
+def test_nested_combat_selection_confirms_selected_pile_card(minimum):
+    s=combat();s['state'].update(phase='card_selection',pending_combat_action=dict(request_id='parent'))
+    s['state']['card_selection']=dict(decision_ready=True,prompt='选择至多2张牌放入你的手牌。',
+        min_select=minimum,max_select=2,cards=[dict(action_id='choose_a',available=True,selected=True,
+            card=s['state']['player']['hand'][0])])
+    s['state']['legal_actions']=[
+        dict(action_id='choose_a',type='select_combat_card',allows_no_target=True,allowed_target_ids=[]),
+        dict(action_id='confirm',type='confirm_combat_selection',allows_no_target=True,allowed_target_ids=[])]
+    result=assess({},s)
+    assert result['eligible']
+    assert result['selected_steps']==[dict(action_id='confirm',target_id=None)]
+
+
 def test_agent_uses_real_batch_analysis_without_a_model_or_credentials(tmp_path):
     from autoslay.agent.runtime import Agent
     from test_agent import store

@@ -30,6 +30,10 @@ def payload(s, **changes):
         target_id=s['state']['enemies'][0]['instance_id'], reason='测试决策', **changes))
 
 
+def choice_payload(s,candidate_id='option_1'):
+    return json.dumps(dict(state_token=source(s)['state_sha256'],candidate_id=candidate_id,reason='选择已有方案'))
+
+
 def store(tmp_path):
     return Store(tmp_path/'config', cipher)
 
@@ -184,7 +188,7 @@ def test_many_independent_requests_continue_until_game_over(tmp_path):
         def handler(request):
             body=json.loads(request.content);calls.append(body)
             assert len(body['messages'])==1 and body['messages'][0]['role']=='user'
-            return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content=payload(s)))],usage={'completion_tokens':100}))
+            return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content=choice_payload(s)))],usage={'completion_tokens':100}))
         profile=Profile(id='deepseek',label='DeepSeek',kind='api',base_url='https://api.deepseek.com',model='deepseek-flash',max_tokens=65536)
         agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:APIProvider(profile,'test',httpx.MockTransport(handler)))
         async def dispatch(request):
@@ -374,7 +378,7 @@ def test_ai_loop_one_decision_and_no_repeat_on_unchanged_state(tmp_path):
     async def run():
         calls=[];submitted=asyncio.Event()
         class Provider:
-            async def decide(self,packet):calls.append(packet);return payload(s),dict(total_tokens=10)
+            async def decide(self,packet):calls.append(packet);return choice_payload(s),dict(total_tokens=10)
         agent,s,control,submit=make_agent(tmp_path,factory=lambda p,k:Provider())
         async def dispatch(request):submitted.set();return dict(status='completed')
         agent.submit=AsyncMock(side_effect=dispatch)
@@ -433,7 +437,7 @@ def test_invalid_output_pauses_agent(tmp_path):
 def test_local_rule_skips_model(tmp_path):
     async def run():
         agent,s,control,submit=make_agent(tmp_path,factory=lambda *a:pytest.fail('model should not be called'))
-        s['state']['enemies'][0]['hp']=2
+        s['state']['legal_actions']=s['state']['legal_actions'][-1:]
         class Deterministic:
             async def execute(self,request_id):
                 s['state']['phase']='game_over'

@@ -6,11 +6,7 @@
     "forced_action",
     "forced_end_turn",
     "mandatory_card_selection",
-    "certain_combat_finish",
     "eliminate_certain_death",
-    "equivalent_outcomes",
-    "dominant_outcome",
-    "common_first_step",
     "open_card_reward",
     "bounded_combat_search"
   ],

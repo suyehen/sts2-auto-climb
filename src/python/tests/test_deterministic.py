@@ -18,12 +18,13 @@ def live():
     s['state']['legal_actions'].append(dict(action_id='end_turn',type='end_turn',allows_no_target=True,allowed_target_ids=[]))
     return s
 
-def test_certain_kill_equivalent_cards():
-    r=assess({},live());assert r['eligible'] and r['rule_id']=='certain_combat_finish'
-    assert len(r['evidence']['equivalent_finishes'])==2 and r['execution_authorized'] is False
+def test_lethal_cards_require_combat_analysis_instead_of_a_proof_shortcut():
+    r=assess({},live())
+    assert not r['eligible'] and r['selected_steps'] is None
+    assert not any(c['rule_id']=='complete_outcome_comparison' for c in r['checks'])
 
 @pytest.mark.parametrize('change',['unknown_relic','periodic','potion','enemy','power','draw','growth','blocked_damage','stale_game'])
-def test_uncertain_or_beneficial_alternatives_require_ai(change):
+def test_combat_alternatives_do_not_bypass_analysis(change):
     s=live();p=s['state']['player'];e=s['state']['enemies'][0]
     if change=='unknown_relic':p['relics']=[dict(entity_id='RELIC.NEW')]
     if change=='periodic':p['relics']=[dict(entity_id='RELIC.INK_BOTTLE',counter=9)]
@@ -118,7 +119,7 @@ def test_unknown_safe_effect_or_death_prevention_blocks():
     s=event();s['state']['player']['relics']=[dict(entity_id='RELIC.UNKNOWN')]
     assert not assess({},s)['eligible']
 
-def test_enchantment_missing_metadata_hidden_power_and_growth_in_deck_block():
+def test_modified_combat_state_does_not_enable_a_preflight_shortcut():
     for change in ('enchantment','missing','hidden','deck_growth'):
         s=live();p=s['state']['player']
         if change=='enchantment':p['hand'][0]['enchantment_id']='ENCHANTMENT.NEW'
@@ -147,7 +148,8 @@ def test_preflight_skips_heuristic_search(monkeypatch):
     from autoslay.decision import unified
     def forbidden(*args,**kwargs): raise AssertionError('unnecessary heuristic search')
     monkeypatch.setattr(unified,'analyze',forbidden)
-    r=unified.analyze_decision(live())
+    s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:]
+    r=unified.analyze_decision(s)
     assert r['ai_required'] is False and r['autonomy']['eligible']
 
 def test_exact_vector_comparison_rejects_tradeoff_missing_dimension_and_random():
@@ -162,7 +164,7 @@ def test_exact_vector_comparison_rejects_tradeoff_missing_dimension_and_random()
 
 def test_durable_one_action_and_duplicate_request(tmp_path):
     async def run():
-        s=live();calls=[]
+        s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:];calls=[]
         async def fetch():return deepcopy(s)
         async def submit(request):calls.append(request);return dict(status='completed',request_id=request.request_id)
         ex=DeterministicExecutor(tmp_path,fetch,submit,record=False)
@@ -172,7 +174,7 @@ def test_durable_one_action_and_duplicate_request(tmp_path):
 
 def test_state_change_rejected_before_dispatch(tmp_path):
     async def run():
-        s=live();reads=[];calls=[]
+        s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:];reads=[];calls=[]
         async def fetch():
             reads.append(1);v=deepcopy(s)
             if len(reads)>1:v['state_version']+=1
@@ -184,7 +186,7 @@ def test_state_change_rejected_before_dispatch(tmp_path):
 
 def test_interrupted_dispatch_never_replayed(tmp_path):
     async def run():
-        s=live();calls=[]
+        s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:];calls=[]
         async def fetch():return deepcopy(s)
         async def submit(request):calls.append(request);raise TimeoutError()
         ex=DeterministicExecutor(tmp_path,fetch,submit,record=False)
@@ -195,7 +197,7 @@ def test_interrupted_dispatch_never_replayed(tmp_path):
 
 def test_new_id_blocked_by_unresolved_dispatch_then_status_recovery(tmp_path):
     async def run():
-        s=live();calls=[];settled=False
+        s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:];calls=[];settled=False
         async def fetch():return deepcopy(s)
         async def submit(request):
             calls.append(request)
@@ -213,7 +215,7 @@ def test_new_id_blocked_by_unresolved_dispatch_then_status_recovery(tmp_path):
 @pytest.mark.parametrize('changed', ['session_epoch', 'run_id', 'same', 'unknown'])
 def test_historical_pending_dispatch_only_blocks_its_own_context(tmp_path, changed):
     async def run():
-        s=live()
+        s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:]
         old_request=dict(request_id='old-action', session_epoch=s['session_epoch'],
                          run_id=source(s)['run_id'], action_id='end_turn')
         if changed in {'session_epoch','run_id'}:old_request[changed]='old-context'
@@ -240,7 +242,7 @@ def test_local_proof_archived_as_local_choice_not_ai(tmp_path):
     from autoslay.telemetry import decisions
     from autoslay.archive.repository import for_legacy
     async def run():
-        s=live()
+        s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:]
         async def fetch():return deepcopy(s)
         async def submit(request):return dict(status='completed')
         result=await DeterministicExecutor(tmp_path,fetch,submit).execute('archive')
@@ -257,7 +259,7 @@ def test_resident_endpoint_auth_dry_run_and_explicit_execution(tmp_path,monkeypa
     import httpx
     from types import SimpleNamespace
     from autoslay.execution import resident
-    token=tmp_path/'token';token.write_text('test-secret');s=live();calls=[]
+    token=tmp_path/'token';token.write_text('test-secret');s=live();s['state']['legal_actions']=s['state']['legal_actions'][-1:];calls=[]
     monkeypatch.setattr(resident,'load_config',lambda:SimpleNamespace(token_file=str(token)))
     monkeypatch.setattr(resident,'append_record',lambda *args:None)
     async def fetch():return deepcopy(s)
@@ -281,8 +283,10 @@ def test_resident_endpoint_auth_dry_run_and_explicit_execution(tmp_path,monkeypa
             with pytest.raises(asyncio.CancelledError):await task
     asyncio.run(run())
 
-def test_victory_heal_is_reported_and_capped():
-    s=live();p=s['state']['player'];p['creature']['hp']=79;p['creature']['max_hp']=80
+def test_victory_heal_is_compared_by_combat_batches():
+    from autoslay.decision.unified import analyze_decision
+    s=live();p=s['state']['player'];p['creature'].update(hp=79,max_hp=80)
     p['relics']=[dict(entity_id='RELIC.BURNING_BLOOD')]
-    evidence=assess({},s)['evidence']
-    assert evidence['hp_after_attack']==79 and evidence['hp_after_victory']==80 and evidence['victory_heal']==1
+    report=analyze_decision(s,use_cache=False)
+    assert report['autonomy']['decision_basis']=='local_combat_batch'
+    assert report['combat']['batches']['selected_batch']['resource_forecast']['projected_hp_after_heal']==80

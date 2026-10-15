@@ -3,6 +3,21 @@ using AutoSlayBridge;
 static void Check(bool condition, string name) { if (!condition) throw new Exception(name); Console.WriteLine("PASS " + name); }
 static ActionRequest Request(string id = "one") => new(id, "run", "epoch", 42, "play_c1", "enemy");
 
+Check(ActionCatalog.Types.Count == 42 && ActionCatalog.Require("play_card").DefinitionId == "ACTION.play_card",
+    "global catalog includes all bridge command types and stable references");
+Check(!ActionCatalog.Require("quit_game").AgentAllowed && ActionCatalog.Require("use_potion").AgentAllowed,
+    "agent command policy comes from shared definitions");
+ActionCatalog.ValidateBinding("play_card", ["enemy"], false);
+ActionCatalog.ValidateBinding("end_turn", [], true);
+foreach (var invalid in new[] { "unknown", "end_turn", "play_card" })
+{
+    var rejected = false;
+    try { ActionCatalog.ValidateBinding(invalid, invalid == "play_card" ? [] : ["enemy"], false); }
+    catch (InvalidOperationException) { rejected = true; }
+    Check(rejected, "catalog rejects unknown or invalid targeting: " + invalid);
+}
+Console.WriteLine($"ACTION_CATALOG {ActionCatalog.Types.Count} {ActionCatalog.Sha256}");
+
 var runtimeJson = System.Text.Json.JsonSerializer.Serialize(RuntimeFields.Read(new RuntimeProbe()));
 using (var runtimeDocument = System.Text.Json.JsonDocument.Parse(runtimeJson))
 {

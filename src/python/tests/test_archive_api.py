@@ -17,6 +17,18 @@ def service(tmp_path):
 
 def get(url):return urlopen(Request(url,headers={'X-Autoslay-ReadOnly':'1'}),timeout=3)
 
+
+def test_live_projects_monster_state_machines_without_any_decision_report(service):
+    from test_monster_graphs import snapshot as combat_snapshot
+    repo,url=service;s=combat_snapshot()
+    from test_run_observatory import snapshot as run_snapshot
+    location=run_snapshot()['state'];s['state'].update({k:location[k] for k in ('run_id','run_history_id','map')})
+    repo.store(dict(event_id='graph_state',kind='snapshot',snapshot=s))
+    data=json.load(get(url+'/api/live'))
+    assert data['decision'] is None
+    assert len(data['monster_graphs'])==3
+    assert all(g['next_moves'][0]['probability']==1 for g in data['monster_graphs'])
+
 def test_catalog_filters_tree_offline_and_pagination(service):
     repo,url=service
     data=json.load(get(url+'/api/archives?date=2026-10-10&character=IRONCLAD&ascension=5'))
@@ -61,7 +73,7 @@ def test_evidence_matches_local_and_ai_results_to_their_analysis(service):
 def test_dashboard_modules_and_bounded_local_catalog(service):
     _,url=service
     for asset,kind in [('workspace.js','text/javascript'),('presentation.js','text/javascript'),
-                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('combat-forecast.js','text/javascript'),('services.js','text/javascript')]:
+                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('sidebar-view.js','text/javascript'),('combat-forecast.js','text/javascript'),('services.js','text/javascript')]:
         with urlopen(url+'/'+asset) as response:
             assert response.status==200
             assert response.headers['Content-Type'].startswith(kind)

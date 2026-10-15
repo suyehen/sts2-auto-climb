@@ -62,7 +62,8 @@ public static partial class Bridge
         if (CanQuitGame()) LifecycleBindings["quit_game"] = "quit_game";
         foreach (var kind in new[] { "close_map_overlay", "continue_game_over", "return_after_game_over" })
             if (LifecycleReady(kind, run, combat, player)) LifecycleBindings[kind] = kind;
-        return LifecycleBindings.Keys.Select(id => new LegalAction(id, id, null, [], true)).ToArray();
+        return LifecycleBindings.Keys.Select(id => new LegalAction(id, id, null, [], true,
+            new("game", null, run == null ? Epoch : Id(run)))).ToArray();
     }
     private static void DispatchLifecycle(string kind)
     {

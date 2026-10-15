@@ -2,7 +2,7 @@
 import {controlView,agentErrors,agentFailureText,phaseNames} from './agent-state.js';
 import {mountServices} from './services.js';
 (()=>{
- const O=window.Observer,host=document.getElementById('agent-controls');if(!host)return;
+ const O=window.Observer,host=document.getElementById('agent-controls')||(document.getElementById('agent-quick-controls')?document.createElement('div'):null);if(!host)return;
  const E=O.el,call=(path,body)=>O.api('/api/agent/'+path,body),compact=location.pathname.endsWith('sidebar.html');
  const errors={RESIDENT_UNAVAILABLE:'Agent 服务未启动，请运行启动脚本。',PROVIDER_NOT_CONFIGURED:'请先填写模型或密钥。',GAME_NOT_CONNECTED:'游戏尚未连接。',ENTER_OR_CONTINUE_RUN_FIRST:'请先开始或继续一局游戏。',MODEL_TIMEOUT:'模型等待超时，Agent 已暂停。',CODEX_LOGIN_OR_REQUEST_FAILED:'本机 Codex 登录或请求失败。',INVALID_REQUEST:'配置不完整，请检查填写内容。'};
  Object.assign(errors,agentErrors);

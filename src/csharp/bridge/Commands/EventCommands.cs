@@ -112,7 +112,8 @@ public static partial class Bridge
             RuntimeFields.Read(model));
     }
     private static LegalAction[] EventActions() => EventBindings.Select(p => new LegalAction(p.Key,
-        p.Value.Option.IsProceed ? "proceed_event" : "choose_event_option", null, [], true)).ToArray();
+        p.Value.Option.IsProceed ? "proceed_event" : "choose_event_option", null, [], true,
+        new("event_option", p.Value.Model.Id.ToString(), Id(p.Value.Option)))).ToArray();
 
     private static void DispatchEvent(EventBinding binding)
     {

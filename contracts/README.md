@@ -1,5 +1,9 @@
 # 跨语言协议
 
+0.30.0 新增全局动作目录 `data/knowledge/rules/actions.json`，覆盖当前桥接的 42 种命令。C# 将该文件嵌入程序集，Python 通过知识清单读取同一文件；目录定义、版本与 SHA256 是共同依据。`legal-action.schema.json` 描述实时绑定，新增 `definition_id`、`source`；`state.action_catalog` 给出版本与指纹。旧快照缺少新增元数据时兼容读取，声明了不同目录身份时拒绝混用。动作请求格式保持不变。
+
+对象能力、效果/触发引用与实时可操作性分别记录。详见 `docs/design/全局动作目录与对象能力记录-2026-10-15.md`。目录和能力记录不是执行权限，提交前仍检查新鲜 `legal_actions`。
+
 状态、动作、错误与实体资料的 JSON Schema 放在此目录，供 C#、Python 和 MCP 共同遵循。已定义 `action-request.schema.json`；P1 工具和动作生命周期见 `docs/P1接口与验收.md`，0.3.0 奖励动作及打开/选择两阶段语义见 `docs/奖励接口与验收.md`。奖励动作继续使用同一请求结构，target_id=null；状态与错误的完整 Schema 尚待补齐。
 
 0.4.0 支持没有对局的主菜单动作：请求 run_id 使用快照中的 `state.command_context_id`（对局内等于真实 run_id，主菜单为菜单实例 ID）。state.run_id 在没有对局时仍为 null。详见 `docs/主菜单接口与验收.md`。

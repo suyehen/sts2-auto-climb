@@ -137,7 +137,10 @@ public static partial class Bridge
             selected, ascension, maximum, characters.ToArray(), hasSave ? "EXISTING_RUN_MUST_BE_CONTINUED_OR_EXPLICITLY_ABANDONED" : null);
     }
 
-    private static LegalAction[] MenuActions() => MenuBindings.Select(pair => new LegalAction(pair.Key, pair.Value.Kind, null, [], true)).ToArray();
+    private static LegalAction[] MenuActions() => MenuBindings.Select(pair => new LegalAction(pair.Key, pair.Value.Kind, null, [], true,
+        new(ActionCatalog.Require(pair.Value.Kind).SourceKinds[0],
+            pair.Value.Control is NCharacterSelectButton character ? character.Character.Id.ToString() : null,
+            Id(pair.Value.Control)))).ToArray();
 
     private static void ObserveMenuCompletion()
     {

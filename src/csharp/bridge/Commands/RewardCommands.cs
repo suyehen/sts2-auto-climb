@@ -19,7 +19,8 @@ public static partial class Bridge
 {
     private sealed record RewardView(string? Phase, string? ScreenId, string? ScreenType,
         object[] Rewards, object[] Cards, object[] Alternatives, bool DecisionReady);
-    private sealed record UiBinding(Node Screen, Node Control, string Kind, Func<Task?> Dispatch, object? ChoiceToken = null);
+    private sealed record UiBinding(Node Screen, Node Control, string Kind, Func<Task?> Dispatch, object? ChoiceToken = null,
+        ActionOrigin? Source = null);
     private static readonly Dictionary<string, UiBinding> UiBindings = new();
     private static UiBinding? activeUi;
     private static Task? uiTask;
@@ -92,7 +93,8 @@ public static partial class Bridge
                     if (bind) UiBindings[actionId] = new(rewardScreen, button, "claim_reward", () => {
                         pendingRewardTask = StartReward(button);
                         return pendingRewardTask;
-                    });
+                    }, Source: new("reward", reward is RelicReward offeredRelic ? offeredRelic.Relic?.Id.ToString()
+                        : reward is PotionReward offeredPotion ? offeredPotion.Potion?.Id.ToString() : null, Id(reward)));
                 }
             }
             // Report linked sets without exposing constituent cards before the player opens them.
@@ -105,7 +107,8 @@ public static partial class Bridge
                 ready = true;
                 var actionId = "proceed_" + Id(rewardScreen);
                 alternatives.Add(new { option_id = "proceed", description = proceed.IsSkip ? "Skip remaining rewards and proceed" : "Proceed", action_id = actionId });
-                if (bind) UiBindings[actionId] = new(rewardScreen, proceed, "proceed_rewards", () => { proceed.ForceClick(); return null; });
+                if (bind) UiBindings[actionId] = new(rewardScreen, proceed, "proceed_rewards", () => { proceed.ForceClick(); return null; },
+                    Source: new("reward_screen", null, Id(rewardScreen)));
             }
         }
         else if (screen is NCardRewardSelectionScreen choiceScreen)
@@ -135,7 +138,7 @@ public static partial class Bridge
                     if (bind) UiBindings[actionId] = new(choiceScreen, holder, "choose_reward_card", () => {
                         holder.EmitSignal(NCardHolder.SignalName.Pressed, holder);
                         return pendingRewardTask;
-                    }, completion);
+                    }, completion, new("card", card.Id.ToString(), Id(card)));
                 }
             }
             var options = ReadUiField<IReadOnlyList<CardRewardAlternative>>(choiceScreen, "_extraOptions");
@@ -164,7 +167,9 @@ public static partial class Bridge
 
     private static LegalAction[] RewardActions() => UiBindings.Select(pair => new LegalAction(
         pair.Key, pair.Value.Kind, pair.Value.Control is NCardHolder holder && holder.CardModel != null ? Id(holder.CardModel) : null,
-        [], true)).ToArray();
+        [], true, pair.Value.Source ?? new(ActionCatalog.Require(pair.Value.Kind).SourceKinds[0],
+            pair.Value.Control is NCardHolder cardHolder && cardHolder.CardModel != null ? cardHolder.CardModel.Id.ToString() : null,
+            Id(pair.Value.Control)))).ToArray();
 
     private static void ObserveUiCompletion()
     {

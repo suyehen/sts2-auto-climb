@@ -9,7 +9,7 @@ from autoslay.agent.contracts import DecisionPlan, PlanStep, validate_plan, sche
 from autoslay.agent.plans import prepare
 from autoslay.agent.providers import ProviderError
 from autoslay.decision.deterministic import source
-from test_agent import make_agent, payload
+from test_agent import make_agent, payload, choice_payload
 from test_deterministic import live
 
 
@@ -64,21 +64,21 @@ def test_reward_multistep_reply_is_corrected_once_before_any_dispatch(tmp_path,o
                 if len(calls)==1 and outcome=='paused':agent.running=False
                 steps=[{'action_id':'collect_a','target_id':None}]
                 if len(calls)==1 or outcome=='invalid_again':steps.append({'action_id':'collect_b','target_id':None})
-                return json.dumps(dict(state_token=source(origin)['state_sha256'],reason='领取奖励',steps=steps)),{'total_tokens':10}
+                return (json.dumps(dict(state_token=source(origin)['state_sha256'],reason='领取奖励',steps=steps)) if len(calls)==1 or outcome=='invalid_again' else choice_payload(origin)),{'total_tokens':10}
         agent,s,_,submit=make_agent(tmp_path)
         s['state']['phase']='rewards'
         s['state']['legal_actions']=[dict(action_id=a,type='claim_reward',allows_no_target=True,allowed_target_ids=[]) for a in ['collect_a','collect_b']]
         origin=deepcopy(s);agent.running=True;agent.generation=1;agent.model_wait={}
         packet={'visible_state':origin}
         if outcome=='invalid_again':
-            with pytest.raises(ProviderError,match='MULTI_ACTION_REQUIRES_COMBAT'):
+            with pytest.raises(ProviderError,match='MODEL_INVALID_DECISION'):
                 await agent.decide_plan(Provider(),packet,origin,1,'request',{},agent.store.profiles['codex'])
         else:
             plan,usage=await agent.decide_plan(Provider(),packet,origin,1,'request',{},agent.store.profiles['codex'])
             if outcome=='valid':
                 assert len(plan.steps)==1 and plan.steps[0].action_id=='collect_a'
                 assert usage['total_tokens']==20 and usage['validation_attempts']==2
-                assert calls[1]['validation_feedback']['code']=='MULTI_ACTION_REQUIRES_COMBAT'
+                assert calls[1]['validation_feedback']['code']=='MODEL_INVALID_DECISION'
             else:assert plan is None
         assert len(calls)==(2 if outcome in {'valid','invalid_again'} else 1)
         assert submit.await_count==0
@@ -91,8 +91,9 @@ def test_entire_turn_uses_one_model_request(tmp_path):
         class Provider:
             async def decide(self, packet):
                 calls.append(packet)
-                return plan_for(s).model_dump_json(), {}
+                return choice_payload(s), {}
         agent, s, _, _ = make_agent(tmp_path, factory=lambda *_: Provider())
+        agent.analyze=lambda snap:dict(source=source(snap),phase='combat',analysis_id='test',combat=dict(candidates=[dict(steps=[step.model_dump() for step in plan_for(snap).steps])]))
         s['state']['card_selection'] = dict(screen_id=None, screen_type=None,
             decision_ready=False, cancelable=False, cards=[], controls=[])
         async def submit(request):
@@ -134,7 +135,7 @@ def test_changed_state_discards_remaining_plan(tmp_path, change):
             if change == 'selection': s['state']['card_selection'] = dict(screen_id='choice', decision_ready=True)
             return dict(status='completed')
         agent.submit = AsyncMock(side_effect=submit)
-        await agent.execute_plan(plan_for(initial), initial, {}, 1, agent.store.profiles['codex'], 'plan', 1, {})
+        await agent.execute_plan(plan_for(initial), initial, {'combat':{'candidates':[{'steps':[step.model_dump() for step in plan_for(initial).steps]}]}}, 1, agent.store.profiles['codex'], 'plan', 1, {})
         assert agent.submit.await_count == 1
         assert agent.last.get('plan_interruption')
     asyncio.run(run())
@@ -152,7 +153,7 @@ def test_pause_or_nested_choice_stops_after_current_action(tmp_path):
                 if status == 'completed': await agent.pause()
                 return dict(status=status)
             agent.submit = AsyncMock(side_effect=submit)
-            await agent.execute_plan(plan_for(initial), initial, {}, 1, agent.store.profiles['codex'], 'plan', 1, {})
+            await agent.execute_plan(plan_for(initial), initial, {'combat':{'candidates':[{'steps':[step.model_dump() for step in plan_for(initial).steps]}]}}, 1, agent.store.profiles['codex'], 'plan', 1, {})
             assert agent.submit.await_count == 1
     asyncio.run(run())
 

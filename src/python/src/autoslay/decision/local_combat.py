@@ -4,6 +4,7 @@ from autoslay.decision.contracts import Operation
 from autoslay.decision.normalize import normalize
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge_base.repository import read_json, dataset_path
+from autoslay.actions import action_types
 
 VERSION = '1.2.0'
 
@@ -36,7 +37,7 @@ def select_combat_selection(snapshot):
     ops=operations(actions);cards=selection.get('cards') or [];selected=sum(c.get('selected') is True for c in cards)
     needed=selection.get('min_select')
     needed=needed if type(needed) is int and needed>0 else 1
-    confirms={a['action_id'] for a in actions if a.get('type') in {'confirm_card_selection','preview_card_selection','close_card_selection'}}
+    confirms={a['action_id'] for a in actions if a.get('type') in {'confirm_card_selection','confirm_combat_selection','preview_card_selection','close_card_selection'}}
     chosen=next((op for op in ops if op['action_id'] in confirms),None) if selected>=needed else None
     if chosen is None:
         prompt=selection.get('prompt') or '';negative=any(word in prompt.lower() for word in ('discard','exhaust','移除','消耗','弃'))
@@ -79,7 +80,7 @@ def select(report, snapshot):
            for c in player.get('hand') or []):
         return None, ['local_combat_card_modifier_not_certified']
     actions = [a for a in state.get('legal_actions') or [] if a.get('type') not in ADMIN | {'discard_potion'}]
-    if any(a.get('type') not in {'play_card', 'end_turn', 'use_potion'} for a in actions):
+    if any(a.get('type') not in action_types(group='combat') for a in actions):
         return None, ['local_combat_action_not_modeled']
     legal = {Operation(**op) for op in operations(actions)}
     try:

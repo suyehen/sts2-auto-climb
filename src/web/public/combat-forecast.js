@@ -6,7 +6,8 @@ export function enemyIntentFacts(snapshot={}){
  return (snapshot.state?.enemies||[]).filter(e=>e.hp==null||e.hp>0).map(e=>({
   id:e.instance_id,name:e.name||'敌人',hp:e.hp,block:e.block,
   intents:e.intents?.length?e.intents.map(i=>{
-   const title=i.label||intentNames[i.type]||i.type||'未知意图';
+   const label=i.label&&!/^[\s\d+×x.,%−-]+$/.test(i.label)?i.label:null;
+   const title=label||intentNames[i.type]||i.type||'未知意图';
    const attack=known(i.attack_damage)?` · ${number(i.attack_damage)} × ${number(i.attack_repeats)}${known(i.attack_repeats)?' = '+number(i.attack_damage*i.attack_repeats)+' 点':''}`:'';
    const tip=i.hover_tip?.description||i.hover_tip?.body;
    return title+attack+(tip?'；'+tip:'');

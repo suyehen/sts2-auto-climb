@@ -176,7 +176,7 @@ def test_tool_response_correction_is_state_checked_and_never_dispatches(tmp_path
             if len(calls)==1 or outcome=='invalid_again':
                 return httpx.Response(200,json=dict(choices=[dict(finish_reason='stop',message=dict(content='private prose'))],usage=dict(total_tokens=7)))
             args=json.dumps(dict(state_token=source(origin)['state_sha256'],
-                steps=[dict(action_id='end_turn',target_id='')],reason='结束回合'))
+                candidate_id='option_3',reason='结束回合'))
             assert 'submit_decision tool call' in body['messages'][0]['content']
             assert 'private prose' not in body['messages'][0]['content']
             return httpx.Response(200,json=response(args))

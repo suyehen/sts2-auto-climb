@@ -12,6 +12,7 @@ from autoslay.decision.normalize import normalize
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.paths import ROOT
 from autoslay.execution.lock import dispatch_lock
+from autoslay.actions import operation_error, validate_catalog_identity
 
 VERSION = "1.0.0"
 
@@ -74,6 +75,7 @@ class SequenceExecutor:
             save(path, record)
             return record
         before = await self.fetch()
+        validate_catalog_identity(before)
         s = before.get("state") or {}
         if (before.get("session_epoch") != plan.session_epoch or
             before.get("state_version") != plan.expected_state_version or
@@ -85,15 +87,14 @@ class SequenceExecutor:
         except (ValueError, KeyError, TypeError):
             model = simulator = None
         for index, step in enumerate(plan.steps):
+            validate_catalog_identity(before)
             s = before.get("state") or {}
             if (not before.get("ready") or before.get("busy") or s.get("phase") != "combat" or
                 before.get("session_epoch") != plan.session_epoch or
                 (s.get("command_context_id") or s.get("run_id")) != plan.run_id):
                 return finish("STATE_NOT_READY", before)
             legal = next((a for a in s.get("legal_actions", []) if a["action_id"] == step.action_id), None)
-            if not legal or legal.get("type") not in {"play_card", "use_potion", "end_turn"} or (
-                step.target_id not in legal.get("allowed_target_ids", []) if step.target_id else
-                not legal.get("allows_no_target")):
+            if operation_error(legal,step.target_id,combat_only=True):
                 return finish("ILLEGAL_STEP", before)
             transition = None
             if simulator is not None:

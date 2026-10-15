@@ -1,6 +1,7 @@
 {
   "schema_version": "knowledge-manifest/1.0",
   "datasets": {
+    "actions": "rules/actions.json",
     "catalog": "catalog/encyclopedia.json",
     "behavior": "behavior/catalog.json",
     "mechanics": "mechanics/game-0.111.0.json",

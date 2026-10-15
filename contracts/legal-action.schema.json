@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutoSlay live legal action binding v1",
+  "description": "type and definition_id resolve against data/knowledge/rules/actions.json. Definitions never replace fresh game permission. Metadata is optional for old snapshots.",
+  "type": "object",
+  "required": ["action_id", "type", "allowed_target_ids", "allows_no_target"],
+  "properties": {
+    "action_id": {"type": "string", "minLength": 1},
+    "type": {"type": "string", "minLength": 1},
+    "definition_id": {"type": "string", "pattern": "^ACTION\\.[a-z_]+$"},
+    "card_instance_id": {"type": ["string", "null"]},
+    "allowed_target_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "allows_no_target": {"type": "boolean"},
+    "source": {
+      "type": ["object", "null"],
+      "properties": {
+        "kind": {"type": "string"},
+        "entity_id": {"type": ["string", "null"]},
+        "instance_id": {"type": ["string", "null"]}
+      },
+      "required": ["kind", "entity_id", "instance_id"]
+    }
+  }
+}

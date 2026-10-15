@@ -83,7 +83,8 @@ public static partial class Bridge
     }
     private static LegalAction[] PotionActions() => PotionBindings.Select(p => new LegalAction(p.Key,
         p.Value.Discard ? "discard_potion" : "use_potion", null,
-        p.Value.Targets.Where(t => t != null).Select(t => Id(t!)).ToArray(), p.Value.Targets.Contains(null))).ToArray();
+        p.Value.Targets.Where(t => t != null).Select(t => Id(t!)).ToArray(), p.Value.Targets.Contains(null),
+        new("potion", p.Value.Potion.Id.ToString(), Id(p.Value.Potion)))).ToArray();
     private static void DispatchPotion(PotionBinding binding, Creature? target)
     {
         activePotion = binding;

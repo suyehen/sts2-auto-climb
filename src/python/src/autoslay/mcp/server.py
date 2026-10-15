@@ -38,6 +38,32 @@ async def lifespan(server):
 mcp = FastMCP("AutoSlayTheSpire", lifespan=lifespan)
 sequence_executor = SequenceExecutor()
 
+
+@mcp.tool()
+@scoped
+def get_action_catalog(action_type: str | None = None) -> dict:
+    """Read global command definitions or reverse lookup potential providers; never grants live permission."""
+    from autoslay import actions
+    if action_type:
+        return dict(definition=actions.definition(action_type),providers=actions.entities_for_action(action_type))
+    return actions.catalog()
+
+
+@mcp.tool()
+@scoped
+def get_entity_capabilities(entity_id: str) -> dict:
+    """Read potential commands and existing effect/trigger/move references, including coverage status."""
+    from autoslay.actions import entity_capabilities
+    return entity_capabilities(entity_id)
+
+
+@mcp.tool()
+async def get_action_space() -> dict:
+    """Observe live action/source/target bindings; no game action is submitted."""
+    from autoslay.actions import describe
+    snapshot=await fetch_state()
+    return await asyncio.to_thread(describe,snapshot)
+
 @mcp.tool()
 async def analyze_decision(context: dict | None = None, scenarios: list | None = None, use_cache: bool = True) -> dict:
     """Unified read-only combat/reward/shop/event/map report, adaptive budgets and cache.

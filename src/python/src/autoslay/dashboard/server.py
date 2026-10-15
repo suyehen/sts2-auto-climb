@@ -18,9 +18,20 @@ from autoslay.knowledge_base.rulebook import Rulebook
 from autoslay.archive.repository import for_legacy
 from autoslay.archive.views import live as live_view
 from autoslay.archive import transfer
+from autoslay import actions as action_registry
 
 PORT=18767
 ASSETS=ROOT/'src/web/public'
+
+
+@scoped
+def actions_page(query):
+    if query.get('entity_id'):
+        return action_registry.entity_capabilities(query['entity_id'][0])
+    if query.get('type'):
+        kind=query['type'][0]
+        return dict(definition=action_registry.definition(kind),providers=action_registry.entities_for_action(kind))
+    return action_registry.catalog()
 
 def resident(route,body=None):
     token=Path(load_config().token_file).read_text().strip()
@@ -93,12 +104,16 @@ def make_server(port=PORT,directory=None):
                     match=re.fullmatch(r'/assets/(cards|potions|relics|monsters|map)/((CARD|POTION|RELIC|MONSTER|MAP)\.[A-Z0-9_]+\.webp)',route)
                     if not match or {'cards':'CARD','potions':'POTION','relics':'RELIC','monsters':'MONSTER','map':'MAP'}[match[1]]!=match[3]:raise ValueError('Invalid image')
                     self.send(asset_path(match[1],match[2]).read_bytes(),kind='image/webp');return
-                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/shared.js','/agent.js','/services.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/audit-view.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
+                if self.command=='GET' and route in {'/','/index.html','/style.css','/sidebar.html','/sidebar.js','/sidebar.css','/sidebar-combat.js','/sidebar-view.js','/shared.js','/agent.js','/services.js','/workspace.js','/presentation.js','/map.js','/history-model.js','/audit-view.js','/workbench.css','/library.js','/event-model.js','/event-forecast.js','/combat-forecast.js','/configuration.js','/agent-state.js','/play.js','/play-state.js'}:
                     name='index.html' if route=='/' else route[1:]
                     kind={'html':'text/html','js':'text/javascript','css':'text/css'}[name.rsplit('.',1)[1]]+'; charset=utf-8'
                     self.send((ASSETS/name).read_bytes(),kind=kind); return
                 if self.command=='GET' and route=='/api/catalog':
                     self.send(catalog_page(query));return
+                if self.command=='GET' and route=='/api/actions':
+                    self.send(actions_page(query));return
+                if self.command=='GET' and route=='/api/actions/live':
+                    self.send(action_registry.describe(resident('/state')));return
                 if self.command=='GET' and route=='/api/knowledge/status':
                     self.send(knowledge_service.status());return
                 if self.command=='GET' and route=='/api/knowledge/search':

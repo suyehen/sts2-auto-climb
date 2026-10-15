@@ -11,6 +11,7 @@ from autoslay.telemetry import runs,decisions
 from uuid import uuid4
 from autoslay.knowledge_base.repository import scoped
 from time import perf_counter
+from autoslay.actions import operation_error, describe as describe_actions, validate_catalog_identity
 
 
 @scoped
@@ -67,6 +68,7 @@ class DeterministicExecutor:
                 if not proof['eligible']: return dict(status=proof['mode'],autonomy=proof)
                 # Re-evaluate, rather than accepting a proof/candidate supplied by callers.
                 fresh=await self.fetch()
+                validate_catalog_identity(fresh)
                 if source(fresh)!=proof['source'] or not fresh.get('ready') or fresh.get('busy'):
                     return dict(status='rejected',reason='STATE_CHANGED')
                 started=perf_counter();proof=await asyncio.to_thread(qualify,fresh,bounded)
@@ -79,6 +81,7 @@ class DeterministicExecutor:
                     request_elapsed_ms=analysis_ms,
                     autonomy=proof,execution_authorized=False,ai_called=False,shortlist=[],
                     limitations=['bounded strategy; not a global outcome proof' if proof.get('decision_basis') in {'bounded_combat_strategy','calibrated_combat_strategy'} else 'proof applies only to this fresh state'])
+                report['action_space']=describe_actions(fresh)
                 if self.record:
                     await asyncio.to_thread(decisions.archive,report,fresh)
                     await asyncio.to_thread(runs.stage,'local_choice',fresh,dict(analysis_id=identity,reason=proof['reason'],
@@ -129,6 +132,7 @@ class DeterministicExecutor:
             autonomy=proof,combat=dict(batches=dict(selected_batch=proof['evidence']['selected_batch'],
                 top_batches=proof['evidence'].get('top_batches'),deck_capabilities=proof['evidence'].get('deck_capabilities'),
                 run_resources=proof['evidence'].get('run_resources'))),execution_authorized=False,ai_called=False)
+        report['action_space']=describe_actions(before)
         if self.record:
             await asyncio.to_thread(decisions.archive,report,before)
             await asyncio.to_thread(runs.stage,'local_choice',before,dict(analysis_id=identity,reason=proof['reason'],
@@ -140,6 +144,7 @@ class DeterministicExecutor:
             if status=='rejected':result['reason']='STATE_CHANGED'
             save(path,result);return result
         for index,step in enumerate(proof['selected_steps']):
+            validate_catalog_identity(before)
             state=before.get('state') or {}
             if not before.get('connected') or not before.get('ready') or before.get('busy') or before.get('error') or state.get('control_mode')=='paused':
                 return finish('state_not_ready','completed' if result['steps'] else 'rejected')
@@ -147,7 +152,7 @@ class DeterministicExecutor:
             if src['session_epoch']!=origin['session_epoch'] or src['run_id']!=origin['run_id'] or state.get('phase')!='combat' or state.get('combat_instance_id')!=initial['state'].get('combat_instance_id') or any(before.get(k)!=initial.get(k) for k in ('game_version','game_assembly_sha256')):
                 return finish('context_changed')
             legal=next((a for a in state.get('legal_actions') or [] if a['action_id']==step['action_id']),None)
-            if not legal or (step.get('target_id') not in legal.get('allowed_target_ids',[]) if step.get('target_id') else not legal.get('allows_no_target')):
+            if operation_error(legal,step.get('target_id'),combat_only=True):
                 return finish('legal_actions_changed')
             transition=None;warnings=()
             previous_relics=state.get('player',{}).get('relics')

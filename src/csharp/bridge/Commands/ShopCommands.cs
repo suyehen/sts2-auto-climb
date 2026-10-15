@@ -91,7 +91,8 @@ public static partial class Bridge
         return new(current is NMerchantRoom or NMerchantInventory ? Id(current) : null,
             current is NMerchantInventory { IsOpen: true }, ready, items.ToArray(), controls.ToArray());
     }
-    private static LegalAction[] ShopActions() => ShopBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true)).ToArray();
+    private static LegalAction[] ShopActions() => ShopBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true,
+        new(ActionCatalog.Require(p.Value.Kind).SourceKinds[0], null, Id((object?)p.Value.Entry ?? p.Value.Screen)))).ToArray();
     private static void DispatchShop(ShopBinding binding)
     {
         activeShop = binding; shopPurchased = binding.Entry == null;

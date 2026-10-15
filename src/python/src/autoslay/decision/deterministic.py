@@ -1,29 +1,19 @@
-"""Strict proofs and an explicitly labeled bounded strategy; scores are never proofs."""
+"""Local progression rules and combat strategies; combat finishes use batch analysis."""
 from autoslay.configuration import decision_config
 from math import isfinite
 from autoslay.paths import ROOT
 from autoslay.knowledge_base.repository import read_json, dataset_path, scoped
 from autoslay.decision.cache import digest
-from autoslay.decision.normalize import normalize
-from autoslay.decision.contracts import Operation, UnsupportedEffect
-from autoslay.simulation.engine import CombatSimulator
 from autoslay.knowledge_base.events import resource_hook_warnings
-from autoslay.decision.outcomes import Outcome,compare
+from autoslay.actions import action_types, operations
 
-VERSION='1.3.0'
+VERSION='1.4.0'
 POLICY_PATH=ROOT/'config/decision/autonomy.default.json'
 CERTIFICATES=dataset_path('certificates')
-ADMIN={'return_to_main_menu','quit_game'}
+ADMIN=action_types(agent_allowed=False)
 
 def load_policy():
     return decision_config(POLICY_PATH)
-
-def operations(actions):
-    result=[]
-    for a in actions:
-        if a.get('allows_no_target'): result.append(dict(action_id=a['action_id'],target_id=None))
-        result.extend(dict(action_id=a['action_id'],target_id=t) for t in a.get('allowed_target_ids',[]))
-    return result
 
 def source(snapshot):
     s=snapshot.get('state') or {}
@@ -35,76 +25,6 @@ def certificates(snapshot):
     if snapshot.get('game_version')!=cert['game_version'] or snapshot.get('game_assembly_sha256')!=cert['game_assembly_sha256']:
         return None
     return cert
-
-def finish_model(snapshot,actions,cert,allowed_effects,allowed_enemy_powers=frozenset()):
-    s=snapshot['state'];p=s['player'];reasons=[]
-    for r in p.get('relics') or []:
-        if r['entity_id'] not in cert['finish_safe_relics']: reasons.append('uncertified_relic_or_counter:'+r['entity_id'])
-    for e in s.get('enemies') or []:
-        if e['entity_id'] not in cert['finish_safe_monsters']: reasons.append('uncertified_enemy_death_or_phase:'+e['entity_id'])
-    if p['creature'].get('powers') or any(power['entity_id'] not in allowed_enemy_powers
-        for enemy in s.get('enemies') or [] for power in enemy.get('powers') or []): reasons.append('combat_power_requires_review')
-    creatures=[p['creature'],*(s.get('enemies') or [])]
-    if any('hidden_power_ids' not in c or c['hidden_power_ids'] for c in creatures): reasons.append('hidden_power_coverage_missing_or_unreviewed')
-    for c in [*(p.get('deck') or []),*(p.get('hand') or [])]:
-        if c.get('costs_x') or c.get('costs_star_x'):
-            reasons.append('variable_card_cost_requires_adapter:'+c['entity_id'])
-        if c.get('modifiers_complete') is not True or c.get('enchantment_id') or c.get('affliction_id'):
-            reasons.append('card_modifiers_missing_or_unreviewed:'+c['entity_id'])
-    if p.get('potions'): reasons.append('potion_alternative_requires_comparison')
-    if any(a.get('type') not in {'play_card','end_turn'} for a in actions): reasons.append('unmodeled_action_alternative')
-    if reasons: return None,None,reasons
-    try:
-        model=normalize(snapshot);sim=CombatSimulator(model)
-        if model.warnings: return None,None,list(model.warnings)
-        # A growth card in the draw pile can make deliberately delaying victory valuable.
-        for c in p.get('deck') or []:
-            rule=sim.rules.rulebook.require(c['entity_id'],'card')
-            if rule.get('unplayable') and c['entity_id'] not in cert['finish_safe_unplayable_cards']:
-                return None,None,['deck_end_effect_not_certified:'+c['entity_id']]
-            if any(e['operation'] not in allowed_effects for e in rule.get('effects',[])):
-                return None,None,['deck_has_optional_resource_or_growth_effect:'+c['entity_id']]
-        # Certify ALL held cards, including presently unaffordable optional growth/heal/draw.
-        for c in p.get('hand') or []:
-            rule=sim.rules.rulebook.require(c['entity_id'],'card')
-            if rule.get('unplayable'):
-                if c['entity_id'] not in cert['finish_safe_unplayable_cards']: return None,None,['unplayable_end_effect_not_certified:'+c['entity_id']]
-            else:
-                compiled=sim.compiled.get(c['instance_id'])
-                if compiled is None: return None,None,['unmodeled_held_card:'+c['entity_id']]
-                if any(e.kind not in allowed_effects for e in compiled.effects):
-                    return None,None,['optional_draw_heal_growth_or_resource_effect:'+c['entity_id']]
-        return model,sim,[]
-    except (ValueError,KeyError,TypeError) as exc: return None,None,['mechanics_incomplete:'+str(exc)]
-
-
-def finish(snapshot,actions,cert):
-    allowed={'damage','unpowered_damage','block','unpowered_block','vulnerable','weak_boundary'}
-    model,sim,reasons=finish_model(snapshot,actions,cert,allowed)
-    if reasons:return None,reasons
-    p=snapshot['state']['player']
-    try:
-        candidates=[]
-        victory_heal=6 if any(r['entity_id']=='RELIC.BURNING_BLOOD' for r in p.get('relics',[])) else 0
-        for op in operations(actions):
-            if not op['action_id'].startswith('play_'): continue
-            try: t=sim.apply(model,Operation(**op))
-            except UnsupportedEffect: continue
-            if not t.boundary and t.state.hp>0 and t.state.hp==model.hp and not any(e.hp>0 for e in t.state.enemies):
-                candidates.append((op,Outcome('combat_victory',(('hp',min(t.state.max_hp,t.state.hp+victory_heal)),('max_hp',t.state.max_hp)),True,True)))
-        if candidates:
-            # Source-reviewed effects above establish equal persistent state/continuation;
-            # compare the remaining terminal resources explicitly, without utility weights.
-            candidates.sort(key=lambda pair:pair[0]['action_id'])
-            selected,outcome=candidates[0]
-            if any(compare(outcome,other,{'hp':1,'max_hp':1})!='equal' for _,other in candidates):
-                return None,['terminal_resource_tradeoff']
-            return dict(rule_id='certain_combat_finish',reason='确定结束战斗，且已核对没有回血、永久成长、药水或遗物计数取舍。',
-                steps=[selected],evidence=dict(enemy_hp_before=sum(e.hp for e in model.enemies),enemy_hp_after=0,
-                hp_before=model.hp,hp_after_attack=model.hp,hp_after_victory=min(model.max_hp,model.hp+victory_heal),victory_heal= min(victory_heal,model.max_hp-model.hp),equivalent_finishes=[op for op,_ in candidates],certificate_version=cert['version'],
-                comparison='equal',scope='terminal resources; transient energy/block/combat piles discarded')),[]
-        return None,['no_certified_immediate_finish']
-    except (ValueError,KeyError,TypeError) as exc: return None,['mechanics_incomplete:'+str(exc)]
 
 def event_survival(snapshot,actions,cert):
     s=snapshot['state'];event=s.get('event_screen') or {};p=s.get('player') or {}
@@ -231,16 +151,11 @@ def assess(report,snapshot,policy=None):
                 automatic_gap_selection=True,reason='操作批次按统一资源价值比较；接近分数由本地取舍，校准不是行动前置条件。')
             return result
         return reject(reasons[0] if reasons else 'combat_batch_analysis_required','wait')
-    rules=[('certain_combat_finish','combat',finish),('eliminate_certain_death','event',event_survival),
+    rules=[('eliminate_certain_death','event',event_survival),
            ('open_card_reward','rewards',open_card_reward)]
     for identity,phase,rule in rules:
         if proof is None and s.get('phase')==phase and identity in enabled:
             proof,reasons=rule(snapshot,actions,cert);result['checks'].append(dict(rule_id=identity,blockers=reasons))
-    comparison_rules=enabled&{'equivalent_outcomes','dominant_outcome','common_first_step'}
-    if proof is None and s.get('phase')=='combat' and comparison_rules:
-        from autoslay.decision.terminal_comparison import prove
-        proof,reasons=prove(snapshot,actions,cert,comparison_rules)
-        result['checks'].append(dict(rule_id='complete_outcome_comparison',blockers=reasons))
     if proof is None and s.get('phase')=='combat' and 'bounded_combat_search' in enabled and report:
         from autoslay.decision.local_combat import select
         proof,reasons=select(report,snapshot)

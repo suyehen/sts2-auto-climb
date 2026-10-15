@@ -3,7 +3,7 @@
   "name": "AutoSlay Game Bridge",
   "author": "AutoSlayTheSpire",
   "description": "Local Codex bridge for single-player menus, combat, basic rewards, map travel, events, deck and simple card selectors, shops, rest sites, potions, treasure and normal exit. Control starts paused.",
-  "version": "v0.29.0",
+  "version": "v0.30.0",
   "min_game_version": "0.111.0",
   "has_pck": false,
   "has_dll": true,
