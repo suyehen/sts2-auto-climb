@@ -52,8 +52,9 @@ def build(snapshot, report, recent=(), max_bytes=180_000):
         result['reference_entries'] = []
         result['limitations'].append('Reference entries omitted to fit context budget.')
     if size() > max_bytes:
-        result['calculator'] = {}
-        result['limitations'].append('Calculator report omitted to fit context budget.')
+        models=result['calculator'].get('entity_models')
+        result['calculator'] = {'entity_models':models} if models else {}
+        result['limitations'].append('Detailed calculator report omitted to fit context budget; catalog effect models retained.')
     # Never cut off the legal actions or visible game state mid-JSON.
     if size() > max_bytes: raise ValueError('VISIBLE_STATE_EXCEEDS_CONTEXT_BUDGET')
     return result

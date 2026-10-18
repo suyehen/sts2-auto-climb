@@ -96,13 +96,15 @@ def packet(report):
     knowledge = current_snapshot()
     return dict(source=report['source'],phase=report['phase'],units='heuristic scores and conditional forecasts; not win probability',
                 knowledge_revision=report.get('knowledge_revision') or (knowledge.revision if knowledge else None),
-                candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','rest','route') if k in report},
+                candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','relic','rest','route') if k in report},
                 coverage=(report.get('combat') or {}).get('coverage'),combat_forecast=forecast_packet((report.get('combat') or {}).get('lookahead')),
                 autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),
                 action_space={k:(report.get('action_space') or {}).get(k) for k in ('catalog_version','catalog_sha256','issues')},
                 combat_strategy=strip_details((report.get('combat') or {}).get('strategy')),
                 combat_batches=strip_details((report.get('combat') or {}).get('batches')),
                 combat_diagnostics=report.get('combat_diagnostics'),
+                strategic_context={k:v for k,v in (report.get('strategic_context') or {}).items() if k not in {'deck','map','relics'}},
+                entity_models=entity_models_packet(report.get('entity_models')),
                 limitations=report.get('limitations'),knowledge=report.get('knowledge_compatibility'))
 
 
@@ -114,6 +116,27 @@ def forecast_packet(value):
             turns=scenario.get('enemy_turns',[])
             scenario['enemy_turns']=turns[:8]
             scenario['additional_turn_records_local']=max(0,len(turns)-8)
+    return result
+
+
+def entity_models_packet(value):
+    if value is None:return None
+    result=strip_details(value)
+    grouped={}
+    from autoslay.decision.cache import digest
+    rows=result.get('entities',[])
+    for row in rows:
+        # Full programs remain local. The formatted description, numerical
+        # components and explicit gaps retain all decision-relevant semantics.
+        clauses=row.pop('clauses',[])
+        row['effect_topics']=sorted({topic for clause in clauses for topic in clause['topics']})
+        row['full_program_available_locally']=bool(clauses)
+        instance=dict(instance_id=row.pop('instance_id',None),origins=row.pop('origins',[]))
+        key=digest(row)
+        if key in grouped:grouped[key]['instances'].append(instance)
+        else:grouped[key]=dict(row,instances=[instance])
+    result['entity_instance_count']=len(rows)
+    result['entities']=list(grouped.values())
     return result
 
 
@@ -130,7 +153,7 @@ def event_sequence_packet(value):
 
 def strip_details(value):
     if isinstance(value,dict):
-        return {k:strip_details(v) for k,v in value.items() if k not in {'state_trace','normalized_input','before','after','deck_after'}}
+        return {k:strip_details(v) for k,v in value.items() if k not in {'state_trace','normalized_input','before','after','deck_after','joint_outcomes','resource_trace','sampling_events'}}
     if isinstance(value,list): return [strip_details(v) for v in value]
     return value
 

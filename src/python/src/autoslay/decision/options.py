@@ -17,9 +17,9 @@ def decision_options(report,snapshot):
     if not combat:
         for key in ('shortlist','observations'):
             groups.append((key,report.get(key) or []))
-    for key in ('choices','shop','event','event_sequence','rest','route'):
+    for key in ('choices','shop','event','event_sequence','relic','rest','route'):
         groups.append((key,(report.get(key) or {}).get('candidates') or []))
-    out=[];seen=set()
+    out=[];seen={}
     def add(group,index,candidate,steps):
         steps=[dict(action_id=s['action_id'],target_id=s.get('target_id')) for s in steps]
         if not steps or len(steps)>16 or (len(steps)>1 and state.get('phase')!='combat'):
@@ -28,14 +28,17 @@ def decision_options(report,snapshot):
         if not action or (target is None and not action.get('allows_no_target')) or (target is not None and target not in action.get('allowed_target_ids',[])):
             return
         signature=tuple((s['action_id'],s['target_id']) for s in steps)
-        if signature in seen:return
-        seen.add(signature)
+        evidence=dict(group=group,index=index,candidate=deepcopy(candidate))
+        if signature in seen:
+            if group!='legal_options':seen[signature]['analyses'].append(evidence)
+            return
         out.append(dict(candidate_id='option_'+str(len(out)+1),group=group,index=index,
-                        steps=steps,candidate=deepcopy(candidate)))
+                        steps=steps,candidate=deepcopy(candidate),analyses=[evidence]))
+        seen[signature]=out[-1]
     for group,rows in groups:
         for index,candidate in enumerate(rows):
             steps=candidate.get('steps')
-            action_id=candidate.get('action_id')
+            action_id=candidate.get('action_id') or candidate.get('first_action_id')
             if not action_id and candidate.get('option_id') is not None:
                 option=next((o for o in (state.get('event_screen') or {}).get('options',[])
                              if o.get('option_id')==candidate['option_id']),{})

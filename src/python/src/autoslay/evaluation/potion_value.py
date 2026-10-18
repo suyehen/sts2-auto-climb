@@ -1,15 +1,29 @@
 """Explainable reserve intervals; each consumed bottle is charged exactly once."""
 from math import isfinite
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 DEFAULTS = {'POTION.FIRE_POTION': (8.0, 20.0), 'POTION.BLOCK_POTION': (6.0, 14.0),
             'POTION.ENERGY_POTION': (6.0, 18.0), 'POTION.STRENGTH_POTION': (8.0, 20.0)}
 
 
-def reserve_cost(snapshot, potion, parameters=None):
+def reserve_cost(snapshot, potion, parameters=None, *, entries=None):
     parameters = parameters or {}
     values = parameters.get('costs', DEFAULTS).get(potion.entity_id)
-    if values is None: return dict(lower=None,upper=None,known=False,reason='potion_reserve_unmodeled')
+    semantic=None;basis='explicit future reserve interval; unknown route retained in interval'
+    if values is None:
+        from autoslay.knowledge_base.templates import index
+        from autoslay.evaluation.entity_effects import evaluate_entity
+        from autoslay.evaluation.run import RunContext,RunPolicy
+        if entries is None:entries=index(expected_version=snapshot.get('game_version','0.111.0'))[0]
+        player=snapshot['state'].get('player') or {};creature=player.get('creature') or {}
+        maximum=creature.get('max_hp',80)
+        context=RunContext(creature.get('hp',maximum),maximum,player.get('gold',0))
+        semantic=evaluate_entity(dict(entity_id=potion.entity_id,description=potion.description),context,entries,RunPolicy())
+        healing=any(c['effect']['kind'] in {'heal','set_hp','max_hp'} for c in semantic.get('components',[]))
+        if semantic['utility'] is None or semantic['utility']<=0 or healing:
+            return dict(lower=None,upper=None,known=False,reason='potion_reserve_unmodeled',semantic_analysis=semantic)
+        values=(0.0,float(semantic['utility']))
+        basis='catalog immediate-resource proxy envelope; not calibrated future value or confidence interval'
     low, high = (values['lower'],values['upper']) if isinstance(values,dict) else values
     if any(type(x) not in (int,float) or not isfinite(x) or x<0 for x in (low,high)) or low>high:
         raise ValueError('Invalid potion reserve interval')
@@ -23,7 +37,7 @@ def reserve_cost(snapshot, potion, parameters=None):
                 and any(r.get('type')=='PotionReward' and r.get('available') is True for r in offered))
     if pressure: factor *= 0.5
     return dict(lower=low*factor,upper=high*factor,known=True,
-                basis='explicit future reserve interval; unknown route retained in interval',
+                basis=basis,semantic_analysis=semantic,
                 substitutes=same,observed_overflow=pressure,entity_id=potion.entity_id,
                 action_id=potion.action_id)
 

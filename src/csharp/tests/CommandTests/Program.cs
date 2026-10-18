@@ -3,6 +3,19 @@ using AutoSlayBridge;
 static void Check(bool condition, string name) { if (!condition) throw new Exception(name); Console.WriteLine("PASS " + name); }
 static ActionRequest Request(string id = "one") => new(id, "run", "epoch", 42, "play_c1", "enemy");
 
+var mapObservation = new PublicMapObservation<string>();
+var mapRun = new object();
+mapObservation.Observe(mapRun, 0, 1, ["public-node"]);
+var mapCopy = mapObservation.Read(mapRun, 0, 1);
+mapCopy[0] = "changed";
+Check(mapObservation.Read(mapRun, 0, 1).Single() == "public-node", "map topology reads are isolated");
+Check(mapObservation.Read(mapRun, 1, 1).Length == 0, "map observation expires across acts");
+mapObservation.Observe(mapRun, 1, 1, ["public-node"]);
+Check(mapObservation.Read(mapRun, 1, 2).Length == 0, "map observation expires on regeneration");
+mapObservation.Observe(mapRun, 1, 2, ["public-node"]);
+Check(mapObservation.Read(new object(), 1, 2).Length == 0, "map observation expires across runs");
+Check(mapObservation.Read(null, null, null).Length == 0, "map observation clears when no run exists");
+
 Check(ActionCatalog.Types.Count == 42 && ActionCatalog.Require("play_card").DefinitionId == "ACTION.play_card",
     "global catalog includes all bridge command types and stable references");
 Check(!ActionCatalog.Require("quit_game").AgentAllowed && ActionCatalog.Require("use_potion").AgentAllowed,

@@ -8,6 +8,7 @@
     <Compile Include="../../bridge/Commands/RewardProgress.cs" Link="RewardProgress.cs" />
     <Compile Include="../../bridge/Commands/MenuRules.cs" Link="MenuRules.cs" />
     <Compile Include="../../bridge/Commands/MapRules.cs" Link="MapRules.cs" />
+    <Compile Include="../../bridge/Commands/PublicMapObservation.cs" Link="PublicMapObservation.cs" />
     <Compile Include="../../bridge/Commands/EventRules.cs" Link="EventRules.cs" />
     <Compile Include="../../bridge/Commands/SelectionRules.cs" Link="SelectionRules.cs" />
     <Compile Include="../../bridge/Commands/ShopRules.cs" Link="ShopRules.cs" />

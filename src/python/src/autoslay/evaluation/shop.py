@@ -3,6 +3,7 @@ from time import perf_counter
 from autoslay.evaluation.run import deck_value,card_features,unmodeled
 from autoslay.evaluation.resources import item_value
 from autoslay.knowledge_base.templates import canonical
+from autoslay.evaluation.entity_effects import evaluate_entity
 
 VERSION='1.0.0'
 
@@ -16,7 +17,8 @@ def evaluate_shop(deck, items, context, entries, policy):
         if category=='card':
             feature=card_features(item['card'],entries)
             if unmodeled(feature):
-                unvalued.append(dict(item=item,reason='card value mechanism unmodeled')); continue
+                unvalued.append(dict(item=item,reason='card value mechanism unmodeled',
+                    semantic_analysis=evaluate_entity(item['card'],context,entries,policy))); continue
             alternatives=[dict(item=item,add=item['card'])]
         elif category=='removal':
             for c in deck:
@@ -29,7 +31,7 @@ def evaluate_shop(deck, items, context, entries, policy):
                 unvalued.append(dict(item=item,reason='full potion belt; replacement needs separate explicit discard decision')); continue
             value=item_value(item,context,deck,entries,policy)
             if value['utility'] is None:
-                unvalued.append(dict(item=item,reason=value['basis'])); continue
+                unvalued.append(dict(item=item,reason=value['basis'],semantic_analysis=value.get('semantic_analysis'))); continue
             alternatives=[dict(item=item,resource=value)]
         if alternatives: groups.append(alternatives)
     stack=[(0,[],list(deck),0,0,0)]; results=[]; nodes=0; started=perf_counter()

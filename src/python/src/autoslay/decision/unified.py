@@ -16,6 +16,8 @@ from autoslay.evaluation.choices import cards_report
 from autoslay.evaluation.shop import evaluate_shop
 from autoslay.evaluation.events import evaluate_events
 from autoslay.evaluation.route import evaluate_routes
+from autoslay.evaluation.strategic import strategic_context, VERSION as STRATEGIC_VERSION
+from autoslay.knowledge_base.effect_profiles import VERSION as ENTITY_MODEL_VERSION
 from autoslay.evaluation.rest import evaluate_rest
 from autoslay.evaluation.contextual import load_interactions,VERSION as CONTEXT_VERSION
 from autoslay.knowledge_base.rulebook import Rulebook
@@ -35,7 +37,7 @@ from autoslay.decision.mechanisms import attach as attach_mechanisms
 from autoslay.knowledge_base.behavior import load as load_behavior
 from autoslay.evaluation.event_adapters import VERSION as EVENT_ADAPTER_VERSION
 
-VERSION='1.10.0'
+VERSION='1.12.0'
 CACHE=AnalysisCache()
 
 def relevant_entities(value):
@@ -50,9 +52,15 @@ def relevant_entities(value):
     walk(value)
     return result
 
-def context_for(snapshot,overrides):
+def context_for(snapshot,overrides,entries=None):
     p=snapshot['state'].get('player') or {}; creature=p.get('creature') or {}
-    blocked=any(r['entity_id']=='RELIC.FIDDLE' for r in p.get('relics',[])) or (
+    from autoslay.knowledge_base.effect_profiles import profile_for,compile_entry
+    if entries is None and any(not r.get('description') for r in p.get('relics') or []):
+        entries=index(expected_version=snapshot.get('game_version','0.111.0'))[0]
+    profiles=[profile_for(r,entries) if entries is not None else compile_entry(dict(r,category='relic'))
+              for r in p.get('relics') or []]
+    blocked=any(c['kind']=='no_midturn_draw' for profile in profiles if profile
+                for v in profile['variants'] for c in v.get('restrictions',[])) or (
         snapshot['state'].get('phase')=='combat' and any(power['entity_id']=='POWER.NO_DRAW_POWER' for power in creature.get('powers',[])))
     values=dict(hp=creature.get('hp',0),max_hp=creature.get('max_hp',80),gold=p.get('gold',0),
         potion_slots_free=max(0,p.get('potion_slots',0)-len(p.get('potions') or [])),
@@ -128,6 +136,12 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
         calibration_status='uncalibrated',knowledge_compatibility=rulebook.audit(relevant_entities(s)),
         module_versions=dict(unified=VERSION,run_evaluation=RUN_VERSION,contextual=CONTEXT_VERSION,rules=rulebook.data['version']))
     report['action_space']=action_space
+    if s.get('player'):
+        report['strategic_context']=strategic_context(snapshot)
+        report['module_versions']['strategic_context']=STRATEGIC_VERSION
+        from autoslay.decision.entity_models import analyze_entities
+        report['entity_models']=analyze_entities(snapshot,context_for(snapshot,context,entries),entries,policy)
+        report['module_versions']['entity_models']=ENTITY_MODEL_VERSION
     if phase=='combat' and not s.get('pending_combat_action'):
         p=s['player']; hp=p['creature']['hp']; maximum=p['creature']['max_hp']
         incoming=sum((i.get('attack_damage') or 0)*(i.get('attack_repeats') or 0) for e in s.get('enemies') or [] for i in e.get('intents',[]))
@@ -166,7 +180,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
         if report['combat'].get('batches'):
             report['shortlist']=report['combat']['batches']['top_batches']
     elif s.get('player') and (s['player'].get('deck') or []):
-        run=context_for(snapshot,context); deck=s['player']['deck']
+        run=context_for(snapshot,context,entries); deck=s['player']['deck']
         report.update(context=asdict(run),deck=deck_value(deck,run,entries,policy))
         if phase=='card_reward_selection':
             offers=[v['card'] for v in s['reward_screen'].get('cards',[]) if v.get('available')]
@@ -188,12 +202,18 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
             from autoslay.calibration.events import runtime_validation
             report['event_runtime_validation']=runtime_validation(snapshot)
             report['event']=evaluate_events(event.get('options',[]),deck,run,entries,policy)
+            from autoslay.evaluation.relics import evaluate_relic_options
+            report['relic']=evaluate_relic_options(event.get('options',[]),report['strategic_context'],run,entries,policy)
             # Full noncombat resource hook coverage is not yet certified for owned relics.
             event['interaction_warnings']=resource_hook_warnings(s['player'])
             report['event_sequence']=evaluate_event_sequence(event,deck,run,entries,policy,snapshot['game_version'])
             report['module_versions'].update(event_adapter=EVENT_ADAPTER_VERSION,
                 event_sequence=report['event_sequence'].get('module_version'),event_runtime_validation='1.0.0')
-        elif phase=='map': report['route']=evaluate_routes(s.get('map') or {},run)
+        elif phase=='map':
+            from autoslay.knowledge_base.effect_profiles import profile_for
+            report['route']=evaluate_routes(s.get('map') or {},run,
+                relic_ids=[r['entity_id'] for r in s['player'].get('relics') or []],
+                relic_profiles=[p for r in s['player'].get('relics') or [] if (p:=profile_for(r,entries))])
         elif phase=='rest_site': report['rest']=evaluate_rest((s.get('rest_site') or {}).get('options',[]),deck,run,entries,policy)
         elif phase=='card_selection':
             selection=s.get('card_selection') or {}; offered=[v['card'] for v in selection.get('cards',[]) if v.get('available')]
@@ -220,7 +240,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
 
 @scoped
 def evaluate_run_choices(snapshot,kind,options,context=None):
-    entries,_=index(expected_version=snapshot['game_version']); run=context_for(snapshot,context or {})
+    entries,_=index(expected_version=snapshot['game_version']); run=context_for(snapshot,context or {},entries)
     book=Rulebook()
     if snapshot.get('game_assembly_sha256') and snapshot['game_assembly_sha256']!=book.data.get('game_assembly_sha256'):
         raise ValueError('Game implementation changed; review rules before calculation')

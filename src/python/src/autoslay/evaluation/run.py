@@ -7,7 +7,7 @@ from autoslay.decision.contracts import CombatState, UnsupportedEffect
 from autoslay.probability.draw import at_least_one
 from autoslay.evaluation.contextual import load_interactions,score
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 @dataclass(frozen=True)
 class RunPolicy:
@@ -69,6 +69,11 @@ def card_features(value, entries):
     try:
         card, variant = canonical(value, entries)
     except ValueError as exc:
+        from autoslay.evaluation.entity_effects import immediate_features
+        semantic=immediate_features(value,entries)
+        if semantic is not None:
+            semantic['warnings'].append(str(exc))
+            return semantic
         return dict(entity_id=value.get("entity_id"), cost=value.get("energy_cost", -1), type=value.get("type"), damage=0, block=0, draw=0, strength=0, vulnerable=0, self_hp=0, warnings=[str(exc)])
     features=dict(entity_id=card.entity_id, cost=card.cost, type=card.card_type,
                   damage=0, block=0, draw=0, energy=0, strength=0, vulnerable=0, self_hp=0,hits=0,exhaust_nonattack_block=0)
@@ -87,6 +92,10 @@ def card_features(value, entries):
             warnings.append("CONDITIONAL_VALUE_NOT_CALIBRATED")
         if card.target_type == "AllEnemies": features["area"] = True
     except UnsupportedEffect:
+        from autoslay.evaluation.entity_effects import immediate_features
+        semantic=immediate_features(value,entries)
+        if semantic is not None:
+            return semantic
         if card.card_type not in {"Curse", "Status"}: warnings.append("UNMODELED_CARD_VALUE:"+card.entity_id)
     features["warnings"]=warnings
     if card.star_cost>0: warnings.append('UNMODELED_CARD_VALUE:STAR_RESOURCE:'+card.entity_id)
@@ -97,7 +106,10 @@ def unmodeled(features):
 
 def intrinsic_value(value,entries,policy=None):
     policy=policy or RunPolicy(); f=card_features(value,entries)
-    if unmodeled(f): return dict(utility=None,features=f,warnings=f['warnings'])
+    if unmodeled(f):
+        from autoslay.evaluation.entity_effects import evaluate_entity
+        return dict(utility=None,features=f,warnings=f['warnings'],
+                    semantic_analysis=evaluate_entity(value,RunContext(80,80,0),entries,policy))
     parts=dict(damage=f['damage']*policy.damage_weight,block=f['block']*policy.block_weight,
                draw=f['draw']*policy.draw_weight,energy=f.get('energy',0)*policy.energy_weight,strength=f['strength']*policy.strength_weight,
                vulnerable=f['vulnerable']*policy.vulnerable_weight,self_hp=-f['self_hp']*policy.hp_weight,

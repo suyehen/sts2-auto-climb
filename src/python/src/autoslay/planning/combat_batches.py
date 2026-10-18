@@ -17,9 +17,10 @@ from autoslay.simulation.engine import CombatSimulator
 from autoslay.simulation.card_flow import add_to_composition
 from autoslay.rules.periodic_relics import advance
 from autoslay.rules.registry import clean
+from autoslay.evaluation.strategic import ValueContract, RunResources, resource_value, summarize_outcomes
 import re
 
-VERSION='1.1.0'
+VERSION='1.2.0'
 
 
 def endpoint_key(transition):
@@ -45,6 +46,7 @@ def analyze(snapshot,entries,policy,settings,budget):
     legal=[Operation(**op) for op in operations([a for a in snapshot['state'].get('legal_actions') or []
             if a.get('type') not in ADMIN|{'discard_potion'}])]
     assumptions=set();limits=set();nodes=0;memo={};edges={};candidates={};horizon=settings.get('horizon',2)
+    sampling_events=[]
     try:observed=normalize(snapshot);initial=forecast_state(observed);assumptions.update(observed.warnings)
     except (ValueError,KeyError,TypeError) as exc:
         return fallback_report(snapshot,legal,parameters,profile,route,'normalization:'+str(exc))
@@ -71,12 +73,21 @@ def analyze(snapshot,entries,policy,settings,budget):
             from autoslay.knowledge_base.templates import canonical
             try:templates[identity]=replace(canonical(dict(entity_id=identity,upgrade_level=0),entries)[0],canonical=True)
             except ValueError:assumptions.add('unknown_generated_card:'+identity)
-    costs={p.action_id:reserve_cost(snapshot,p,policy.potion_reserve) for p in initial.potions}
+    costs={p.action_id:reserve_cost(snapshot,p,policy.potion_reserve,entries=entries) for p in initial.potions}
     potion_ids={p.action_id:p.instance_id for p in initial.potions}
     public_actions={a['action_id']:a for a in snapshot['state'].get('legal_actions') or []}
     from autoslay.execution.batch_models import load as model_status
     degraded=model_status().get('entities',{})
     search_started=perf_counter()
+    candidate_node_limit=budget.max_nodes;candidate_deadline=search_started+budget.time_ms/1000
+    quick_calls=cache_hits=0
+    contract=ValueContract(valuation_inputs_sha256=digest(dict(parameters=parameters,route=route)))
+    player=snapshot['state']['player']
+    owned_counters=tuple((r['entity_id'],r.get('counter')) for r in player.get('relics') or [])
+    initial_resources=RunResources(initial.hp,initial.max_hp,player.get('gold',0),
+        tuple(p.instance_id for p in initial.potions),
+        owned_counters,dead=initial.hp==0)
+    reference=resource_value(initial_resources,parameters,route,contract)
     def simulated(sim,state,action):
         card=next((c for c in state.hand if action.action_id=='play_'+c.instance_id),None)
         modeled=Operation(action.action_id) if card and card.target_type in {'Self','None','AllEnemies'} else action
@@ -90,8 +101,8 @@ def analyze(snapshot,entries,policy,settings,budget):
             else:values.append(action)
         return values
     def expired():
-        if nodes>=budget.max_nodes:limits.add('node_limit');return True
-        if (perf_counter()-search_started)*1000>=budget.time_ms:limits.add('time_limit');return True
+        if nodes>=candidate_node_limit:limits.add('candidate_node_limit');return True
+        if perf_counter()>=candidate_deadline:limits.add('candidate_time_limit');return True
         return False
     def terminal(state,unknown=0):
         won=state.combat_won or all(e.hp<=0 for e in state.enemies)
@@ -120,16 +131,29 @@ def analyze(snapshot,entries,policy,settings,budget):
             death_penalty=-parameters['death_penalty'] if state.hp<=0 else 0)
         score=sum(parts.values())
         return dict(score=score,death=float(state.hp<=0),loss=max(0,initial.hp-state.hp),parts=parts,unknown=unknown,used=used,
-                    resources=resource,future_pressure=future)
-    def combine(values,method='exact'):
+                    resources=resource,future_pressure=future,
+                    outcomes=[(1.0,state,unknown,won,'deterministic_leaf')],expected_used=float(len(used)),worst_used=len(used))
+    def combine(values,method='exact',fallback=None):
         mass=sum(p for p,_ in values)
-        if not mass:return terminal(initial,1)
+        if not mass:return terminal(initial if fallback is None else fallback,1)
         # Every unknown branch receives a heuristic continuation, never dropped.
+        if abs(mass-1)>1e-8:raise ValueError('Forecast probability mass must be preserved')
+        leaves={}
+        for p,value in values:
+            if not p:continue
+            for weight,state,unknown,won,source in value['outcomes']:
+                source=('sampled_or_mixed_tree' if method!='exact' or source=='sampled_or_mixed_tree'
+                        else 'weighted_model_tree' if len(values)>1 else source)
+                key=(state,unknown,won,source)
+                leaves[key]=leaves.get(key,0)+p*weight
         return dict(score=sum(p*v['score'] for p,v in values)/mass,
             death=sum(p*v['death'] for p,v in values)/mass,loss=max(v['loss'] for p,v in values),
             parts={k:sum(p*v['parts'][k] for p,v in values)/mass for k in values[0][1]['parts']},
             unknown=max(v['unknown'] for p,v in values)+(method!='exact'),
             used=sorted({a for p,v in values for a in v['used']}),
+            expected_used=sum(p*v['expected_used'] for p,v in values),
+            worst_used=max(v['worst_used'] for p,v in values if p>0),
+            outcomes=[(weight,*key) for key,weight in leaves.items()],
             resources={k:sum(p*v['resources'][k] for p,v in values)/mass for k in values[0][1]['resources']},
             future_pressure={'basis':'capability proxy; actual future intents and draws may differ'})
     def end_turn(state,ply):
@@ -166,17 +190,20 @@ def analyze(snapshot,entries,policy,settings,budget):
                 periodic_relics=relics,turn=(after.turn or 0)+1,player_weak=after.weak_turns>0,player_frail=after.frail_turns>0,
                 enemies=tuple(replace(e,vulnerable=max(0,e.vulnerable-1)) for e in after.enemies))
             meta={};drawn,_=draw_branches(after,settings.get('draws',5)+draw_bonus,templates,settings.get('branches',32),settings.get('seed',42)+ply,meta)
-            values.append((p,combine([(w,visit(Transition(s),ply+1,0) if s is not None else terminal(after,1)) for w,s in drawn],meta.get('method','exact'))))
-        result=combine(values)
+            sampling_events.append(dict(meta,ply=ply,draw_count=settings.get('draws',5)+draw_bonus))
+            values.append((p,combine([(w,visit(Transition(s),ply+1,0) if s is not None else terminal(after,1)) for w,s in drawn],meta.get('method','exact'),fallback=after)))
+        result=combine(values,fallback=state)
         if unknown_end:
             result=dict(result,parts=dict(result['parts']),unknown=result['unknown']+1)
             result['parts']['unknown']-=parameters['unknown_penalty'];result['score']-=parameters['unknown_penalty']
         return result
     quick_cache={}
     def quick(state):
-        if state in quick_cache:return quick_cache[state]
+        nonlocal quick_calls,cache_hits
+        quick_calls+=1
+        if state in quick_cache:cache_hits+=1;return quick_cache[state]
         try:
-            result=combine([(p,terminal(after,1)) for p,after,_ in model.step(state,settings.get('branches',32),select_next=True)])
+            result=combine([(p,terminal(after,1)) for p,after,_ in model.step(state,settings.get('branches',32),select_next=True)],fallback=state)
         except (UnsupportedEffect,ValueError,KeyError,SyntaxError):
             block=state.block;loss=0
             for enemy in state.enemies:
@@ -187,14 +214,15 @@ def analyze(snapshot,entries,policy,settings,budget):
             result=terminal(replace(state,hp=max(0,state.hp-loss),enemy_hp_loss=state.enemy_hp_loss+min(state.hp,loss)),1)
         quick_cache[state]=result;return result
     def visit(transition,ply,depth):
-        nonlocal nodes
+        nonlocal nodes,cache_hits
         state=transition.state;key=(transition,ply,depth)
-        if key in memo:return memo[key]
+        if key in memo:cache_hits+=1;return memo[key]
         if state.hp<=0 or state.combat_won or all(e.hp<=0 for e in state.enemies):return terminal(state)
         if expired():return quick(state)
         nodes+=1
         if transition.boundary=='draw_requires_observation':
             meta={};drawn,_=draw_branches(state,transition.draw_count,templates,settings.get('branches',32),settings.get('seed',42)+ply,meta)
+            sampling_events.append(dict(meta,ply=ply,draw_count=transition.draw_count))
             sim=CombatSimulator(state,rules);values=[]
             for p,branch in drawn:
                 try:value=visit(sim.resume_draw(transition,branch),ply,depth) if branch is not None else quick(state)
@@ -262,12 +290,17 @@ def analyze(snapshot,entries,policy,settings,budget):
             if transition is None:
                 transition=Transition(initial,'next_turn_requires_observation') if action.action_id=='end_turn' else simulated(CombatSimulator(initial,rules),initial,action)
             key=endpoint_key(transition)
-            if key not in seen:
-                frontier.append((transition,(action,),transition.boundary or 'batch_goal_completed'));seen[key]=1
+            frontier.append((transition,(action,),transition.boundary or 'batch_goal_completed'));seen[key]=1
         except (UnsupportedEffect,ValueError,KeyError):frontier.append((None,(action,),'unmodeled_effect_observation'))
     nodes=generation_nodes
     frontier.sort(key=lambda item:(item[0] is None,-len(item[1]),tuple((a.action_id,a.target_id or '') for a in item[1])))
-    for transition,steps,boundary in frontier:
+    for candidate_index,(transition,steps,boundary) in enumerate(frontier):
+        remaining=len(frontier)-candidate_index
+        if settings.get('fair_candidate_budget',False):
+            candidate_node_limit=nodes+max(0,(budget.max_nodes-nodes)//remaining)
+            remaining_time=max(0,search_started+budget.time_ms/1000-perf_counter())
+            candidate_deadline=perf_counter()+remaining_time/remaining
+        before_nodes=nodes;before_quick=quick_calls;before_hits=cache_hits;candidate_started=perf_counter()
         if transition is None:
             # An unavailable action model cannot establish zero incoming loss.
             # Use the observed state's enemy-turn scenario, without inventing
@@ -281,6 +314,12 @@ def analyze(snapshot,entries,policy,settings,budget):
             resource_forecast=value['resources'],future_pressure=value['future_pressure'],
             estimated_death_probability=value['death'],estimated_worst_hp_loss=value['loss'],
             approximation_count=value['unknown']+len(observed.warnings),consumed_potions=value['used'],
+            expected_potions_used=value['expected_used'],worst_potions_used=value['worst_used'],
+            actual_batch_potions=[a.action_id for a in steps if a.action_id in potion_ids],
+            _outcomes=value['outcomes'],
+            evaluation_budget=dict(nodes=nodes-before_nodes,quick_calls=quick_calls-before_quick,
+                cache_hits=cache_hits-before_hits,elapsed_ms=(perf_counter()-candidate_started)*1000,
+                horizon=horizon,node_allowance=candidate_node_limit-before_nodes),
             forecast_kind='heuristic_batch_continuation',bound_kind='uncalibrated_estimate',
             endpoint=dict(hp=transition.state.hp,energy=transition.state.energy,block=transition.state.block,
                           enemy_hp=sum(e.hp for e in transition.state.enemies)) if transition else None)
@@ -289,8 +328,26 @@ def analyze(snapshot,entries,policy,settings,budget):
     safe=ordered[0]['estimated_death_probability'] if ordered else 1
     best=ordered[0]['score'] if ordered else 0
     close=[r for r in ordered[:budget.top_k] if r['estimated_death_probability']==safe and best-r['score']<=parameters['tie_margin']]
-    selected=min(close,key=lambda r:(len(r['consumed_potions']),r['estimated_worst_hp_loss'],r['approximation_count'],-len(r['steps']),r['batch_id']),default=None)
+    selected=min(close,key=lambda r:(r['expected_potions_used'],r['worst_potions_used'],r['estimated_worst_hp_loss'],r['approximation_count'],-len(r['steps']),r['batch_id']),default=None)
     for row in ordered[:budget.top_k]:
+        reporting_started=perf_counter();outcomes=[]
+        for weight,state,unknown,won,probability_source in row.pop('_outcomes'):
+            heal=min(profile['victory_heal'],state.max_hp-state.hp) if won and state.hp>0 else 0
+            joint=RunResources(state.hp+heal,state.max_hp,player.get('gold',0),
+                tuple(p.instance_id for p in state.potions),
+                tuple((dict(owned_counters)|{r.entity_id:r.counter for r in state.periodic_relics}).items()),dead=state.hp<=0)
+            outcomes.append(dict(weight=weight,resources=asdict(joint),
+                potions_used=len(initial.potions)-len(state.potions),contract=asdict(contract),
+                boundary='post_victory_heal_pre_rewards' if won and state.hp>0 else 'dead' if state.hp<=0 else 'combat_cutoff',
+                combat_state_key=digest(asdict(state)),combat_finished=bool(won),
+                continuation_state=asdict(state) if not won and state.hp>0 else None,
+                resource_value_delta=resource_value(joint,parameters,route,contract)-reference,
+                value_scope='HP/maxHP/gold only; inventory and permanent effects unpriced',
+                tail_source='none' if won or state.hp<=0 else 'legacy_capability_proxy',
+                mechanism_unknown=bool(unknown or assumptions or row['approximation_count']),probability_source=probability_source))
+        row['joint_outcomes']=outcomes
+        row['outcome_summary']=summarize_outcomes(outcomes,contract)
+        row['evaluation_budget']['reporting_ms']=(perf_counter()-reporting_started)*1000
         current=initial;trace=[asdict(current)]
         for step in row['steps']:
             transition=edges.get((current,Operation(**step)))
@@ -302,6 +359,9 @@ def analyze(snapshot,entries,policy,settings,budget):
         limits=sorted(limits),assumptions=sorted(assumptions),deck_capabilities=profile,run_resources=route,
         preparation_ms=(search_started-started)*1000,
         tie_margin=parameters['tie_margin'],near_best_count=len(close),execution_authorized=False,
+        value_contract=asdict(contract),score_model='legacy_batch/1; shared resource values diagnostic only',
+        sampling_events=sampling_events,
+        budget_allocation='equal_remaining_share' if settings.get('fair_candidate_budget',False) else 'legacy_shared_budget',
         limitations=['Heuristic scores permit mistakes; no calibrated safety or optimality claim.',
                      'Unknown effects use explicit approximations; execute only real operations to a decision boundary.'])
 

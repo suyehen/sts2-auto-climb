@@ -18,11 +18,13 @@ public static partial class Bridge
         bool Visited, bool Available, string? ActionId, string[] Children, MapVisualPosition VisualPosition,
         string? IconAsset);
     private sealed record MapView(bool Open, bool Active, bool DecisionReady, string? ScreenId, int? ActIndex,
-        long? Generation, MapCoordinate? CurrentPosition, MapCoordinate[] Visited, MapNodeView[] Nodes);
+        long? Generation, MapCoordinate? CurrentPosition, MapCoordinate[] Visited, MapNodeView[] Nodes,
+        string TopologySource = "current_public_snapshot");
     private sealed record MapBinding(NMapScreen Screen, NMapPoint Node, MapCoord Coordinate,
         int ActIndex, long Generation, string RunId, int BeforeFloor, object? BeforeRoom);
     private static readonly Dictionary<string, MapBinding> MapBindings = new();
     private static MapBinding? activeMap;
+    private static readonly PublicMapObservation<MapNodeView> ObservedMap = new();
 
     private static MapCoordinate Coordinate(MapCoord coord) => new(coord.col, coord.row);
     private static string MapNodeId(int act, long generation, MapCoord coord) => $"map_{act}_{generation}_{coord.col}_{coord.row}";
@@ -53,8 +55,12 @@ public static partial class Bridge
         var current = run?.CurrentMapCoord is MapCoord coord ? Coordinate(coord) : null;
         var visited = run?.VisitedMapCoords.Select(Coordinate).ToArray() ?? [];
         long? generation = run == null ? null : Convert.ToInt64(RunManager.Instance.MapSelectionSynchronizer.MapGenerationCount);
+        var observed = ObservedMap.Read(run, run?.CurrentActIndex, generation);
         if (run == null || screen == null || !open)
-            return new(open, active, false, screen == null ? null : Id(screen), run?.CurrentActIndex, generation, current, visited, []);
+            return new(open, active, false, screen == null ? null : Id(screen), run?.CurrentActIndex, generation, current, visited,
+                observed.Select(n => n with { Visited = run?.VisitedMapCoords.Any(c => Coordinate(c) == n.Coordinate) == true,
+                    Available = false, ActionId = null }).ToArray(),
+                observed.Length > 0 ? "same_run_act_generation_public_observation" : "unavailable");
         var dictionary = ReadUiField<Dictionary<MapCoord, NMapPoint>>(screen, "_mapPointDictionary");
         var rendered = dictionary.Values.Where(n => GodotObject.IsInstanceValid(n) && !n.IsQueuedForDeletion()).ToArray();
         var coordinates = rendered.Select(n => n.Point.coord).ToHashSet();
@@ -79,6 +85,9 @@ public static partial class Bridge
                     Id(run), run.TotalFloor, run.CurrentRoom);
             }
         }
+        if (nodes.Count > 0)
+            ObservedMap.Observe(run, run.CurrentActIndex, generation!.Value,
+                nodes.Select(n => n with { Available = false, ActionId = null, State = "Observed" }));
         return new(open, active, ready, Id(screen), run.CurrentActIndex, generation, current, visited, nodes.ToArray());
     }
 

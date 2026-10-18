@@ -4,7 +4,7 @@ from autoslay.evaluation.run import card_features
 from autoslay.rules.registry import clean
 import re
 
-VERSION='1.0.0'
+VERSION='1.1.0'
 DEFAULTS=dict(hp_weight=2.0,hp_sensitivity=3.0,rest_opportunity=8.0,
               reserve_fraction=0.4,unknown_penalty=3.0,tie_margin=1.0,
               terminal_enemy_hp_weight=0.4,death_penalty=10000.0)
@@ -20,7 +20,15 @@ def capabilities(snapshot,entries):
         match=re.search(r'(?:回复|恢复|Heal\s+)(\d+)(?:点生命|\s+HP)',text,re.I)
         if match:healing.append(dict(entity_id=raw['entity_id'],amount=int(match[1]),basis='visible text; trigger/availability evaluated per action'))
         if f.get('warnings'):unknown.append(raw['entity_id'])
-    relic_heal=6 if any(r['entity_id']=='RELIC.BURNING_BLOOD' for r in player.get('relics') or []) else 0
+    from autoslay.knowledge_base.effect_profiles import profile_for
+    from autoslay.evaluation.entity_effects import apply_route_effects
+    from autoslay.evaluation.strategic import RunResources
+    relic_profiles=[p for r in player.get('relics') or [] if (p:=profile_for(r,entries))]
+    maximum=(player.get('creature') or {}).get('max_hp',80)
+    # Resource-only description scenario, shared with route evaluation. No
+    # conditional heal is promoted to an unconditional victory trigger.
+    hypothetical,_=apply_route_effects(RunResources(1,maximum,0),'combat_end',relic_profiles,effect_kinds={'heal'})
+    relic_heal=max(0,hypothetical.hp-1)
     return dict(cards=len(cards),attack_ratio=attacks/n,
         damage_per_draw=sum(f.get('damage',0) for f in features)/n,
         block_per_draw=sum(f.get('block',0) for f in features)/n,
@@ -36,20 +44,27 @@ def capabilities(snapshot,entries):
 
 def route_context(snapshot,parameters):
     view=snapshot['state'].get('map') or {};nodes={n['node_id']:n for n in view.get('nodes',[]) if n.get('node_id')}
-    current=view.get('current_position');origin=next((n for n in nodes.values() if n.get('coordinate')==current),None)
+    current=view.get('current_position');origin=next((n for n in nodes.values() if current is not None and n.get('coordinate')==current),None)
     starts=origin.get('children',[]) if origin else [n['node_id'] for n in nodes.values() if n.get('available')]
-    queue=deque((k,1) for k in starts);seen=set();camp=None;pressure=0
-    while queue and len(seen)<128:
-        key,distance=queue.popleft()
-        if key in seen or key not in nodes or distance>4:continue
-        seen.add(key);node=nodes[key]
-        if node.get('type')=='RestSite':camp=distance if camp is None else min(camp,distance)
+    queue=deque((k,[],None,0) for k in starts);scenarios=[];expanded=0
+    while queue and expanded<128:
+        key,path,camp,pressure=queue.popleft()
+        if key in path or key not in nodes:continue
+        expanded+=1;path=path+[key];distance=len(path);node=nodes[key]
+        if node.get('type')=='RestSite' and camp is None:camp=distance
         if node.get('type') in {'Elite','Boss'}:pressure=max(pressure,1/distance)
-        queue.extend((k,distance+1) for k in node.get('children',[]))
+        children=[k for k in node.get('children',[]) if k in nodes and k not in path]
+        if not children or distance>=4:scenarios.append(dict(path=path,camp=camp,pressure=pressure))
+        else:queue.extend((k,path,camp,pressure) for k in children)
+    # One declared conservative scenario supplies both terms, rather than
+    # splicing a rest on one branch with an elite on an incompatible branch.
+    selected=max(scenarios,key=lambda r:(r['pressure'],r['camp'] is None),default=dict(path=[],camp=None,pressure=0))
+    camp=selected['camp'];pressure=selected['pressure']
     return dict(reserve_fraction=min(.7,parameters['reserve_fraction']+.12*pressure),
         nearest_possible_rest=camp,pressure=pressure,
         rest_weight=parameters['rest_opportunity']*(1 if camp is None else 1+1/camp),
-        basis='visible reachable rooms within four steps; route choice and future damage are estimates')
+        route_scenarios=scenarios,selected_path=selected['path'],search_truncated=bool(queue),
+        basis='one conservative feasible public path within four steps; alternatives unweighted; no calibrated damage')
 
 
 def hp_value(hp,maximum,parameters,route):
