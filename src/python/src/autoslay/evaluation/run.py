@@ -88,6 +88,8 @@ def card_features(value, entries):
             elif effect.kind=='exhaust_nonattacks': features['exhaust_nonattack_block']+=effect.amount
             elif effect.kind not in {"temporary_strength", "enemy_strength", "colossus", "double_vulnerable"}:
                 warnings.append("CONDITIONAL_EFFECT:"+effect.kind)
+            if effect.kind not in {'damage','dismantle','block','draw','energy','strength','vulnerable','lose_hp','exhaust_nonattacks'}:
+                warnings.append('UNMODELED_CARD_VALUE:EFFECT:'+effect.kind)
         if any(e.kind in {"enemy_strength", "colossus", "double_vulnerable", "dismantle", "temporary_strength"} for e in rule.effects):
             warnings.append("CONDITIONAL_VALUE_NOT_CALIBRATED")
         if card.target_type == "AllEnemies": features["area"] = True

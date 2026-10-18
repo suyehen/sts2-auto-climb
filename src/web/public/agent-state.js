@@ -14,6 +14,9 @@ export function modelWaitDetail(status,now=Date.now()){
 }
 export const agentErrors={MODEL_TIMEOUT:'模型等待超时，Agent 已停止。可以调整最长等待时间或切换后端后重试。',CODEX_LOGIN_OR_REQUEST_FAILED:'本机 Codex 登录或请求失败，请检查登录状态。',CODEX_NOT_INSTALLED:'未找到本机 Codex 程序。',MODEL_UNAVAILABLE:'模型服务无法连接。',INVALID_STATE_CONFIG_OR_ACTION:'游戏状态、配置或动作校验未通过，Agent 已停止。'};
 Object.assign(agentErrors,{
+ COMBAT_MODEL_UNKNOWN_EFFECT:'遇到尚未建模的战斗效果，Agent 已停止。请查看异常详情并手动排查。',
+ COMBAT_MODEL_PREDICTION_MISMATCH:'游戏实际结算与模拟预测不一致，Agent 已停止。请查看差异并手动排查。',
+ COMBAT_MODEL_VERIFICATION_UNAVAILABLE:'无法核对游戏结算与模拟预测，Agent 已停止。请手动排查。',
  SERVICE_MAINTENANCE:'后台服务正在维护，完成后再启动 Agent。',
  MODEL_GENERATION_INTERRUPTED:'模型服务中途终止生成，有限重试仍未恢复。请稍后重试。',
  MODEL_RESPONSE_INCOMPLETE:'模型回复未正常结束，本次回复没有用于执行。可重试；若反复发生，请检查输出长度上限。',

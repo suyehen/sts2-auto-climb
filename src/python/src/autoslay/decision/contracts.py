@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-CONTRACT_VERSION = "1.7.0"
+CONTRACT_VERSION = "1.8.0"
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,8 @@ class Card:
     variant_key: str = ''
     enchantment_id: str | None = None
     enchantment_amount: int | None = None
+    affliction_id: str | None = None
+    dynamic_variables: tuple[tuple[str, int | float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ class Potion:
     action_id: str
     targets: tuple[str, ...]
     allows_no_target: bool = False
+    dynamic_variables: tuple[tuple[str, int | float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,25 @@ class MechanismImpact:
     trigger: str = 'unknown'
     source_fingerprint: str | None = None
     warning: str | None = None
+
+
+@dataclass(frozen=True)
+class ScheduledRelic:
+    entity_id: str
+    phase: str
+    turn: int | None
+    operation: str
+    amount: int
+    last_turn: int = 0
+
+    def __post_init__(self):
+        if self.phase not in {'after_block_cleared','side_turn_start','after_hand_draw','side_turn_end'}:
+            raise ValueError('Unsupported scheduled phase')
+        if self.operation not in {'unpowered_damage','unpowered_block','energy'}:
+            raise ValueError('Unsupported scheduled effect')
+        if self.turn is not None and (type(self.turn) is not int or self.turn<1):raise ValueError('Invalid scheduled turn')
+        if type(self.amount) is not int or self.amount<0 or type(self.last_turn) is not int or self.last_turn<0:
+            raise ValueError('Invalid scheduled resource')
 
 
 @dataclass(frozen=True)
@@ -121,6 +143,12 @@ class CombatState:
     self_hp_loss: int = 0
     healing: int = 0
     mechanism_scope: tuple[MechanismImpact, ...] = ()
+    base_dexterity: int = 0
+    dexterity_delta: int = 0
+    temporary_dexterity: int = 0
+    temporary_draw_blocked: bool = False
+    permanent_draw_blocked: bool = False
+    scheduled_relics: tuple[ScheduledRelic, ...] = ()
 
 
 @dataclass(frozen=True)

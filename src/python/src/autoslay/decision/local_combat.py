@@ -158,9 +158,6 @@ def select_calibrated(report, snapshot, policy):
     if any((report.get('source') or {}).get(k)!=v for k,v in source(snapshot).items()):
         return None,['local_combat_requires_matching_analysis']
     strategy=(report.get('combat') or {}).get('strategy') or {}
-    from .combat_circuit import blocked
-    if blocked((strategy.get('policy_identity') or {}).get('policy_fingerprint')):
-        return None,['combat_strategy_disabled_after_mismatch']
     reasons=list(strategy.get('calibration_reasons') or [])
     if not strategy.get('calibration_version'):reasons.append('combat_calibration_missing')
     if not strategy.get('search_complete') and not strategy.get('comparison_bounds_complete'):

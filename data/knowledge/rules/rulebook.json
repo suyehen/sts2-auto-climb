@@ -1,6 +1,6 @@
 {
   "schema_version": "rules/1.0",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "game_version": "0.111.0",
   "entries": {
     "CARD.ARMAMENTS": {
@@ -770,9 +770,9 @@
     },
     "RELIC.CHANDELIER": {
       "category": "relic",
-      "reference_sha256": "66fe356dce6351a7959e745ffdc536c80d694dc5e70f0b9e1f2a185239d14837",
+      "reference_sha256": "acb523cf0325cc5c33cbcfb97769ae4ffdc839a696bc469c104667567013c60f",
       "validation": "verified_adapter",
-      "source": "existing supported adapter; compatibility marker does not imply full effect coverage",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\Chandelier.cs",
       "effects": [],
       "export_metadata_migration": {
         "previous_reference_sha256": "e67f7d14e29ff3a89afd3033e5f288197c8978d4426788565f3e0ab36efcaa0b",
@@ -782,7 +782,17 @@
           "model_type"
         ],
         "basis": "same pinned binary; every previous semantic field unchanged; exporter metadata addition only"
-      }
+      },
+      "source_sha256": "c227c2467e89726f43025893db32c0489b593ecdadfeab7352f98681985a0553",
+      "scheduled": [
+        {
+          "phase": "side_turn_start",
+          "turn": 3,
+          "operation": "energy",
+          "variable": "Energy"
+        }
+      ],
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
     },
     "RELIC.FIDDLE": {
       "category": "relic",
@@ -1945,7 +1955,7 @@
       "source_sha256": "2b801879e8b11f7d3a9c9aa0e2a82594ffe8bde4a562b299d1f55a84c7856b60",
       "effects": [
         {
-          "operation": "weak_boundary",
+          "operation": "weak",
           "amount": {
             "visible": "weak"
           }
@@ -2042,7 +2052,7 @@
           "repeats": 1
         },
         {
-          "operation": "weak_boundary",
+          "operation": "weak",
           "amount": {
             "visible": "weak"
           }
@@ -2117,7 +2127,7 @@
           "repeats": 1
         },
         {
-          "operation": "weak_boundary",
+          "operation": "weak",
           "amount": {
             "visible": "weak"
           }
@@ -2144,6 +2154,446 @@
       ],
       "exhaust": true,
       "unplayable": false
+    },
+    "CARD.ALIGNMENT": {
+      "category": "card",
+      "reference_sha256": "a678bd34baa6e7c10103086920f3f48ba087d7c711da16a18ae24e0184b202bd",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\Alignment.cs",
+      "source_sha256": "8e67030f430fc4053d333bcbab3ce3c9579042db4ad21949c48546ca849e2e17",
+      "effects": [
+        {
+          "operation": "energy",
+          "amount": {
+            "visible": "energy",
+            "energy_icons": true
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.BATTLE_TRANCE": {
+      "category": "card",
+      "reference_sha256": "035037782b1fc4c9188515c818290fbf7dc2d4271740971374b920659ac2898d",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\BattleTrance.cs",
+      "source_sha256": "572c91bff78707a7eb406dc893f17377d1c733db4dbbd4609fb5a70f53ebea88",
+      "effects": [
+        {
+          "operation": "draw",
+          "amount": {
+            "visible": "draw"
+          }
+        },
+        {
+          "operation": "no_draw",
+          "amount": 1
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.CELESTIAL_MIGHT": {
+      "category": "card",
+      "reference_sha256": "f52cfc435f4ab627c4b77dc4179568a83e736aa102f110a4a9ea3b608d457f47",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\CelestialMight.cs",
+      "source_sha256": "187a7ee651f51db86ef6ca4a9c130f3ddab0ac44a9e1fd4df71c63c6cb63e699",
+      "effects": [
+        {
+          "operation": "damage",
+          "amount": {
+            "visible": "damage"
+          },
+          "repeats": {
+            "variable": "Repeat"
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.GATHER_LIGHT": {
+      "category": "card",
+      "reference_sha256": "1c13e91f10a0f0757e109dbafe0b4e8d88058a48d774823d39643a244435a54e",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\GatherLight.cs",
+      "source_sha256": "9156fbc9c36875b7058f0523a2c18db47c6dbb381ff7a5f0bb0877faca1fd1b9",
+      "effects": [
+        {
+          "operation": "block",
+          "amount": {
+            "visible": "block",
+            "invert_legion": true
+          }
+        },
+        {
+          "operation": "stars",
+          "amount": {
+            "variable": "Stars"
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.KNOW_THY_PLACE": {
+      "category": "card",
+      "reference_sha256": "224cbaca49dd724c4fe4e3cc96209823138ce44529c2e1c9ccf845009bb09dad",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\KnowThyPlace.cs",
+      "source_sha256": "702dfb79f2b3108047af64ddc81154c6def2f9c091ba16d2fd06b0c15eab0754",
+      "effects": [
+        {
+          "operation": "weak",
+          "amount": {
+            "visible": "weak"
+          }
+        },
+        {
+          "operation": "vulnerable",
+          "amount": {
+            "visible": "vulnerable"
+          }
+        }
+      ],
+      "exhaust": true,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.LEG_SWEEP": {
+      "category": "card",
+      "reference_sha256": "97a992e26e126f2098c786a35425e207110439aa7a5ee75f458be0ceb168e46a",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\LegSweep.cs",
+      "source_sha256": "55f1343a3695ae050255c37ba05f206d9e6fbaa806692bfc1f2399c932999273",
+      "effects": [
+        {
+          "operation": "block",
+          "amount": {
+            "visible": "block",
+            "invert_legion": true
+          }
+        },
+        {
+          "operation": "weak",
+          "amount": {
+            "visible": "weak"
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.PECK": {
+      "category": "card",
+      "reference_sha256": "ff6b1a48899882a1b10d712dc274114b4d0eebd56d1deb744cec88b0d5bce42a",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\Peck.cs",
+      "source_sha256": "24b55a65128d7530e594467088f82358f073eddf243c7044e30b332a03baff32",
+      "effects": [
+        {
+          "operation": "damage",
+          "amount": {
+            "visible": "damage"
+          },
+          "repeats": {
+            "variable": "Repeat"
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.SOLAR_STRIKE": {
+      "category": "card",
+      "reference_sha256": "e7f8070b3de062b6ebd98227692713027569ab5226e2e53e9c2f1d98cf39ee62",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\SolarStrike.cs",
+      "source_sha256": "82eb19d66585ae07a0e21907c57fc8b682fa36b8a762ca93cb1b92bc24681f2d",
+      "effects": [
+        {
+          "operation": "damage",
+          "amount": {
+            "visible": "damage"
+          },
+          "repeats": 1
+        },
+        {
+          "operation": "stars",
+          "amount": {
+            "variable": "Stars"
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.TREMBLE": {
+      "category": "card",
+      "reference_sha256": "1f99d5f147d517b0a6467c3c34a161b827be1be115f7e4dfda88f67921e97e81",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\Tremble.cs",
+      "source_sha256": "87308806d019335117c87fec728f399f91ac329d4b534d0f5ecce977b71bc9cd",
+      "effects": [
+        {
+          "operation": "vulnerable",
+          "amount": {
+            "visible": "vulnerable"
+          }
+        }
+      ],
+      "exhaust": true,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "CARD.VENERATE": {
+      "category": "card",
+      "reference_sha256": "f9b9734e908aa08a28bcdefe5e879a191e9192ed5b7ac363583331ce58b313f8",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Cards\\Venerate.cs",
+      "source_sha256": "d77e9c87ed23042d59811a27c8fb4c8a8f8b73c2aba96030dfdc1e8e3ff44f14",
+      "effects": [
+        {
+          "operation": "stars",
+          "amount": {
+            "variable": "Stars"
+          }
+        }
+      ],
+      "exhaust": false,
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "POTION.BLOOD_POTION": {
+      "category": "potion",
+      "reference_sha256": "5dc3579a9c0029f4d6340196b319fd36ee04ce139f3b996ebaa1ca5e3b2dae7b",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Potions\\BloodPotion.cs",
+      "source_sha256": "14e162c222286871396d85d6393ae371a1681d9021c1be51f3571341f80fa951",
+      "effects": [
+        {
+          "operation": "heal_percent",
+          "amount": {
+            "variable": "HealPercent"
+          }
+        }
+      ],
+      "target_type": "AnyPlayer",
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "POTION.DEXTERITY_POTION": {
+      "category": "potion",
+      "reference_sha256": "04197a99550febb458309f2356c898d6fdc1feeef57d2fb2c7922587260707cd",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Potions\\DexterityPotion.cs",
+      "source_sha256": "6c36c58ada7a376a37bfd89cd58f065d8e5b301c68742f9bb8e78cd1872f72fc",
+      "effects": [
+        {
+          "operation": "dexterity",
+          "amount": {
+            "variable": "DexterityPower"
+          }
+        }
+      ],
+      "target_type": "AnyPlayer",
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "POTION.FRUIT_JUICE": {
+      "category": "potion",
+      "reference_sha256": "1fc91904a0c19893f22130b31af85714b0ecf2ea33850f18db03fc39483b1318",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Potions\\FruitJuice.cs",
+      "source_sha256": "d07229b27c818fe509dd4fb360e12c967bda26880b7c6953217e9290944bf71e",
+      "effects": [
+        {
+          "operation": "gain_max_hp",
+          "amount": {
+            "variable": "MaxHp"
+          }
+        }
+      ],
+      "target_type": "AnyPlayer",
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "POTION.FYSH_OIL": {
+      "category": "potion",
+      "reference_sha256": "39a70882120e780c93b0c9e70c3d5751164b8e164c54580b1004ad025c688625",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Potions\\FyshOil.cs",
+      "source_sha256": "ebe6627ac481321a5cc396f5c663cab73f73233bfb0f789e31ed973556225208",
+      "effects": [
+        {
+          "operation": "strength",
+          "amount": {
+            "visible": "strength"
+          }
+        },
+        {
+          "operation": "dexterity",
+          "amount": {
+            "variable": "DexterityPower"
+          }
+        }
+      ],
+      "target_type": "AnyPlayer",
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "POTION.SPEED_POTION": {
+      "category": "potion",
+      "reference_sha256": "4780852417ac36b43d31b87f845650c6d897bb1ca4e87cbadc22d37d14243e42",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Potions\\SpeedPotion.cs",
+      "source_sha256": "c5fb8770b4757259e7dd23abcf45b74a1c99c9b00e90662620438aa9d0d084ee",
+      "effects": [
+        {
+          "operation": "temporary_dexterity",
+          "amount": {
+            "variable": "DexterityPower"
+          }
+        }
+      ],
+      "target_type": "AnyPlayer",
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "POTION.STAR_POTION": {
+      "category": "potion",
+      "reference_sha256": "c7c8fdde645c364a4ae35ea824e6c61f28b88b2e0be0f3fb548d2a2921e361fe",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Potions\\StarPotion.cs",
+      "source_sha256": "25b8539f4a17a7b5c181f39e55f2e04f7bf2d44689ca36f0c46db953bea75c15",
+      "effects": [
+        {
+          "operation": "stars",
+          "amount": {
+            "variable": "Stars"
+          }
+        }
+      ],
+      "target_type": "AnyPlayer",
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "RELIC.CANDELABRA": {
+      "category": "relic",
+      "reference_sha256": "b1ea9ae2a28eac68d2722880bcd415e690ad5203b6041a0a9bcba2f82d131ca5",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\Candelabra.cs",
+      "source_sha256": "4d0df94401557ab0c30880eb54ef440974b7a400eaea066ad780636988397fca",
+      "effects": [],
+      "scheduled": [
+        {
+          "phase": "side_turn_start",
+          "turn": 2,
+          "operation": "energy",
+          "variable": "Energy"
+        }
+      ],
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "RELIC.CAPTAINS_WHEEL": {
+      "category": "relic",
+      "reference_sha256": "6a663ba30b88332f47fec4c0edaebe888c8d89d0c06cf6cfdaadbb0a64eb4a17",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\CaptainsWheel.cs",
+      "source_sha256": "779fdaacd8df73c32009d56a21a2164c963361e04dd91c73c87c802a6e5ffb9c",
+      "effects": [],
+      "scheduled": [
+        {
+          "phase": "after_block_cleared",
+          "turn": 3,
+          "operation": "unpowered_block",
+          "variable": "Block"
+        }
+      ],
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "RELIC.HORN_CLEAT": {
+      "category": "relic",
+      "reference_sha256": "9e06f2fee3823dfdde6584f3d7ac1581116cda1d8f4405bb1a349502fd82c773",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\HornCleat.cs",
+      "source_sha256": "3133977859920dc0c3802f2dd83109ac49a2a03d56432b84a814aa6367b75405",
+      "effects": [],
+      "scheduled": [
+        {
+          "phase": "after_block_cleared",
+          "turn": 2,
+          "operation": "unpowered_block",
+          "variable": "Block"
+        }
+      ],
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "RELIC.MERCURY_HOURGLASS": {
+      "category": "relic",
+      "reference_sha256": "7ba96ab617bccb053847af93cb792a2d552cf5cb853d661419b030252b6303b6",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\MercuryHourglass.cs",
+      "source_sha256": "916280bc3a6627c90ed9ff2868adafcdb1f59f7941427156fc61a957d2147a50",
+      "effects": [],
+      "scheduled": [
+        {
+          "phase": "after_hand_draw",
+          "turn": null,
+          "operation": "unpowered_damage",
+          "variable": "Damage"
+        }
+      ],
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "RELIC.SAI": {
+      "category": "relic",
+      "reference_sha256": "df26d4e7487949daa0d9798c009ef849659f067e264d015db62d662a51157507",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\Sai.cs",
+      "source_sha256": "49bf579ad10937264e4a1fc8280809dde99c322393e78ea0539f8d51d755f094",
+      "effects": [],
+      "scheduled": [
+        {
+          "phase": "side_turn_start",
+          "turn": null,
+          "operation": "unpowered_block",
+          "variable": "Block"
+        }
+      ],
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
+    },
+    "RELIC.STONE_CALENDAR": {
+      "category": "relic",
+      "reference_sha256": "d9b2437fa42c18ddf36ae40408a16a0b48f2899aed6f45ee1bf4140ba223454c",
+      "validation": "verified_adapter",
+      "source": "MegaCrit.Sts2.Core.Models.Relics\\StoneCalendar.cs",
+      "source_sha256": "8d76aea271f42aa65add76121ab50b965fd2be7fd369fbe301a1bb6349cf1fab",
+      "effects": [],
+      "scheduled": [
+        {
+          "phase": "side_turn_end",
+          "turn": 7,
+          "operation": "unpowered_damage",
+          "variable": "Damage"
+        }
+      ],
+      "review_gap": "source_recognized; require rule review and transition validation",
+      "review_evidence": "restricted straight-line source grammar checked; arithmetic/flow regression required; live validation tracked separately"
     }
   },
   "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9"

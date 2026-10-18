@@ -22,6 +22,10 @@ import {mountServices} from './services.js';
    const message=agentFailureText({...status,error:code});panel.append(E('p',message));
    const rows=[['错误码',code],['发生时间',d?.occurred_at?new Date(d.occurred_at*1000).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'旧服务未记录'],['决策后端',d?.provider||status?.active],['模型',d?.model],['发生阶段',d?.stage?phaseNames[d.stage]||d.stage:'旧服务未记录'],['战斗回合',d?.turn],['计划步骤',d?.plan_step?d.plan_step+' / '+d.plan_length:null],['动作',d?.action_id],['动作结果',d?.status],['回复结束原因',d?.finish_reason],['输出长度上限',d?.max_tokens],['本次输出 token',d?.usage?.completion_tokens],['请求次数',d?.attempts],['请求编号',d?.request_id]];
    for(const [label,value] of rows)if(value!=null)panel.append(E('p',label+'：'+value));
+   for(const blocker of d?.blockers||[])panel.append(E('p','未建模效果：'+blocker));
+   for(const check of d?.comparison?.checks||[])if(!check.matches)panel.append(E('p',check.field+'：预测 '+JSON.stringify(check.predicted)+'，实际 '+JSON.stringify(check.observed)));
+   if(d?.analysis_id)panel.append(E('p','分析编号：'+d.analysis_id));
+   if(d?.verification_error)panel.append(E('p','核对失败：'+d.verification_error));
   }
  }
  const starts=[start,quickStart,document.getElementById('live-start')].filter(Boolean),pauses=[pause,quickPause,document.getElementById('live-pause')].filter(Boolean);

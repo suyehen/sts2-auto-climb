@@ -45,20 +45,32 @@ def recognize_card(text):
             effects.append(dict(operation='block',amount=dict(visible='block',invert_legion=True))); continue
         if re.fullmatch(r'await CardPileCmd\.Draw\(choiceContext, base.DynamicVars.Cards.(?:BaseValue|IntValue), base.Owner\)',statement):
             effects.append(dict(operation='draw',amount=dict(visible='draw'))); continue
+        if re.fullmatch(r'await CreatureCmd\.TriggerAnim\(base.Owner.Creature, "(?:Cast|PowerUp)", base.Owner.Character.CastAnimDelay\)',statement):continue
         if re.fullmatch(r'await PlayerCmd\.GainEnergy\(base.DynamicVars.Energy.(?:BaseValue|IntValue), base.Owner\)',statement):
             effects.append(dict(operation='energy',amount=dict(visible='energy',energy_icons=True))); continue
+        if statement=='await PlayerCmd.GainStars(base.DynamicVars.Stars.BaseValue, base.Owner)':
+            effects.append(dict(operation='stars',amount=dict(variable='Stars')));continue
+        if statement=='await PowerCmd.Apply<NoDrawPower>(choiceContext, base.Owner.Creature, 1m, base.Owner.Creature, this)':
+            effects.append(dict(operation='no_draw',amount=1));continue
         power=re.fullmatch(r'await PowerCmd.Apply<(VulnerablePower|WeakPower|StrengthPower)>\(choiceContext, (cardPlay.Target|base.Owner.Creature), base.DynamicVars.(Vulnerable|Weak|Strength).BaseValue, base.Owner.Creature, this\)',statement)
         if power:
             expected={'VulnerablePower':('cardPlay.Target','Vulnerable','vulnerable'),
-                      'WeakPower':('cardPlay.Target','Weak','weak_boundary'),
+                      'WeakPower':('cardPlay.Target','Weak','weak'),
                       'StrengthPower':('base.Owner.Creature','Strength','strength')}[power[1]]
             if (power[2],power[3])!=expected[:2]: return None,'power_target_or_amount_mismatch'
             effects.append(dict(operation=expected[2],amount=dict(visible=power[3].lower()))); continue
-        match=re.fullmatch(r'await DamageCmd\.Attack\(base.DynamicVars.Damage.BaseValue\)\.FromCard\(this, cardPlay\)\.(?:Targeting\(cardPlay.Target\)|TargetingAllOpponents\(base.Owner\))(?P<tail>.*?)\.Execute\(choiceContext\)',statement)
+        match=re.fullmatch(r'await DamageCmd\.Attack\(base.DynamicVars.Damage.BaseValue\)(?P<tail>.*?)\.Execute\(choiceContext\)',statement)
         if match:
             tail=match['tail']; repeats=1
-            count=re.search(r'\.WithHitCount\((\d+)\)',tail)
-            if count: repeats=int(count[1]); tail=tail.replace(count[0],'')
+            if tail.count('.FromCard(this, cardPlay)')!=1:return None,'attack_source_not_recognized'
+            tail=tail.replace('.FromCard(this, cardPlay)','')
+            target=re.findall(r'\.Targeting\(cardPlay.Target\)|\.TargetingAllOpponents\(base.Owner\)',tail)
+            if len(target)!=1:return None,'attack_target_not_recognized'
+            tail=tail.replace(target[0],'')
+            count=re.search(r'\.WithHitCount\((\d+|base.DynamicVars.(?:Repeat|Hits).(?:BaseValue|IntValue))\)',tail)
+            if count:
+                repeats=int(count[1]) if count[1].isdigit() else dict(variable=count[1].split('.')[2])
+                tail=tail.replace(count[0],'',1)
             tail=re.sub(r'\.WithHitFx\("[^"\\]+"\)','',tail)
             tail=re.sub(r'\.WithHitFx\("[^"\\]+", null, "[^"\\]+"\)','',tail)
             if tail.strip(): return None,'attack_builder_modifiers_not_recognized'
@@ -84,13 +96,14 @@ def recognize_potion(text):
         return None,'targeting_not_recognized'
     # Only these exact cosmetic constructs are discarded.
     code=re.sub(r'NCombatRoom\.Instance\?\.PlaySplashVfx\(target, new Color\("[a-fA-F0-9]+"\)\);','',code)
+    code=re.sub(r'NCombatRoom\.Instance\?\.PlaySplashVfx\(target, Colors\.(?:Red|Purple)\);','',code)
     code=re.sub(r'NCombatRoom\.Instance\?\.CombatVfxContainer\.AddChildSafely\(NGroundFireVfx\.Create\(target\)\);','',code)
     cosmetic_loop=r'foreach \(Creature item in targets\)\s*\{\s*NCombatRoom\.Instance\?\.CombatVfxContainer\.AddChildSafely\(NFireSmokePuffVfx\.Create\(item\)\);\s*\}'
     code=re.sub(cosmetic_loop,'',code)
     code=re.sub(r'await Cmd\.CustomScaledWait\(0\.2f, 0\.3f\);','',code)
     if re.search(r'\b(if|for|foreach|while|switch|return|throw)\b',code):
         return None,'conditional_or_iterative_behavior'
-    effects=[]; damage_declared=False; player_declared=False; targets_declared=False; strength_alias=False
+    effects=[]; damage_declared=False; player_declared=False; targets_declared=False; strength_alias=False;dexterity_alias=False
     for statement in code.split(';'):
         statement=' '.join(statement.split())
         if not statement: continue
@@ -103,11 +116,19 @@ def recognize_potion(text):
         if statement=='IReadOnlyList<Creature> targets = player.CombatState.HittableEnemies' and player_declared:
             targets_declared=True; continue
         if statement=='decimal baseValue = base.DynamicVars.Strength.BaseValue': strength_alias=True; continue
-        if statement=='await CreatureCmd.GainBlock(target, base.DynamicVars.Block, null)' and 'new BlockVar(12m, ValueProp.Unpowered)' in text:
+        if statement=='decimal baseValue = base.DynamicVars.Dexterity.BaseValue':dexterity_alias=True;continue
+        if statement=='await CreatureCmd.Heal(target, (decimal)target.MaxHp * base.DynamicVars["HealPercent"].BaseValue / 100m)' and target[1]=='AnyPlayer':
+            effects.append(dict(operation='heal_percent',amount=dict(variable='HealPercent')));continue
+        if statement=='await CreatureCmd.GainMaxHp(target, base.DynamicVars.MaxHp.BaseValue)' and target[1]=='AnyPlayer':
+            effects.append(dict(operation='gain_max_hp',amount=dict(variable='MaxHp')));continue
+        if statement=='await PlayerCmd.GainStars(base.DynamicVars.Stars.BaseValue, target.Player)' and target[1]=='AnyPlayer':
+            effects.append(dict(operation='stars',amount=dict(variable='Stars')));continue
+        if statement=='await CreatureCmd.GainBlock(target, base.DynamicVars.Block, null)' and re.search(r'new BlockVar\(\d+m, ValueProp.Unpowered\)',text):
             effects.append(dict(operation='unpowered_block',amount=dict(visible='block'))); continue
         if statement=='await CreatureCmd.GainBlock(target, target.Block * 2, ValueProp.Unpowered, null)':
             effects.append(dict(operation='multiply_block',amount=3)); continue
-        if statement=='await PlayerCmd.GainEnergy(base.DynamicVars.Energy.BaseValue, target.Player)':
+        if statement in {'await PlayerCmd.GainEnergy(base.DynamicVars.Energy.BaseValue, target.Player)',
+                         'await PlayerCmd.GainEnergy(base.DynamicVars.Energy.IntValue, target.Player)'}:
             effects.append(dict(operation='energy',amount=dict(visible='energy',energy_icons=True))); continue
         if statement=='await CardPileCmd.Draw(choiceContext, base.DynamicVars.Cards.BaseValue, target.Player)':
             effects.append(dict(operation='draw',amount=dict(visible='draw'))); continue
@@ -115,17 +136,68 @@ def recognize_potion(text):
             effects.append(dict(operation='unpowered_damage',amount=dict(visible='damage'))); continue
         if statement=='await CreatureCmd.Damage(choiceContext, targets, damage.BaseValue, damage.Props, player, null, null)' and damage_declared and targets_declared and target[1]=='AllEnemies':
             effects.append(dict(operation='unpowered_damage',amount=dict(visible='damage'))); continue
-        match=re.fullmatch(r'await PowerCmd.Apply<(StrengthPower|VulnerablePower|WeakPower|FlexPotionPower)>\(choiceContext, target, (base.DynamicVars.(?:Strength|Vulnerable|Weak).BaseValue|baseValue), base.Owner.Creature, null\)',statement)
+        match=re.fullmatch(r'await PowerCmd.Apply<(StrengthPower|VulnerablePower|WeakPower|FlexPotionPower|DexterityPower|SpeedPotionPower)>\(choiceContext, target, (base.DynamicVars.(?:Strength|Vulnerable|Weak|Dexterity).BaseValue|baseValue), base.Owner.Creature, null\)',statement)
         if match:
             power=match[1]; expression=match[2]
             required={'StrengthPower':('strength','Strength','AnyPlayer'),'FlexPotionPower':('temporary_strength','Strength','AnyPlayer'),
-                      'VulnerablePower':('vulnerable','Vulnerable','AnyEnemy'),'WeakPower':('weak_boundary','Weak','AnyEnemy')}[power]
-            if target[1]!=required[2] or expression!=f'base.DynamicVars.{required[1]}.BaseValue' and not (power=='FlexPotionPower' and expression=='baseValue' and strength_alias):
+                      'VulnerablePower':('vulnerable','Vulnerable','AnyEnemy'),'WeakPower':('weak','Weak','AnyEnemy'),
+                      'DexterityPower':('dexterity','Dexterity','AnyPlayer'),'SpeedPotionPower':('temporary_dexterity','Dexterity','AnyPlayer')}[power]
+            alias=(power=='FlexPotionPower' and strength_alias or power=='SpeedPotionPower' and dexterity_alias) and expression=='baseValue'
+            if target[1]!=required[2] or expression!=f'base.DynamicVars.{required[1]}.BaseValue' and not alias:
                 return None,'power_target_or_amount_mismatch'
-            effects.append(dict(operation=required[0],amount=dict(visible=required[1].lower()))); continue
+            effects.append(dict(operation=required[0],amount=dict(variable='DexterityPower') if required[1]=='Dexterity' else dict(visible=required[1].lower()))); continue
         return None,'statement_not_recognized:'+statement[:180]
     if not effects: return None,'no_recognized_effects'
     return dict(effects=effects,target_type=target[1]),None
+
+def recognize_relic(text):
+    """Complete reviewed hook shapes; no arbitrary C# or description execution."""
+    hooks=set(re.findall(r'override\s+(?:async\s+)?[\w<>?]+\s+(\w+)\s*\(',text))
+    properties=set(re.findall(r'override\s+[\w<>?]+\s+(\w+)\s*(?:=>|\{)',text))
+    if properties-{'Rarity','CanonicalVars','ExtraHoverTips','ShowCounter','DisplayAmount'}:
+        return None,'relic_property_adapter_required'
+    compact=lambda name:re.sub(r'\s+','',body(text,name) or '')
+    unpowered_block=bool(re.search(r'new BlockVar\(\d+m, ValueProp.Unpowered\)',text))
+    unpowered_damage=bool(re.search(r'new DamageVar\(\d+m, ValueProp.Unpowered\)',text))
+    scheduled=[]
+    if hooks=={'AfterBlockCleared'} and unpowered_block:
+        match=re.fullmatch(r'if\(creature==base.Owner.Creature&&base.Owner.PlayerCombatState.TurnNumber==(\d+)\)\{Flash\(\);awaitCreatureCmd.GainBlock\(base.Owner.Creature,base.DynamicVars.Block,null\);\}',compact('AfterBlockCleared'))
+        if match:scheduled=[dict(phase='after_block_cleared',turn=int(match[1]),operation='unpowered_block',variable='Block')]
+    elif hooks=={'AfterSideTurnStart'}:
+        code=compact('AfterSideTurnStart')
+        block='if(participants.Contains(base.Owner.Creature)){Flash();awaitCreatureCmd.GainBlock(base.Owner.Creature,base.DynamicVars.Block,null);}'
+        if code==block and unpowered_block:
+            scheduled=[dict(phase='side_turn_start',turn=None,operation='unpowered_block',variable='Block')]
+        energy=re.fullmatch(r'if\(participants.Contains\(base.Owner.Creature\)&&base.Owner.PlayerCombatState.TurnNumber==(\d+)\)\{Flash\(\);awaitPlayerCmd.GainEnergy\(base.DynamicVars.Energy.BaseValue,base.Owner\);\}',code)
+        display_energy=re.fullmatch(r'if\(participants.Contains\(base.Owner.Creature\)\)\{if\(base.Owner.PlayerCombatState.TurnNumber==(\d+)\)\{Flash\(\);awaitPlayerCmd.GainEnergy\(base.DynamicVars.Energy.BaseValue,base.Owner\);\}InvokeDisplayAmountChanged\(\);\}',code)
+        match=energy or display_energy
+        if match:scheduled=[dict(phase='side_turn_start',turn=int(match[1]),operation='energy',variable='Energy')]
+    elif hooks=={'AfterPlayerTurnStart'} and unpowered_damage:
+        expected='if(player==base.Owner){Flash();awaitCreatureCmd.Damage(choiceContext,player.Creature.CombatState.HittableEnemies,base.DynamicVars.Damage,base.Owner.Creature);}'
+        if compact('AfterPlayerTurnStart')==expected:
+            scheduled=[dict(phase='after_hand_draw',turn=None,operation='unpowered_damage',variable='Damage')]
+    elif hooks=={'AfterSideTurnStart','BeforeSideTurnEnd','AfterCombatEnd','AfterRoomEntered'} and unpowered_damage:
+        expected={
+            'AfterSideTurnStart':'''if (!participants.Contains(base.Owner.Creature)) { return Task.CompletedTask; }
+                if (base.Owner.PlayerCombatState.TurnNumber == base.DynamicVars["DamageTurn"].IntValue) { base.Status = RelicStatus.Active; }
+                InvokeDisplayAmountChanged(); return Task.CompletedTask;''',
+            'BeforeSideTurnEnd':'''if (participants.Contains(base.Owner.Creature)) {
+                int intValue = base.DynamicVars["DamageTurn"].IntValue; int turnNumber = base.Owner.PlayerCombatState.TurnNumber;
+                base.Status = RelicStatus.Normal; if (turnNumber == intValue) {
+                    TaskHelper.RunSafely(DoActivateVisuals());
+                    await CreatureCmd.Damage(choiceContext, base.Owner.Creature.CombatState.HittableEnemies, base.DynamicVars.Damage, base.Owner.Creature);
+                    InvokeDisplayAmountChanged(); } }''',
+            'AfterCombatEnd':'base.Status = RelicStatus.Normal; InvokeDisplayAmountChanged(); return Task.CompletedTask;',
+            'AfterRoomEntered':'''if (!(room is CombatRoom)) { return Task.CompletedTask; }
+                base.Status = RelicStatus.Normal; InvokeDisplayAmountChanged(); return Task.CompletedTask;''',
+            'DoActivateVisuals':'IsActivating = true; Flash(); await Cmd.Wait(1f); IsActivating = false;',
+        }
+        turn=re.search(r'new DynamicVar\("DamageTurn", (\d+)m\)',text)
+        if turn and all(compact(name)==re.sub(r'\s+','',code) for name,code in expected.items()):
+            scheduled=[dict(phase='side_turn_end',turn=int(turn[1]),operation='unpowered_damage',variable='Damage')]
+    if not scheduled:return None,'relic_trigger_program_not_recognized'
+    return dict(effects=[],scheduled=scheduled),None
+
 
 def audit(catalog,rulebook,source=SOURCE):
     rows=[]; proposed=json.loads(json.dumps(rulebook))
@@ -143,7 +215,7 @@ def audit(catalog,rulebook,source=SOURCE):
         text=path.read_text(encoding='utf-8-sig'); row['source_sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
         row['hooks']=sorted(set(re.findall(r'override\s+(?:async\s+)?[\w<>?]+\s+(\w+)\s*\(',text)))
         row['commands']=sorted(set('.'.join(c) for c in re.findall(r'\b(\w+Cmd)\.(\w+)',text)))
-        recognized,reason=(recognize_card(text) if category=='card' else recognize_potion(text) if category=='potion' else (None,'trigger_adapter_required'))
+        recognized,reason=(recognize_card(text) if category=='card' else recognize_potion(text) if category=='potion' else recognize_relic(text))
         row['recognized_sequence']=recognized; row['gap']=reason
         if identity not in proposed['entries']:
             proposed['entries'][identity]=dict(category=category,reference_sha256=entry_fingerprint(entry),

@@ -3,7 +3,7 @@ from autoslay.decision.contracts import CombatState, Operation, Transition, Unsu
 from autoslay.rules.registry import IroncladRules, Effect
 from autoslay.simulation.card_flow import plan_draw, add_to_composition
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 
 class CombatSimulator:
@@ -39,7 +39,7 @@ class CombatSimulator:
                 actions.extend(Operation(aid, e.instance_id) for e in state.enemies if e.hp > 0)
             elif card.target_type in {"Self", "AllEnemies", "None"}:
                 actions.append(Operation(aid))
-        if state.periodic_relics and all(r.counter is not None for r in state.periodic_relics) and any(e.hp > 0 for e in state.enemies):
+        if (state.periodic_relics or state.scheduled_relics) and all(r.counter is not None for r in state.periodic_relics) and any(e.hp > 0 for e in state.enemies):
             actions.append(Operation("end_turn"))
         for potion in state.potions:
             if potion.action_id in self.compiled_potions:
@@ -60,7 +60,9 @@ class CombatSimulator:
             raise UnsupportedEffect("Unmodeled combat interaction: " + "; ".join(blockers))
         if action.action_id == "end_turn":
             # Forecast current visible attacks separately; never invent next turn's hand/intents.
-            return Transition(state, "next_turn_requires_observation")
+            from autoslay.rules.scheduled_relics import apply_phase
+            state=apply_phase(state,'side_turn_end')
+            return Transition(state, 'combat_victory' if state.combat_won else "next_turn_requires_observation")
         potion_rule = self.compiled_potions.get(action.action_id)
         card = None if potion_rule else next(c for c in state.hand if "play_" + c.instance_id == action.action_id)
         rule = potion_rule or self.compiled[card.instance_id]
@@ -112,7 +114,9 @@ class CombatSimulator:
                     enemies.append(e)
                 s = replace(s, enemies=tuple(enemies))
             elif effect.kind == "block":
-                value = effect.amount * (2 if s.legion_ready else 1)
+                if s.player_frail and s.dexterity_delta and not (card and card.canonical):
+                    return Transition(s,'frail_dexterity_rounding_requires_observation')
+                value = max(0,effect.amount+(s.dexterity_delta if not (card and card.canonical) else 0)) * (2 if s.legion_ready else 1)
                 s = replace(s, block=s.block + value, legion_ready=False)
             elif effect.kind == 'unpowered_block':
                 s = replace(s, block=s.block + effect.amount)
@@ -138,6 +142,13 @@ class CombatSimulator:
                 if s.player_weak and not (card is not None and card.canonical and all(c.canonical for c in s.hand)
                     and all(e.kind not in {'damage','dismantle'} for e in effects[index+1:])):
                     return Transition(s, "weak_strength_rounding_requires_observation")
+            elif effect.kind in {'dexterity','temporary_dexterity'}:
+                s=replace(s,dexterity_delta=s.dexterity_delta+effect.amount,
+                    temporary_dexterity=s.temporary_dexterity+(effect.amount if effect.kind=='temporary_dexterity' else 0))
+            elif effect.kind=='weak':
+                s=replace(s,enemies=tuple(replace(e,weak=True,weak_turns=e.weak_turns+effect.amount,
+                    attacks=tuple(d*3//4 for d in e.attacks) if not e.weak and effect.amount>0 else e.attacks)
+                    if e.instance_id in targets and e.hp>0 and effect.amount>0 else e for e in s.enemies))
             elif effect.kind == "lose_hp":
                 if s.turn_hp_loss_cap is not None:
                     return Transition(s, "remaining_turn_hp_cap_requires_observation")
@@ -145,6 +156,16 @@ class CombatSimulator:
                 s = replace(s, hp=s.hp-loss, self_hp_loss=s.self_hp_loss+loss)
             elif effect.kind == "energy":
                 s = replace(s, energy=s.energy + effect.amount)
+            elif effect.kind=='stars':
+                s=replace(s,stars=s.stars+effect.amount)
+            elif effect.kind in {'heal','heal_percent','gain_max_hp'}:
+                maximum=min(999999999,s.max_hp+effect.amount) if effect.kind=='gain_max_hp' else s.max_hp
+                heal=(maximum-s.max_hp if effect.kind=='gain_max_hp' else s.max_hp*effect.amount//100
+                      if effect.kind=='heal_percent' else effect.amount)
+                actual=min(heal,maximum-s.hp)
+                s=replace(s,max_hp=maximum,hp=s.hp+actual,healing=s.healing+actual)
+            elif effect.kind=='no_draw':
+                s=replace(s,effect_draw_blocked=True,temporary_draw_blocked=True)
             elif effect.kind == "exhaust_nonattacks":
                 if s.legion_ready or any(c.card_type is None for c in s.hand):
                     return Transition(s, "exhaust_nonattacks_requires_observation")

@@ -34,7 +34,8 @@ def test_source_reviewed_rules_have_readable_base_and_upgrade_and_valid_flow(ide
         assert not simulator.unsupported
         target='e' if card.target_type=='AnyEnemy' else None
         result=simulator.apply(initial,Operation('play_source-fixture',target))
-        assert result.state.energy>=0 and result.state.stars==10-max(0,card.star_cost)
+        # Resource-generating cards may increase the inventory after payment.
+        assert result.state.energy>=0 and result.state.stars>=10-max(0,card.star_cost)
         assert all(c.instance_id!='source-fixture' for c in result.state.hand)
         if not result.boundary:
             destination=result.state.exhausted_composition if simulator.compiled[card.instance_id].exhaust else result.state.discard_composition

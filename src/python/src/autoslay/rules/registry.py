@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from autoslay.decision.contracts import Card, CombatState, UnsupportedEffect
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 GAME_VERSION = "0.111.0"
 
 
@@ -54,24 +54,42 @@ class KnowledgeRules:
         from autoslay.knowledge_base.rulebook import Rulebook
         self.rulebook = rulebook or Rulebook()
 
-    def effects(self, rule, description, state=None):
+    def effects(self, rule, description, state=None, variables=None):
         text = clean(description)
         effects = []
         for item in rule.get("effects", []):
             value = item["amount"]
             if isinstance(value, dict):
-                icons = re.findall(r"\[img\]res://images/packed/sprite_fonts/[a-z_]*energy_icon\.png\[/img\]", description) if value.get("energy_icons") else []
-                value_amount = len(icons) if icons else amount(text, value["visible"])
+                if 'variable' in value:
+                    value_amount=self.variable(variables,value['variable'])
+                else:
+                    icons = re.findall(r"\[img\]res://images/packed/sprite_fonts/[a-z_]*energy_icon\.png\[/img\]", description) if value.get("energy_icons") else []
+                    value_amount = len(icons) if icons else amount(text, value["visible"])
                 if value.get("invert_legion") and state and state.legion_ready:
                     if value_amount % 2:
                         raise UnsupportedEffect("Cannot invert visible Legion block safely")
                     value_amount //= 2
             else:
                 value_amount = value
-            effects.append(Effect(item["operation"], value_amount, item.get("repeats", 1)))
+            repeats=item.get('repeats',1)
+            if isinstance(repeats,dict):repeats=self.variable(variables,repeats['variable'])
+            if not 1<=repeats<=100:raise UnsupportedEffect('Unsupported effect repeat count')
+            effects.append(Effect(item["operation"], value_amount, repeats))
         return tuple(effects)
 
+    @staticmethod
+    def variable(variables,name):
+        matches=[v for v in variables or [] if v.get('name')==name]
+        if len(matches)!=1:raise UnsupportedEffect('Dynamic variable must match exactly once: '+name)
+        value=matches[0].get('base_value')
+        if type(value) not in (int,float) or not 0<=value<=1000000000 or int(value)!=value:
+            raise UnsupportedEffect('Nonnegative integral dynamic variable required: '+name)
+        return int(value)
+
     def card(self, card: Card, state: CombatState) -> CardRule:
+        if card.affliction_id:raise UnsupportedEffect('Affliction adapter required: '+card.affliction_id)
+        if card.enchantment_id and card.enchantment_id!='ENCHANTMENT.SHARP':
+            raise UnsupportedEffect('Enchantment adapter required: '+card.enchantment_id)
         if card.costs_x or card.costs_star_x:
             raise UnsupportedEffect('Star-X cost requires a dedicated adapter' if card.costs_star_x
                                     else 'X-cost cards require a dedicated adapter')
@@ -79,7 +97,12 @@ class KnowledgeRules:
             rule = self.rulebook.require(card.entity_id, "card")
             if rule.get("unplayable"):
                 raise UnsupportedEffect("Unplayable card; observe end-turn behavior")
-            return CardRule(self.effects(rule, card.description, state), rule.get("exhaust", False))
+            entry=self.rulebook.references[card.entity_id]
+            variants=[v for v in entry.get('variants',[]) if v['upgrade_level']==card.upgrade_level]
+            if len(variants)!=1:raise UnsupportedEffect('Unique card variant required')
+            variables=([dict(name=name,base_value=value) for name,value in card.dynamic_variables]
+                       if card.dynamic_variables and not card.canonical else variants[0].get('dynamic_variables'))
+            return CardRule(self.effects(rule, card.description, state,variables), rule.get("exhaust", False))
         except (ValueError, KeyError) as exc:
             raise UnsupportedEffect(str(exc)) from exc
 
@@ -87,7 +110,9 @@ class KnowledgeRules:
     def potion(self, potion):
         try:
             rule = self.rulebook.require(potion.entity_id, "potion")
-            effects = self.effects(rule, potion.description)
+            variables=([dict(name=name,base_value=value) for name,value in potion.dynamic_variables]
+                       if potion.dynamic_variables else self.rulebook.references[potion.entity_id].get('dynamic_variables'))
+            effects = self.effects(rule, potion.description,variables=variables)
             target = rule.get('target_type', 'AnyPlayer')
             if target not in {'AnyPlayer', 'AnyEnemy', 'AllEnemies', 'Self'}:
                 raise UnsupportedEffect('Potion targeting requires adapter')

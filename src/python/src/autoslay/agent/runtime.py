@@ -9,6 +9,7 @@ from autoslay.paths import ROOT
 from autoslay.bridge.client import fetch_state, set_control_mode, submit_action, get_action_status, ActionRequest
 from autoslay.decision.deterministic import assess, source, event_options_settling
 from autoslay.decision.unified import analyze_decision
+from autoslay.decision.model_errors import CombatModelError, require_known_combat, require_known_batch
 from autoslay.execution.deterministic import DeterministicExecutor
 from autoslay.execution.lock import dispatch_lock
 from autoslay.telemetry import runs, decisions
@@ -221,6 +222,8 @@ class Agent:
             if not self.running or self.generation != generation: return None
             if not reusable_state(snapshot,fresh):
                 return None
+            if fresh.get('state',{}).get('phase')=='combat':
+                require_known_combat(fresh)
             validate(decision.model_dump_json(), fresh)
             src = source(fresh)
             request = ActionRequest(request_id='agent-'+uuid4().hex, run_id=src['run_id'],
@@ -283,6 +286,8 @@ class Agent:
                 if not snapshot.get('ready') or snapshot.get('busy') or s.get('control_mode') == 'paused':
                     await asyncio.sleep(.4)
                     continue
+                if s.get('phase')=='combat' and not s.get('pending_combat_action'):
+                    require_known_combat(snapshot)
                 # A previous uncertain dispatch blocks deterministic shortcuts as well as AI actions.
                 await self.unresolved()
                 token = source(snapshot)
@@ -309,6 +314,9 @@ class Agent:
                     continue
                 self.phase = 'calculating'
                 report = await asyncio.to_thread(self.analyze, snapshot)
+                if self.record and ((report.get('combat') or {}).get('batches') or {}).get('execution_blockers'):
+                    await asyncio.to_thread(decisions.archive, report, snapshot)
+                require_known_batch(report)
                 self.audit.emit('analysis_completed', snapshot, self.trace_id, analysis_id=report.get('analysis_id'))
                 shadow=(report.get('combat') or {}).get('strategy') or {}
                 if self.record and shadow.get('mode')=='shadow':
@@ -375,6 +383,8 @@ class Agent:
         except asyncio.CancelledError:
             self.finish_trace(snapshot, 'cancelled')
             raise
+        except CombatModelError as exc:
+            self.save_error(str(exc), snapshot, identity, exc.details)
         except ProviderError as exc:
             self.save_error(str(exc), snapshot, identity, exc.details)
         except (ValidationError, json.JSONDecodeError):

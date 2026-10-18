@@ -4,7 +4,7 @@ from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
 from autoslay.rules.periodic_relics import read_periodic, RULES
 from collections import Counter
 
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
                 "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
                 "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
@@ -18,7 +18,9 @@ def card_view(value: dict) -> Card:
                 value["target_type"], value["description"], value.get("upgrade_level", 0), value.get("type"),
                 star_cost=value.get('star_cost',-1),costs_x=bool(value.get('costs_x')),
                 costs_star_x=bool(value.get('costs_star_x')),variant_key=value.get('variant_key',''),
-                enchantment_id=value.get('enchantment_id'),enchantment_amount=value.get('enchantment_amount'))
+                enchantment_id=value.get('enchantment_id'),enchantment_amount=value.get('enchantment_amount'),
+                affliction_id=value.get('affliction_id'),
+                dynamic_variables=tuple((v.get('name'),v.get('base_value')) for v in value.get('dynamic_variables') or []))
 
 
 @scoped
@@ -42,10 +44,11 @@ def normalize(snapshot: dict) -> CombatState:
     creature = p["creature"]
     warnings = []
     for power in creature.get("powers", []):
-        if power["entity_id"] not in {"POWER.STRENGTH_POWER", "POWER.COLOSSUS_POWER", "POWER.NO_DRAW_POWER", "POWER.WEAK_POWER", "POWER.FRAIL_POWER"}:
+        if power["entity_id"] not in {"POWER.STRENGTH_POWER", "POWER.COLOSSUS_POWER", "POWER.NO_DRAW_POWER", "POWER.WEAK_POWER", "POWER.FRAIL_POWER",'POWER.DEXTERITY_POWER','POWER.SPEED_POTION_POWER'}:
             warnings.append("UNMODELED_PLAYER_POWER:" + power["entity_id"])
     legion = False
     periodic = []
+    scheduled=[]
     for relic in p.get("relics", []):
         rid = relic["entity_id"]
         compatibility=book.status(rid,snapshot['game_version'])
@@ -54,7 +57,11 @@ def normalize(snapshot: dict) -> CombatState:
         tracked = read_periodic(relic)
         if tracked:
             periodic.append(tracked)
-        if rid not in KNOWN_RELICS and rid not in pickup:
+        from autoslay.rules.scheduled_relics import read_scheduled
+        try:scheduled.extend(read_scheduled(relic,p.get('turn'),book))
+        except ValueError as exc:warnings.append(str(exc))
+        timed=bool(book.data['entries'].get(rid,{}).get('scheduled')) and compatibility=='compatible'
+        if rid not in KNOWN_RELICS and rid not in pickup and not timed:
             warnings.append("UNMODELED_RELIC:" + rid)
         if rid == "RELIC.PAELS_LEGION":
             legion = relic.get("status") == "Active"
@@ -96,7 +103,8 @@ def normalize(snapshot: dict) -> CombatState:
         aid = potion.get("use_action_id")
         if aid in actions:
             potions.append(Potion(potion["instance_id"], potion["entity_id"], potion["description"],
-                                  aid, tuple(actions[aid]["allowed_target_ids"]),bool(actions[aid].get('allows_no_target'))))
+                                  aid, tuple(actions[aid]["allowed_target_ids"]),bool(actions[aid].get('allows_no_target')),
+                                  tuple((v.get('name'),v.get('base_value')) for v in potion.get('dynamic_variables') or [])))
     from autoslay.rules.mechanism_scope import coverage_for_snapshot
     return CombatState(creature["hp"], creature["max_hp"], creature["block"], p["energy"],
                        tuple(card_view(c) for c in p.get("hand") or []), tuple(enemies),
@@ -119,5 +127,10 @@ def normalize(snapshot: dict) -> CombatState:
                        weak_turns=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.WEAK_POWER'),0),
                        frail_turns=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.FRAIL_POWER'),0),
                        stars=p.get('stars') or 0,
+                       base_dexterity=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.DEXTERITY_POWER'),0),
+                       temporary_dexterity=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.SPEED_POTION_POWER'),0),
+                       temporary_draw_blocked=any(r['entity_id']=='POWER.NO_DRAW_POWER' for r in creature.get('powers',[])),
+                       permanent_draw_blocked=any(r['entity_id']=='RELIC.FIDDLE' for r in p.get('relics',[])),
+                       scheduled_relics=tuple(scheduled),
                        mechanism_scope=tuple(r for r in coverage_for_snapshot(snapshot,warnings) if r.warning),
                        player_weak=any(r["entity_id"] == "POWER.WEAK_POWER" and r["amount"] > 0 for r in creature.get("powers", [])))

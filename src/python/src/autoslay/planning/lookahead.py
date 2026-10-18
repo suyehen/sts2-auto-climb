@@ -16,7 +16,7 @@ from autoslay.knowledge_base.templates import canonical
 from autoslay.planning.search import search, SearchBudget
 from autoslay.evaluation.combat import CombatEvaluator
 
-VERSION='1.3.1'
+VERSION='1.4.0'
 
 class ScenarioRules(IroncladRules):
     def card(self,card,state):
@@ -31,7 +31,9 @@ class ScenarioRules(IroncladRules):
                 value=max(0,value+state.base_strength+state.strength_delta)
                 if state.player_weak: value=value*3//4
                 value-=state.strength_delta  # Engine adds delta; do not apply Strength twice.
-            elif effect.kind in {'block','exhaust_nonattacks'} and state.player_frail: value=value*3//4
+            elif effect.kind in {'block','exhaust_nonattacks'}:
+                value=max(0,value+state.base_dexterity+state.dexterity_delta)
+                if state.player_frail:value=value*3//4
             effects.append(replace(effect,amount=value))
         return replace(rule,effects=tuple(effects))
 
@@ -159,6 +161,9 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
             observations.add('unsupported_remaining_card_end_turn_hooks'); return None
         if state.warnings:
             observations.add('combat_interactions_unmodeled');return None
+        from autoslay.rules.scheduled_relics import apply_phase
+        state=apply_phase(state,'side_turn_end')
+        if state.combat_won:return dict(covered_probability=1,conditional_metrics=terminal(state))
         discarded=add_to_composition(state.discard_composition,[c.variant_key or c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE'])
         exhausted=add_to_composition(state.exhausted_composition,[c.variant_key or c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE'])
         state=replace(state,hand=(),discard_composition=discarded,exhausted_composition=exhausted)
@@ -191,10 +196,12 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
             player_weak=weak_turns>0,player_frail=frail_turns>0,
             enemies=tuple(replace(e,vulnerable=max(0,e.vulnerable-1),
                 attacks=e.attacks if model is not None else tuple(scenario['future_attacks'].get(e.instance_id,[]))) for e in state.enemies))
+        from autoslay.rules.scheduled_relics import before_hand_draw,after_hand_draw
+        state=before_hand_draw(state)
         branches,method=draw_branches(state,draws+extra_draw,templates,limit,seed+ply); methods.add(method)
         outcomes=[]
         for probability,branch in branches:
-            outcomes.append((probability,visit(branch,ply+1,scenario) if branch is not None and not expired() else None))
+            outcomes.append((probability,visit(after_hand_draw(branch),ply+1,scenario) if branch is not None and not expired() else None))
         return combine(outcomes)
     def visit(state,ply,scenario):
         nonlocal nodes

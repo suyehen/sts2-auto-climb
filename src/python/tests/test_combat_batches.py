@@ -138,18 +138,20 @@ def test_score_components_sum_to_batch_score():
     assert all(abs(sum(r['utility_components'].values())-r['score'])<1e-8 for r in b['top_batches'])
 
 
-def test_model_downgrade_invalidates_cached_batch_and_keeps_local_selection(monkeypatch):
-    from autoslay.execution import batch_models
+def test_legacy_model_markers_do_not_affect_analysis_or_cache(monkeypatch):
     from autoslay.decision.unified import CACHE
-    records={'entities':{}}
-    monkeypatch.setattr(batch_models,'load',lambda root=None:deepcopy(records))
+    from pathlib import Path
+    original=Path.read_text
+    def read(path,*args,**kwargs):
+        if path.name in {'combat-batch-models.json','combat-strategy-disabled.json'}:
+            pytest.fail('retired markers must never be read')
+        return original(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'read_text',read)
     CACHE.clear()
     s=combat();first=analyze_decision(s);assert not first['cache_hit']
     assert analyze_decision(s)['cache_hit']
-    records['entities']['CARD.STRIKE_IRONCLAD']={'reason':'test mismatch'}
-    second=analyze_decision(s)
-    assert not second['cache_hit'] and second['autonomy']['eligible']
-    assert 'downgraded_model:CARD.STRIKE_IRONCLAD' in second['combat']['batches']['assumptions']
+    assert not any(r['stop_reason']=='model_downgrade_observation'
+                   for r in first['combat']['batches']['top_batches'])
 
 
 def test_no_known_surviving_plan_still_selects_locally():
@@ -161,9 +163,7 @@ def test_no_known_surviving_plan_still_selects_locally():
     assert assess(dict(source=source(s),combat=dict(batches=b)),s)['eligible']
 
 
-def test_downgraded_attack_cannot_hide_lethal_enemy_turn(monkeypatch):
-    from autoslay.execution import batch_models
-    monkeypatch.setattr(batch_models,'load',lambda:dict(entities={'CARD.STRIKE_IRONCLAD':{}}))
+def test_attack_forecast_cannot_hide_lethal_enemy_turn():
     s=combat(turn=5);p=s['state']['player']
     p['creature']['hp']=16
     p['hand']=[p['deck'][-1],p['deck'][0],deepcopy(p['deck'][4]),p['deck'][5]]
@@ -180,9 +180,7 @@ def test_downgraded_attack_cannot_hide_lethal_enemy_turn(monkeypatch):
     assert any(x['action_id'].startswith('play_d') for x in chosen['steps'])
 
 
-def test_unsupported_attack_does_not_beat_known_survival(monkeypatch):
-    from autoslay.execution import batch_models
-    monkeypatch.setattr(batch_models,'load',lambda:dict(entities={}))
+def test_unsupported_attack_does_not_beat_known_survival():
     s=combat(turn=5);p=s['state']['player'];p['creature']['hp']=20
     unknown=deepcopy(p['deck'][0]);unknown.update(entity_id='CARD.NEW',description='Deal 15 damage.')
     p['hand']=[unknown,p['deck'][4],p['deck'][5]]
@@ -241,7 +239,7 @@ def test_agent_uses_real_batch_analysis_without_a_model_or_credentials(tmp_path)
     from autoslay.execution.deterministic import DeterministicExecutor
     from unittest.mock import AsyncMock
     async def run():
-        s=combat();calls=[]
+        s=combat();s['state']['player']['relics']=[dict(entity_id='RELIC.BURNING_BLOOD')];calls=[]
         st=store(tmp_path);st.active='deepseek';st.set_key('deepseek','');st.profiles['deepseek'].model=''
         st.decision={'autonomy':{'combat_batches_enabled':True}}
         class Local:
@@ -295,7 +293,6 @@ def test_pending_parent_allows_only_its_bound_child_choice(tmp_path):
 
 def test_changed_card_information_redecides_without_disabling_local_selection(tmp_path,monkeypatch):
     from autoslay.execution import deterministic
-    from autoslay.execution.batch_models import load
     from test_execution import FakeBridge
     s=live();s['state']['enemies'][0]['hp']=100;bridge=FakeBridge(s)
     steps=[dict(action_id='play_a',target_id='e'),dict(action_id='play_b',target_id='e')]
@@ -309,14 +306,13 @@ def test_changed_card_information_redecides_without_disabling_local_selection(tm
             return result
         result=await deterministic.DeterministicExecutor(tmp_path/'executor',bridge.fetch,submit,record=False).execute('updated',bounded=True)
         assert result['stop_reason']=='hand_or_persistent_resources_changed' and len(bridge.calls)==1
-        assert not load(deterministic.ROOT)['entities']
+        assert not (deterministic.ROOT/'.runtime/local/agent/combat-batch-models.json').exists()
     asyncio.run(run())
 
 
 @pytest.mark.parametrize('mismatch',[False,True])
-def test_executor_runs_batch_and_mismatch_only_downgrades_action_model(tmp_path,monkeypatch,mismatch):
+def test_executor_runs_batch_and_mismatch_stops_without_marking(tmp_path,monkeypatch,mismatch):
     from autoslay.execution import deterministic
-    from autoslay.execution.batch_models import load
     from test_execution import FakeBridge
     s=live();s['state']['enemies'][0]['hp']=100
     bridge=FakeBridge(s,mismatch=mismatch)
@@ -328,13 +324,18 @@ def test_executor_runs_batch_and_mismatch_only_downgrades_action_model(tmp_path,
     monkeypatch.setattr(deterministic,'qualify',qualify)
     async def run():
         ex=deterministic.DeterministicExecutor(tmp_path/'executor',bridge.fetch,bridge.submit,record=False)
-        result=await ex.execute('batch',bounded=True)
-        assert result['status']=='completed'
-        assert len(bridge.calls)==(1 if mismatch else 2)
+        from autoslay.decision.model_errors import CombatModelError
         if mismatch:
-            assert result['stop_reason']=='prediction_mismatch'
-            assert 'CARD.STRIKE_IRONCLAD' in load(deterministic.ROOT)['entities']
-        else:assert result['stop_reason']=='batch_goal_completed'
+            with pytest.raises(CombatModelError,match='COMBAT_MODEL_PREDICTION_MISMATCH'):
+                await ex.execute('batch',bounded=True)
+            import json
+            result=json.loads((tmp_path/'executor/batch.json').read_text('utf-8'))
+            assert result['status']=='failed' and result['stop_reason']=='prediction_mismatch'
+            assert not (deterministic.ROOT/'.runtime/local/agent/combat-batch-models.json').exists()
+        else:
+            result=await ex.execute('batch',bounded=True)
+            assert result['status']=='completed' and result['stop_reason']=='batch_goal_completed'
+        assert len(bridge.calls)==(1 if mismatch else 2)
         await ex.execute('batch',bounded=True)
         assert len(bridge.calls)==(1 if mismatch else 2)
     asyncio.run(run())

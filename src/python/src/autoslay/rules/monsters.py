@@ -11,7 +11,7 @@ from autoslay.decision.contracts import UnsupportedEffect
 from autoslay.knowledge_base.behavior import load
 from autoslay.knowledge_base.monster_values import arguments, call_end, resolve
 
-VERSION = '1.2.0'
+VERSION = '1.3.0'
 KNOWN_POWERS = {'POWER.STRENGTH_POWER','POWER.WEAK_POWER','POWER.VULNERABLE_POWER',
                 'POWER.HARD_TO_KILL_POWER','POWER.MINION_POWER'}
 ALLOWED_CALLS = {'DamageCmd.Attack','PowerCmd.Apply','CreatureCmd.GainBlock',
@@ -259,8 +259,14 @@ class MonsterRules:
     def step(self,state,limit=32,select_next=True):
         """Apply the visible enemy turn, then branch to real next intents."""
         if state.warnings:raise UnsupportedEffect('combat_interactions_unmodeled')
+        from autoslay.rules.scheduled_relics import apply_phase
+        state=apply_phase(state,'side_turn_end')
+        if state.combat_won or state.hp<=0:return [(1.0,state,[])]
         if state.turn_hp_loss_cap is not None:raise UnsupportedEffect('remaining_turn_hp_cap_unknown')
-        current=replace(state,weak_turns=max(0,state.weak_turns-1),frail_turns=max(0,state.frail_turns-1))
+        current=replace(state,weak_turns=max(0,state.weak_turns-1),frail_turns=max(0,state.frail_turns-1),
+            dexterity_delta=state.dexterity_delta-state.temporary_dexterity,temporary_dexterity=0,
+            effect_draw_blocked=state.permanent_draw_blocked if state.temporary_draw_blocked else state.effect_draw_blocked,
+            temporary_draw_blocked=False)
         results=[(1.0,current,[])]
         for index,initial_enemy in enumerate(state.enemies):
             if initial_enemy.hp<=0 or state.combat_won:continue

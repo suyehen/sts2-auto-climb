@@ -115,13 +115,6 @@ def test_attack_and_strength_follow_source_order(before):
     assert outcome.enemies[0].strength==3
 
 
-def test_policy_circuit_preserves_evidence_and_does_not_disable_other_versions(tmp_path):
-    from autoslay.decision.combat_circuit import disable,blocked
-    disable('reviewed-policy',dict(reason='actual damage differs'),tmp_path)
-    assert blocked('reviewed-policy',tmp_path)
-    assert not blocked('another-policy',tmp_path)
-
-
 def test_shadow_is_wired_to_full_analysis_without_authorizing_it(monkeypatch):
     from autoslay.decision import unified
     old=unified.decision_config
@@ -332,10 +325,9 @@ def test_transition_verification_detects_missing_player_power_and_accepts_matchi
 
 
 @pytest.mark.parametrize('matches',[False,True])
-def test_calibrated_executor_disables_policy_on_missing_strength_gain(tmp_path,monkeypatch,matches):
+def test_calibrated_executor_stops_on_missing_strength_gain_without_marking(tmp_path,monkeypatch,matches):
     import asyncio
     from autoslay.execution import deterministic
-    from autoslay.decision.combat_circuit import blocked
     from autoslay.decision.normalize import normalize
     before=live();before['state']['enemies'][0]['hp']=100
     # Use a reviewed Strength potion; this is a fake local bridge, never a game dispatch.
@@ -359,13 +351,19 @@ def test_calibrated_executor_disables_policy_on_missing_strength_gain(tmp_path,m
         async def fetch():return deepcopy(after if submitted else before)
         async def submit(request):submitted.append(request);return dict(status='completed')
         executor=deterministic.DeterministicExecutor(tmp_path/'execution',fetch,submit,record=False)
-        result=await executor.execute('strength-check',bounded=True)
+        from autoslay.decision.model_errors import CombatModelError
+        if matches:
+            result=await executor.execute('strength-check',bounded=True)
+        else:
+            with pytest.raises(CombatModelError,match='COMBAT_MODEL_PREDICTION_MISMATCH'):
+                await executor.execute('strength-check',bounded=True)
+            import json
+            result=json.loads((tmp_path/'execution/strength-check.json').read_text('utf-8'))
         assert result['prediction_comparison']['numeric_fields_match']==matches
-        assert result.get('new_strategy_disabled',False)==(not matches)
-        assert blocked('survival-policy',deterministic.ROOT)==(not matches)
+        assert not (deterministic.ROOT/'.runtime/local/agent/combat-strategy-disabled.json').exists()
         # The durable receipt retains mismatch evidence and cannot resubmit.
         again=await executor.execute('strength-check',bounded=True)
-        assert again['status']=='completed' and len(submitted)==1
+        assert again['status']==('completed' if matches else 'failed') and len(submitted)==1
     asyncio.run(run())
 
 

@@ -12,16 +12,22 @@ from uuid import uuid4
 from autoslay.knowledge_base.repository import scoped
 from time import perf_counter
 from autoslay.actions import operation_error, describe as describe_actions, validate_catalog_identity
+from autoslay.decision.model_errors import CombatModelError, require_known_combat, require_known_batch
 
 
 @scoped
 def qualify(snapshot, bounded=False):
+    if (snapshot.get('ready') and not snapshot.get('busy') and snapshot.get('state',{}).get('phase')=='combat'
+            and snapshot['state'].get('control_mode')!='paused' and not snapshot['state'].get('pending_combat_action')):
+        require_known_combat(snapshot)
     proof=assess({},snapshot)
     from autoslay.decision.deterministic import load_policy
     batch=snapshot.get('state',{}).get('phase')=='combat' and load_policy().get('combat_batches_enabled',False)
     if (bounded or batch) and not proof['eligible'] and proof['mode']!='wait':
         from autoslay.decision.unified import analyze_decision
-        proof=assess(analyze_decision(snapshot),snapshot)
+        report=analyze_decision(snapshot)
+        require_known_batch(report)
+        proof=assess(report,snapshot)
     return proof
 
 class DeterministicExecutor:
@@ -105,18 +111,24 @@ class DeterministicExecutor:
                             comparison=compare_transition(transition,after)
                             result['prediction_comparison']=comparison
                             if not comparison['numeric_fields_match']:
-                                from autoslay.decision.combat_circuit import disable
-                                disable(proof['evidence']['policy_identity']['policy_fingerprint'],comparison,ROOT)
-                                result['new_strategy_disabled']=True
+                                result.update(status='failed',stop_reason='prediction_mismatch',
+                                              error_code='COMBAT_MODEL_PREDICTION_MISMATCH')
                                 save(path,result)
                     except (ValueError,KeyError,TypeError) as exc:
                         result['prediction_comparison_unavailable']=type(exc).__name__
+                        result.update(status='failed',stop_reason='verification_unavailable',
+                                      error_code='COMBAT_MODEL_VERIFICATION_UNAVAILABLE')
+                        save(path,result)
                 from autoslay.telemetry.effects import observe
                 if self.record: await asyncio.to_thread(runs.stage,'local_outcome',after,
                     dict(analysis_id=identity,request_id=request.request_id,status=result['status'],rule_id=proof['rule_id'],
                         observed_effects=observe(fresh,receipt.get('snapshot') or after,result['status'],request.request_id),
                         predicted=proof['evidence'],actual=dict(phase=(after.get('state') or {}).get('phase'),
                         hp=(((after.get('state') or {}).get('player') or {}).get('creature') or {}).get('hp'))))
+                if result.get('error_code'):
+                    raise CombatModelError(result['error_code'],analysis_id=identity,
+                                           request_id=request.request_id,
+                                           comparison=result.get('prediction_comparison'))
                 return result
 
     async def execute_batch(self,path,request_id,proof,before,analysis_ms):
@@ -162,7 +174,14 @@ class DeterministicExecutor:
                 card=next((c for c in model.hand if action.action_id=='play_'+c.instance_id),None)
                 if card and card.target_type in {'Self','None','AllEnemies'}:action=Operation(action.action_id)
                 transition=sim.apply(model,action)
-            except (ValueError,KeyError,TypeError):pass
+            except (ValueError,KeyError,TypeError) as exc:
+                finish('unmodeled_effect_observation','failed')
+                raise CombatModelError('COMBAT_MODEL_UNKNOWN_EFFECT',analysis_id=identity,
+                                       blockers=[str(exc)]) from exc
+            if transition.boundary not in {None,'draw_requires_observation','next_turn_requires_observation'}:
+                finish(transition.boundary,'failed')
+                raise CombatModelError('COMBAT_MODEL_UNKNOWN_EFFECT',analysis_id=identity,
+                                       blockers=[transition.boundary])
             request=ActionRequest(request_id=f'det-{request_id}-{index}',run_id=origin['run_id'],
                 session_epoch=origin['session_epoch'],expected_state_version=before['state_version'],**step)
             entry=dict(request=request.model_dump(),status='dispatch_pending');result['steps'].append(entry)
@@ -179,8 +198,8 @@ class DeterministicExecutor:
             if entry['status']=='awaiting_choice':return finish('card_selection','awaiting_choice')
             if before.get('state',{}).get('phase')!='combat':return finish('combat_or_phase_finished')
             if step['action_id']=='end_turn':return finish('next_player_turn')
-            if transition is None:return finish('unmodeled_effect_observation')
             if transition.boundary:return finish(transition.boundary)
+            actual=None
             try:
                 actual=normalize(before)
                 from autoslay.telemetry.verification import compare_transition
@@ -190,13 +209,18 @@ class DeterministicExecutor:
                     and before['state']['player'].get('relics')==previous_relics
                     and tuple(e.runtime_fields for e in actual.enemies)==tuple(e.runtime_fields for e in transition.state.enemies))
                 entry['prediction_comparison']=comparison
-            except (ValueError,KeyError,TypeError):matched=False
+            except (ValueError,KeyError,TypeError) as exc:
+                matched=False
+                entry['verification_error']=str(exc)
             entry['prediction_matched']=matched;save(path,result)
             if not matched:
-                from autoslay.execution.batch_models import downgrade
-                entity=card.entity_id if card else next((p.entity_id for p in current.potions if p.action_id==step['action_id']),'UNKNOWN')
-                downgrade(entity,dict(reason='prediction_mismatch',analysis_id=identity,request_id=request.request_id),ROOT)
-                return finish('prediction_mismatch')
+                finish('prediction_mismatch','failed')
+                raise CombatModelError('COMBAT_MODEL_PREDICTION_MISMATCH',analysis_id=identity,
+                                       request_id=request.request_id,
+                                       comparison=entry.get('prediction_comparison'),
+                                       predicted_state=projection(transition.state),
+                                       observed_state=projection(forecast_state(actual)) if actual is not None else None,
+                                       verification_error=entry.get('verification_error'))
             def hand_observation(hand):
                 return {c.instance_id:(c.description,c.enchantment_id,c.enchantment_amount,c.costs_x,c.costs_star_x,c.variant_key) for c in hand}
             if actual.max_hp!=transition.state.max_hp or hand_observation(actual.hand)!=hand_observation(transition.state.hand):

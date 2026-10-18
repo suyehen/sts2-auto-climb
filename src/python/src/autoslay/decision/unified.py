@@ -97,7 +97,6 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
     autonomy_policy=decision_config(ROOT/'config/decision/autonomy.default.json')
     from autoslay.calibration.combat import load as load_combat_calibration
     calibration=load_combat_calibration(autonomy_policy.get('combat_calibration_id',''))
-    from autoslay.execution.batch_models import load as batch_model_status
     interactions=load_interactions()
     entries,knowledge_hash=index(expected_version=snapshot['game_version'])
     rulebook=Rulebook()
@@ -112,8 +111,7 @@ def analyze_decision(snapshot,context=None,scenarios=None,use_cache=True):
                     event_rules=digest(event_rules()),
                     event_adapter=EVENT_ADAPTER_VERSION,
                     event_source=digest(next((e for e in load_behavior()['entries'] if e['entity_id']==(s.get('event_screen') or {}).get('entity_id')),None)) if phase=='event' else None,
-                    combat_calibration=digest(calibration),autonomy=autonomy_policy,
-                    batch_model_status=batch_model_status() if autonomy_policy.get('combat_batches_enabled') else None))
+                    combat_calibration=digest(calibration),autonomy=autonomy_policy))
     cached=CACHE.get(key) if use_cache else None
     if cached is not None:
         cached['action_space']=action_space
