@@ -91,13 +91,15 @@ GitHub Actions 只运行无需游戏资源的检查，不调用模型、不开�
 
 ## 文档与贡献
 
-- [配置导入导出与版本迁移](docs/配置导入导出与版本迁移.md)
-- [GitHub 发布范围](docs/GitHub发布说明.md)
+- [文档导航与实现状态](docs/README.md)：待实施方案、已有实现及验证边界、历史归档。
+
+- [配置导入导出与版本迁移](docs/reference/配置导入导出与版本迁移.md)
+- [GitHub 发布范围](docs/reference/GitHub发布说明.md)
 - [贡献指南](CONTRIBUTING.md) · [凭据与安全](SECURITY.md)
-- [开发阶段记录](docs/开发阶段记录.md)：历史验收记录，不代表当前安装指南。
+- [开发阶段记录](docs/archive/开发阶段记录.md)：历史验收记录，不代表当前安装指南。
 
 原创代码采用 [Apache-2.0](LICENSE)。游戏名称、资源及其权利归相应权利人，本项目许可证不授予游戏资源的再分发权。
 
 ## 统一知识库
 
-知识资料统一由 `data/knowledge/manifest.json` 管理，实现位于 `autoslay.knowledge_base`，维护命令位于 `src/python/tools/kb_admin/`。支持离线实体/别名/中文关键词检索，无需模型 key 或向量数据库。详见 [使用说明](docs/统一知识库使用说明.md)。
+知识资料统一由 `data/knowledge/manifest.json` 管理，实现位于 `autoslay.knowledge_base`，维护命令位于 `src/python/tools/kb_admin/`。支持离线实体/别名/中文关键词检索，无需模型 key 或向量数据库。详见 [使用说明](docs/reference/统一知识库使用说明.md)。

@@ -28,6 +28,9 @@ def test_live_projects_monster_state_machines_without_any_decision_report(servic
     assert data['decision'] is None
     assert len(data['monster_graphs'])==3
     assert all(g['next_moves'][0]['probability']==1 for g in data['monster_graphs'])
+    archived=json.load(get(url+'/api/event?id=graph_state'))
+    assert len(archived['monster_graphs'])==3
+    assert archived['snapshot']==s
 
 def test_catalog_filters_tree_offline_and_pagination(service):
     repo,url=service
@@ -73,7 +76,7 @@ def test_evidence_matches_local_and_ai_results_to_their_analysis(service):
 def test_dashboard_modules_and_bounded_local_catalog(service):
     _,url=service
     for asset,kind in [('workspace.js','text/javascript'),('presentation.js','text/javascript'),
-                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('sidebar-view.js','text/javascript'),('combat-forecast.js','text/javascript'),('services.js','text/javascript')]:
+                       ('map.js','text/javascript'),('history-model.js','text/javascript'),('library.js','text/javascript'),('workbench.css','text/css'),('decision-view.css','text/css'),('sidebar.js','text/javascript'),('sidebar-combat.js','text/javascript'),('sidebar-view.js','text/javascript'),('combat-forecast.js','text/javascript'),('services.js','text/javascript')]:
         with urlopen(url+'/'+asset) as response:
             assert response.status==200
             assert response.headers['Content-Type'].startswith(kind)

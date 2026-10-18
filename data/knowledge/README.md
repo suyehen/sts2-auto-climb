@@ -8,4 +8,4 @@
 
 检索使用实体 ID、中文别名、二字词、SQLite FTS5/BM25 和明确关系，全程本地运行，无 embedding、rerank 或向量数据库。派生索引位于 `.runtime/cache/knowledge/<revision>/lexical.sqlite`，可删除重建。
 
-参见 [统一知识库使用说明](../../docs/统一知识库使用说明.md)。
+参见 [统一知识库使用说明](../../docs/reference/统一知识库使用说明.md)。

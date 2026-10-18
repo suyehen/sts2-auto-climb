@@ -6,6 +6,13 @@ const groups=report=>({shortlist:report.shortlist,observations:report.observatio
  ...Object.fromEntries(['choices','shop','event','event_sequence','rest','route'].map(k=>[k,report[k]?.candidates])),
  ...Object.fromEntries(['candidates','wait_candidates','observation_boundaries'].map(k=>['combat.'+k,report.combat?.[k]]))});
 const stepKey=steps=>JSON.stringify(steps?.map(s=>[s.action_id,s.target_id??null]));
+export function liveDecision(data,record,evidence){
+ const id=data?.decision_id,currentNode=!Array.isArray(data?.node_decisions)||data.node_decisions.some(e=>e.event_id===id);
+ const selected=currentNode?(id&&record?.event_id===id?record:{report:data?.decision,snapshot:data?.decision_snapshot||data?.snapshot}):{};
+ const choice=currentNode?(evidence?.choice||(data?.archive?.last_choice?.analysis_id===id?data.archive.last_choice:null)):null;
+ const state=selected.snapshot?.state||{};
+ return {record:selected,choice,context:selected.report?'楼层 '+(state.floor??'未记录')+' · '+phase(selected.report.phase||state.phase)+(state.player?.turn!=null?' · 回合 '+state.player.turn:'')+(selected.report.source?.state_version!==data?.snapshot?.state_version?' · 最近一次分析':' · 当前分析'):'等待当前节点的下一次分析'};
+}
 export function decisionPlans(record,choice){
  const report=record?.report||{},all=groups(report),combat=report.combat;
  // Batch scores compare complete batches; do not mix them with single-turn scores.
@@ -92,7 +99,7 @@ export function renderPlans(host,record,choice=null){
  views.forEach(plan=>{
   const panel=el('article',undefined,'decision-plan'),heading=el('div',undefined,'plan-heading');
   heading.append(el('strong',plan.label));
-  heading.append(el('span',plan.score,'plan-score'));panel.append(heading);
+  const estimate=el('span',plan.score,'plan-score');estimate.title='方案估值，越高越好；允许为负数，不是胜率。';heading.append(estimate);panel.append(heading);
   const list=el('ol',undefined,'plan-actions');
   for(const action of plan.actions){const item=el('li',undefined,'action-chip');item.append(el('span',action.title,'action-title'));for(const effect of action.effects)item.append(el('p',effect,'action-effect'));list.append(item)}
   panel.append(list);if(plan.reason)panel.append(el('p',plan.reason,'hint'));grid.append(panel);
@@ -170,6 +177,16 @@ export function renderIntentMachine(host,record,snapshot,machines=[]){
  }
  if(facts.length)host.append(el('p','分支按当前可见状态计算；出牌改变生命或状态后，条件分支可能变化。','hint'));
  if(!facts.length)host.append(el('p','当前没有可见的存活怪物。','hint'));
+}
+
+export function renderDecisionDetail(host,record,choice=null){
+ host.replaceChildren();const s=record?.snapshot?.state||{};
+ host.append(el('p','楼层 '+(s.floor??'未记录')+' · '+phase(record?.report?.phase||s.phase)+(s.player?.turn!=null?' · 回合 '+s.player.turn:''),'history-decision-context'));
+ const plans=el('div',undefined,'history-decision-plans');renderPlans(plans,record,choice);host.append(plans);
+ if(s.phase==='combat'){
+  host.append(el('h3','当时的怪物状态机','history-intent-heading'));
+  const intents=el('div',undefined,'workbench-intents');renderIntentMachine(intents,record,record.snapshot,record.monster_graphs||[]);host.append(intents);
+ }
 }
 
 const histories=new WeakMap();

@@ -13,6 +13,15 @@ function links(e,scope){
  return values;
 }
 const roots=new Set(['decision','agent_packet','ai_choice','local_choice']);
+export function decisionHistory(entries,node=null){
+ const seen=new Set();
+ return groupHistory(entries).filter(s=>!node||s.node===node).map(section=>{
+  const records=section.groups.flatMap(group=>group.events.filter(e=>e.kind==='decision').map(event=>({event,ai:group.ai})))
+   .filter(({event})=>{const id=identity(event);if(seen.has(id))return false;seen.add(id);return true})
+   .sort((a,b)=>String(a.event.recorded_at).localeCompare(String(b.event.recorded_at)));
+  return {id:section.id,node:section.node,kind:section.kind,turn:section.turn,phase:section.phase,records};
+ }).filter(s=>s.records.length);
+}
 export function groupHistory(entries){
  const events=[...entries].filter(e=>e.kind!=='heartbeat').sort((a,b)=>String(a.recorded_at).localeCompare(String(b.recorded_at))||(a.sequence||a.cursor||0)-(b.sequence||b.cursor||0));
  const requests=new Map();

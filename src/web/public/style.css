@@ -1,1 +1,11 @@
 @import url('./workbench.css');
+
+@import url('./decision-view.css');
+
+#live-decision-context{font-size:12px;line-height:1.8;margin-bottom:16px;color:var(--muted)}
+.workspace .decision-plan-grid{gap:14px}.workspace .decision-plan{padding:16px}.workspace .plan-heading{gap:8px}.workspace .plan-heading strong{font-size:13px}.workspace .plan-score{font-size:19px}.workspace .action-chip{padding:10px;font-size:13px}.workspace .action-effect{font-size:12px;line-height:1.8}.workspace .decision-plan .hint{font-size:12px}
+.workbench-intents{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:18px;align-items:start}.workbench-intents .intent-machine,.workbench-intents .intent-machine+.intent-machine{padding:16px;margin:0;border:1px solid var(--line);border-radius:10px;background:#151923;min-width:0}.workbench-intents .intent-machine h3{font-size:13px;margin-bottom:10px}.workbench-intents .machine-visible,.workbench-intents .machine-next{font-size:12px}.workbench-intents>.hint{grid-column:1/-1;font-size:12px}.workbench-intents .intent-machine .hint{font-size:11px;line-height:1.7}
+.workbench-node-history .node-decision>summary{font-size:13px;padding:16px 0}.workbench-node-history .node-decision>div{padding-bottom:18px}.history-intent-heading{font-size:15px;margin:24px 0 16px}.history-decision-plans{margin-top:16px}
+@media(max-width:640px){.workspace .decision-plan-grid{gap:6px}.workspace .decision-plan{padding:9px 6px}.workspace .plan-heading strong{font-size:11px}.workspace .plan-score{font-size:14px}.workspace .action-chip{padding:6px;font-size:11px}.workspace .action-effect{font-size:10px}.workbench-intents{grid-template-columns:1fr}}
+
+.workbench-intents .monster-state-svg{max-width:660px;margin-left:auto;margin-right:auto}
