@@ -4,50 +4,27 @@ import hashlib
 import json
 import pytest
 from autoslay.decision.contracts import CombatState,Enemy,UnsupportedEffect
-from autoslay.knowledge_base.rulebook import entry_fingerprint,reference_matches
 from autoslay.rules.monsters import MonsterRules,expression,unmodeled_special_hooks
 from autoslay.planning.lookahead import evaluate_lookahead
 from autoslay.telemetry.decisions import packet
 
 
-@pytest.fixture
-def display_knowledge(tmp_path,monkeypatch):
-    from autoslay.knowledge_base import repository
-    root=tmp_path/'knowledge'
-    root.mkdir()
-    manifest=dict(schema_version='knowledge-manifest/1.0',
-                  datasets=dict(mechanism_scope='scope.json',behavior='behavior.json'))
-    metadata=dict(game_version='0.111.0',game_assembly_sha256='pinned')
-    entries=[]
-    rows=[]
-    for entity,body in [('MONSTER.NIBBIT','return moveStateId != "SLICE_MOVE";'),
-                        ('MONSTER.FUZZY_WURM_CRAWLER','return moveStateId != "FIRST_ACID_GOOP";')]:
-        source=hashlib.sha256(('synthetic-source:'+entity).encode()).hexdigest()
-        entries.append(dict(entity_id=entity,provenance=dict(game_assembly_sha256='pinned',source_sha256=source),
-                            mechanics={'ShouldShowMoveInBestiary':body}))
-        rows.append(dict(entity_id=entity,phase='presentation',hook='ShouldShowMoveInBestiary',
-                         treatment='irrelevant_to_combat',game_version='0.111.0',source_fingerprint=source,
-                         body_fingerprint=hashlib.sha256(body.encode()).hexdigest()))
-    for name,data in [('manifest.json',manifest),('scope.json',metadata|dict(entries=rows)),
-                      ('behavior.json',metadata|dict(entries=entries))]:
-        (root/name).write_text(json.dumps(data),encoding='utf-8')
-    monkeypatch.setattr(repository,'REPOSITORY',repository.Repository(root))
-    return root,entries
+def branch(target,weight=1,repeat='CanRepeatForever',condition=True):
+    return dict(target=target,weight=weight,repeat_type=repeat,condition=condition,cooldown=0,max_consecutive=0,gaps=[])
 
 
 def fixtures(ascension=0):
-    attack=dict(variable='a',state_id='HIT',handler='HitMove',intent_expression='new SingleAttackIntent(Hit)',
-                execution_evidence='await DamageCmd.Attack(Hit).FromMonster(this).Execute(null);',
-                numeric_variants=[dict(ascension_min=0,ascension_max=10,effects=[dict(kind='attack',damage_expression='Hit',repeats_expression='1')])],state_updates=[])
-    status=dict(variable='b',state_id='GOOP',handler='GoopMove',intent_expression='new StatusIntent(2)',
-                execution_evidence='await CardPileCmd.AddToCombatAndPreview<Slimed>(targets, PileType.Discard, 2, null);',
-                numeric_variants=[dict(ascension_min=0,ascension_max=10,effects=[])],state_updates=[])
-    entry=dict(entity_id='MONSTER.TEST',category='monster',name='Test',provenance=dict(game_assembly_sha256='pinned'),
-               parameter_expressions=dict(Hit='AscensionHelper.GetValueIfAscension(AscensionLevel.DeadlyEnemies, 5, 4)'),
-               moves=[attack,status],mechanics={},state_graph=dict(definitions={},state_fields=[],
-               nodes=[dict(variable='a',state_id='HIT',kind='MoveState'),dict(variable='b',state_id='GOOP',kind='MoveState')],
+    hit={'if':[{'greater_equal':[{'ascension':True},9]},5,4]}
+    attack=dict(variable='a',state_id='HIT',commands=[dict(operation='attack',amount=hit,repeats=1)],
+                announced_attacks=[dict(amount=hit,repeats=1)],intent_types=[],gaps=[])
+    status=dict(variable='b',state_id='GOOP',commands=[dict(operation='discard',amount=2,card_id='CARD.SLIMED')],
+                announced_attacks=[],intent_types=['StatusCard'],gaps=[])
+    entry=dict(entity_id='MONSTER.TEST',category='monster',gaps=[],unmodeled_hooks=[],presentation_hooks=[],
+               moves=[attack,status],state_graph=dict(
+               nodes=[dict(variable='a',state_id='HIT',kind='MoveState',gaps=[],branches=[]),
+                      dict(variable='b',state_id='GOOP',kind='MoveState',gaps=[],branches=[])],
                edges=[dict(source='a',target='b'),dict(source='b',target='a')]))
-    behavior=dict(game_version='0.111.0',game_assembly_sha256='pinned',ascension_thresholds={'DeadlyEnemies':9},entries=[entry])
+    behavior=dict(game_version='0.111.0',game_assembly_sha256='pinned',entries=[entry])
     snapshot=dict(game_version='0.111.0',game_assembly_sha256='pinned',state=dict(ascension=ascension,player={'deck':[]}))
     cards={'CARD.SLIMED':dict(category='card',name='黏液',model_type='Cards.Slimed',variants=[dict(
         upgrade_level=0,energy_cost=1,target_type='None',type='Status',description='Draw 1 card.')])}
@@ -56,81 +33,38 @@ def fixtures(ascension=0):
     return model,model.prepare(state),entry,behavior,snapshot,cards
 
 
-def test_relic_pool_metadata_migration_preserves_all_semantics():
-    previous=dict(entity_id='RELIC.TEST',category='relic',description='Heal 6',dynamic_variables=[{'base_value':6}])
-    rule={'reference_sha256':entry_fingerprint(previous)}
-    current=previous|dict(pool='IRONCLAD',pools=['IRONCLAD'])
-    assert reference_matches(rule,current)
-    for changed in [current|{'description':'Heal 8'},current|{'dynamic_variables':[{'base_value':8}]},current|{'new_effect':True}]:
-        assert not reference_matches(rule,changed)
-    card=previous|dict(category='card')
-    assert not reference_matches({'reference_sha256':entry_fingerprint(card)},card|dict(pool='POOL',pools=['POOL']))
-
-
 @pytest.mark.parametrize('entity,body',[
     ('MONSTER.NIBBIT','return moveStateId != "SLICE_MOVE";'),
     ('MONSTER.FUZZY_WURM_CRAWLER','return moveStateId != "FIRST_ACID_GOOP";')])
-def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body,display_knowledge):
+def test_bestiary_filter_does_not_block_combat_but_other_hooks_do(entity,body):
     model,state,entry,behavior,snapshot,cards=fixtures()
     entry['entity_id']=entity
-    entry['mechanics']={'ShouldShowMoveInBestiary':body}
-    actual=next(e for e in display_knowledge[1] if e['entity_id']==entity)
-    entry['provenance']=deepcopy(actual['provenance'])
+    entry['presentation_hooks']=['ShouldShowMoveInBestiary']
     model=MonsterRules(snapshot,cards,behavior)
     state=replace(state,enemies=(replace(state.enemies[0],entity_id=entity),))
     assert unmodeled_special_hooks(entry)==set()
     assert model.audit(state)[0]['unmodeled_special_hooks']==[]
     assert model.step(state)[0][1].discard_composition==(('CARD.SLIMED',2),)
-    entry['mechanics']['AfterDeath']='UnknownCombatEffect();'
+    entry['unmodeled_hooks'].append('AfterDeath')
     assert unmodeled_special_hooks(entry)=={'AfterDeath'}
     with pytest.raises(UnsupportedEffect,match='monster_special_hooks_unmodeled'):
         model.step(state)
-    entry['mechanics']={'ShouldShowMoveInBestiary':'UnknownCombatEffect();'}
-    assert unmodeled_special_hooks(entry)=={'ShouldShowMoveInBestiary'}
-
-
-@pytest.mark.parametrize('missing',['manifest.json','scope.json','behavior.json'])
-def test_missing_display_evidence_blocks_prediction(display_knowledge,missing):
-    root,entries=display_knowledge
-    (root/missing).unlink()
-    model,state,entry,*_=fixtures()
-    entry.update(deepcopy(entries[0]))
-    model.entries={entry['entity_id']:entry}
-    state=replace(state,enemies=(replace(state.enemies[0],entity_id=entry['entity_id']),))
-    assert unmodeled_special_hooks(entry)=={'ShouldShowMoveInBestiary'}
-    assert model.audit(state)[0]['unmodeled_special_hooks']==['ShouldShowMoveInBestiary']
-    with pytest.raises(UnsupportedEffect,match='monster_special_hooks_unmodeled'):
-        model.step(state)
-
-
-@pytest.mark.parametrize('field',['source_sha256','game_assembly_sha256'])
-def test_mismatched_display_provenance_is_not_exempted(display_knowledge,field):
-    entry=deepcopy(display_knowledge[1][0])
-    entry['provenance'][field]='mismatched'
-    assert unmodeled_special_hooks(entry)=={'ShouldShowMoveInBestiary'}
+    entry['unmodeled_hooks']=['UnknownHook']
+    assert unmodeled_special_hooks(entry)=={'UnknownHook'}
 
 
 def test_no_special_hooks_does_not_read_display_evidence(monkeypatch):
     def unexpected_read(*args):
         pytest.fail('Monster without special hooks must not read display evidence')
-    monkeypatch.setattr('autoslay.rules.mechanism_scope.read_view',unexpected_read)
+    monkeypatch.setattr('autoslay.knowledge_base.repository.read_json',unexpected_read)
     for mechanics in ({},{'AfterAddedToRoom':'Initialize();'}):
-        assert unmodeled_special_hooks(dict(mechanics=mechanics))==set()
+        assert unmodeled_special_hooks(dict(unmodeled_hooks=[]))==set()
 
 
-def test_unregistered_hook_does_not_read_behavior(display_knowledge):
-    root,_=display_knowledge
-    (root/'behavior.json').write_text('invalid JSON',encoding='utf-8')
-    assert unmodeled_special_hooks(dict(entity_id='MONSTER.TEST',mechanics={'AfterDeath':'Unknown();'}))=={'AfterDeath'}
-
-
-@pytest.mark.local_knowledge
-def test_exported_bestiary_filters_match_reviewed_evidence():
-    from autoslay.knowledge_base.behavior import load
-    entries={entry['entity_id']:entry for entry in load()['entries']}
-    for entity in ('MONSTER.NIBBIT','MONSTER.FUZZY_WURM_CRAWLER'):
-        from autoslay.rules.mechanism_scope import reviewed_display_hooks
-        assert 'ShouldShowMoveInBestiary' in reviewed_display_hooks(entries[entity])
+def test_unregistered_hook_does_not_read_behavior(monkeypatch):
+    def unexpected_read(*args):raise AssertionError('No per-entity evidence registry should be read')
+    monkeypatch.setattr('autoslay.knowledge_base.repository.read_json',unexpected_read)
+    assert unmodeled_special_hooks(dict(entity_id='MONSTER.TEST',unmodeled_hooks=['AfterDeath']))=={'AfterDeath'}
 
 
 @pytest.mark.parametrize('ascension,damage',[(0,4),(8,4),(9,5),(10,5)])
@@ -147,7 +81,7 @@ def test_status_turn_inserts_actual_card_then_selects_next_attack(ascension,dama
 def test_dead_monster_does_not_generate_cards_and_enemy_block_survives():
     model,state,entry,*_=fixtures()
     assert model.step(replace(state,enemies=(replace(state.enemies[0],hp=0),)))[0][1].discard_composition==()
-    entry['moves'][1]['execution_evidence']='await CreatureCmd.GainBlock(base.Creature, 6, ValueProp.Move, null);'
+    entry['moves'][1]['commands']=[dict(operation='block',amount=6)]
     assert model.step(state)[0][1].enemies[0].block==6
 
 
@@ -155,10 +89,10 @@ def test_nonrepeat_and_weighted_random_selection_keep_real_probability():
     model,state,entry,*_=fixtures()
     c=deepcopy(entry['moves'][0]);c.update(variable='c',state_id='HIT2')
     entry['moves'].append(c)
-    entry['state_graph']['nodes'] += [dict(variable='c',state_id='HIT2',kind='MoveState'),dict(variable='r',kind='RandomBranchState',branches=[
-        dict(target='a',weight_expression='1',repeat_type='CannotRepeat',cooldown=0),
-        dict(target='b',weight_expression='100',repeat_type='CannotRepeat',cooldown=0),
-        dict(target='c',weight_expression='3',repeat_type='CannotRepeat',cooldown=0)])]
+    entry['state_graph']['nodes'] += [dict(variable='c',state_id='HIT2',kind='MoveState',gaps=[],branches=[]),dict(variable='r',state_id='r',kind='RandomBranchState',gaps=[],branches=[
+        branch('a',1,'CannotRepeat'),
+        branch('b',100,'CannotRepeat'),
+        branch('c',3,'CannotRepeat')])]
     entry['state_graph']['edges'][1]['target']='r'
     results=model.step(state)
     assert [(p,s.enemies[0].move_state) for p,s,_ in results]==[(.25,'a'),(.75,'c')]
@@ -166,9 +100,9 @@ def test_nonrepeat_and_weighted_random_selection_keep_real_probability():
 
 def test_condition_uses_hp_after_player_damage_and_csharp_integer_threshold():
     model,state,entry,*_=fixtures()
-    entry['state_graph']['nodes'].append(dict(variable='cond',kind='ConditionalBranchState',branches=[
-        dict(target='a',condition_expression='base.Creature.CurrentHp >= base.Creature.MaxHp / 2'),
-        dict(target='b',condition_expression='base.Creature.CurrentHp < base.Creature.MaxHp / 2')]))
+    entry['state_graph']['nodes'].append(dict(variable='cond',state_id='cond',kind='ConditionalBranchState',gaps=[],branches=[
+        branch('a',condition={'greater_equal':[{'field':'hp'},{'divide':[{'field':'max_hp'},2]}]}),
+        branch('b',condition={'less':[{'field':'hp'},{'divide':[{'field':'max_hp'},2]}]})]))
     entry['state_graph']['edges'][1]['target']='cond'
     for hp,dest in [(50,'a'),(49,'b')]:
         after=model.step(replace(state,enemies=(replace(state.enemies[0],max_hp=101,hp=hp),)))[0][1]
@@ -177,9 +111,7 @@ def test_condition_uses_hp_after_player_damage_and_csharp_integer_threshold():
 
 def test_state_update_and_strength_buff_change_followup_damage():
     model,state,entry,*_=fixtures()
-    entry['state_graph']['definitions']={'Charged':'_charged'}
-    entry['moves'][1]['state_updates']=[dict(variable='Charged',value_expression='true')]
-    entry['moves'][1]['execution_evidence']='await PowerCmd.Apply<StrengthPower>(ctx, base.Creature, 5m, base.Creature, null);'
+    entry['moves'][1]['commands']=[dict(operation='set_field',field='_charged',amount=True),dict(operation='strength',amount=5)]
     enemy=replace(state.enemies[0],runtime_fields=(('_charged',False),))
     after=model.step(replace(state,enemies=(enemy,)))[0][1]
     assert after.enemies[0].runtime_fields==(('_charged',True),)
@@ -188,7 +120,7 @@ def test_state_update_and_strength_buff_change_followup_damage():
 
 def test_new_debuff_keeps_full_duration_and_expired_enemy_weak_is_removed():
     model,state,entry,*_=fixtures()
-    entry['moves'][1]['execution_evidence']='await PowerCmd.Apply<FrailPower>(ctx, targets, 2m, base.Creature, null);'
+    entry['moves'][1]['commands']=[dict(operation='frail',amount=2)]
     after=model.step(replace(state,frail_turns=1))[0][1]
     assert after.frail_turns==2
     enemy=replace(state.enemies[0],move_state='a',attacks=(3,),weak=True,weak_turns=1,move_history=('a',))
@@ -202,14 +134,14 @@ def test_new_debuff_keeps_full_duration_and_expired_enemy_weak_is_removed():
     'await PowerCmd.Apply<PoisonPower>(ctx, targets, 8m, base.Creature, null);'])
 def test_unknown_effects_are_not_flattened_to_zero(source):
     model,state,entry,*_=fixtures()
-    entry['moves'][1]['execution_evidence']=source
+    entry['moves'][1]['gaps']=[source]
     with pytest.raises(UnsupportedEffect):model.step(state)
 
 
 def test_unavailable_history_and_version_mismatch_stop_prediction():
     model,state,entry,*_=fixtures()
-    entry['state_graph']['nodes'].append(dict(variable='r',kind='RandomBranchState',branches=[
-        dict(target='a',weight_expression='1',repeat_type='UseOnlyOnce',cooldown=0)]))
+    entry['state_graph']['nodes'].append(dict(variable='r',state_id='r',kind='RandomBranchState',gaps=[],branches=[
+        branch('a',1,'UseOnlyOnce')]))
     entry['state_graph']['edges'][1]['target']='r'
     with pytest.raises(UnsupportedEffect,match='history'):model.step(replace(state,enemies=(replace(state.enemies[0],history_complete=False),)))
     model.compatible=False
@@ -217,20 +149,19 @@ def test_unavailable_history_and_version_mismatch_stop_prediction():
 
 
 def test_condition_subset_never_executes_calls_or_attributes():
-    for value in ['__import__("os").system("echo dangerous")','hp.__class__','broken(']:
-        with pytest.raises(UnsupportedEffect):expression(value,{'hp':2})
-    assert expression('true || MissingField',{}) is True
+    for value in ['hp.__class__',{'call':'dangerous'},{'field':'hp.__class__'}]:
+        with pytest.raises(ValueError):expression(value,{'hp':2})
+    assert expression({'or':[True,{'field':'MissingField'}]}, {}) is True
 
 
 def test_missing_runtime_field_is_not_guessed_from_turn_one_initializer():
     model,state,entry,*_=fixtures()
-    entry['state_graph']['state_fields']=[dict(name='_phase',initial_expression='false')]
-    entry['state_graph']['nodes'].append(dict(variable='c',kind='ConditionalBranchState',branches=[
-        dict(target='a',condition_expression='_phase')]))
+    entry['state_graph']['nodes'].append(dict(variable='c',state_id='c',kind='ConditionalBranchState',gaps=[],branches=[
+        branch('a',condition={'field':'_phase'})]))
     entry['state_graph']['edges'][1]['target']='c'
     prepared=model.prepare(state)
     assert not prepared.enemies[0].runtime_fields
-    with pytest.raises(UnsupportedEffect,match='unknown_condition'):model.step(prepared)
+    with pytest.raises(UnsupportedEffect,match='public_monster_field_missing'):model.step(prepared)
     assert model.step(prepared,select_next=False)[0][1].discard_composition==(('CARD.SLIMED',2),)
 
 
@@ -252,7 +183,7 @@ def test_local_behavior_replaces_default_repeated_intent_through_two_turns(monke
     monkeypatch.setattr('autoslay.rules.monsters.load',lambda:behavior)
     report=evaluate_lookahead(snapshot,state,[{'steps':[]}],[],cards,{'horizon':2,'draws':0,'time_ms':1000})
     scenario=report['candidates'][0]['scenarios'][0]
-    assert scenario['coverage_kind']=='local_behavior_adapters'
+    assert scenario['coverage_kind']=='local_behavior_mechanics'
     assert scenario['result']['covered_probability']==1
     assert scenario['result']['conditional_metrics']['hp_loss']==4
     assert any(row['generated_cards'][0]['entity_id']=='CARD.SLIMED' for row in scenario['enemy_turns'] if row['generated_cards'])

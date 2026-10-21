@@ -96,7 +96,7 @@ def test_nonattack_and_followup_attack_share_actual_transfer_and_ledger():
 
 def test_unknown_enemy_compound_effect_keeps_every_alternative_unbounded():
     model,initial,snapshot,entries=planner_fixture()
-    model.entries['MONSTER.TEST']['moves'][1]['execution_evidence']+='\nawait UnknownCmd.ChangeResource();'
+    model.entries['MONSTER.TEST']['moves'][1]['gaps'].append('UnknownCmd.ChangeResource')
     report=analyze(snapshot,initial,entries,CombatPolicy(),dict(horizon=1,draws=0),SearchBudget(time_ms=1000),monster_model=model)
     assert not report['search_complete']
     assert 'mechanics_boundary' in report['truncation_reasons']
@@ -107,8 +107,8 @@ def test_unknown_enemy_compound_effect_keeps_every_alternative_unbounded():
 def test_attack_and_strength_follow_source_order(before):
     model,initial,entry,*_=fixtures()
     attack=entry['moves'][0]
-    buff='await PowerCmd.Apply<StrengthPower>(ctx, base.Creature, 3m, base.Creature, null);'
-    attack['execution_evidence']=(buff+attack['execution_evidence']) if before else (attack['execution_evidence']+buff)
+    buff=dict(operation='strength',amount=3)
+    attack['commands']=([buff]+attack['commands']) if before else (attack['commands']+[buff])
     enemy=replace(initial.enemies[0],move_state='a',attacks=(4,),uncertain_intents=())
     outcome=model.step(replace(initial,enemies=(enemy,)),select_next=False)[0][1]
     assert outcome.enemy_hp_loss==(7 if before else 4)
@@ -251,7 +251,8 @@ def test_public_card_variants_keep_upgrade_cost_and_effect_separate():
 
 @pytest.mark.parametrize('stars',[0,1,2,3])
 def test_draw_continuation_preserves_and_pays_observed_star_cost(stars):
-    from autoslay.planning.lookahead import templates_for,draw_branches,ScenarioRules
+    from autoslay.planning.lookahead import templates_for,draw_branches
+    from autoslay.rules.registry import KnowledgeRules
     from autoslay.knowledge_base.templates import index
     snapshot=live();snapshot['state']['player'].update(hand=[],discard=[],exhaust=[],deck=[
         dict(entity_id='CARD.STRIKE_IRONCLAD',variant_key='star-2',upgrade_level=0,
@@ -259,7 +260,7 @@ def test_draw_continuation_preserves_and_pays_observed_star_cost(stars):
     initial=replace(state(),hand=(),stars=stars,draw_composition=(('star-2',1),),discard_known=True)
     drawn=draw_branches(initial,1,templates_for(snapshot,index()[0]),8,42)[0][0][1]
     assert drawn.hand[0].star_cost==2
-    sim=CombatSimulator(drawn,ScenarioRules());action=Operation('play_'+drawn.hand[0].instance_id,'enemy')
+    sim=CombatSimulator(drawn,KnowledgeRules());action=Operation('play_'+drawn.hand[0].instance_id,'enemy')
     assert (action in sim.actions(drawn))==(stars>=2)
     if stars>=2:assert sim.apply(drawn,action).state.stars==stars-2
     else:
@@ -378,31 +379,32 @@ def test_unobserved_cost_expiration_and_unknown_enchantment_keep_draw_mass_unkno
 
 
 def test_certified_enchantment_amount_is_not_mixed_or_double_counted():
-    from autoslay.planning.lookahead import templates_for,draw_branches,ScenarioRules
+    from autoslay.planning.lookahead import templates_for,draw_branches
+    from autoslay.rules.registry import KnowledgeRules
     from autoslay.knowledge_base.templates import index
     snapshot=live();snapshot['state']['player'].update(hand=[],discard=[],exhaust=[],deck=[
         dict(entity_id='CARD.BASH',variant_key='sharp-2',upgrade_level=0,enchantment_id='ENCHANTMENT.SHARP',enchantment_amount=2),
         dict(entity_id='CARD.BASH',variant_key='sharp-4',upgrade_level=0,enchantment_id='ENCHANTMENT.SHARP',enchantment_amount=4)])
     initial=replace(state(),hand=(),base_strength=3,draw_composition=(('sharp-2',1),('sharp-4',1)),discard_known=True)
     drawn=draw_branches(initial,2,templates_for(snapshot,index()[0]),8,42)[0][0][1]
-    sim=CombatSimulator(drawn,ScenarioRules())
+    sim=CombatSimulator(drawn,KnowledgeRules())
     losses={drawn.enemies[0].hp-sim.apply(drawn,Operation('play_'+c.instance_id,'enemy')).state.enemies[0].hp for c in drawn.hand}
     assert losses=={13,15}  # Bash 8 + enchantment 2/4 + observed Strength 3.
 
 
 def test_canonical_strength_under_weak_recompiles_rounding_before_next_attack():
-    from autoslay.planning.lookahead import ScenarioRules
-    grow=replace(card('grow','FIGHT_ME','Deal 6 damage twice. Gain 2 Strength.'),canonical=True)
+    from autoslay.rules.registry import KnowledgeRules
+    grow=replace(card('grow','FIGHT_ME','Deal 6 damage twice. Gain 2 Strength.'),canonical=True,dynamic_variables=(('Damage',6),('StrengthPower',2)))
     attack=replace(card('hit','STRIKE_IRONCLAD','Deal 6 damage.'),canonical=True)
     initial=replace(state(grow,attack),player_weak=True,base_strength=1)
-    sim=CombatSimulator(initial,ScenarioRules())
+    sim=CombatSimulator(initial,KnowledgeRules())
     changed=sim.apply(initial,Operation('play_grow','enemy'))
     assert changed.boundary is None
     hit=sim.apply(changed.state,Operation('play_hit','enemy'))
     assert changed.state.enemies[0].hp-hit.state.enemies[0].hp==6
 
 
-def test_fuzzy_visual_guard_is_reviewed_but_modified_body_is_not(monkeypatch):
+def test_fuzzy_visual_fields_are_native_but_unknown_commands_remain_blocked(monkeypatch):
     from autoslay.knowledge_base.behavior import load
     from autoslay.rules.monsters import MonsterRules
     from autoslay.knowledge_base.templates import index
@@ -417,9 +419,23 @@ def test_fuzzy_visual_guard_is_reviewed_but_modified_body_is_not(monkeypatch):
     again=model.step(after,select_next=False)[0][1]
     assert after.hp-again.hp==11
     acid=model.moves(entry)[after.enemies[0].move_state]
-    acid['execution_evidence']+='\nawait CreatureCmd.Kill(base.Creature);'
+    from copy import deepcopy
+    changed=deepcopy(entry);model.entries[entry['entity_id']]=changed
+    acid=model.moves(changed)[after.enemies[0].move_state]
+    acid['gaps'].append('unmodeled_move_call:CreatureCmd.Kill')
     with pytest.raises(UnsupportedEffect,match='unreviewed_visual_guard|unmodeled_move_call'):
         model.step(after,select_next=False)
+
+
+def test_resource_command_inside_visual_guard_cannot_be_erased():
+    from autoslay.knowledge_base.monster_compiler import compile_monster
+    from autoslay.knowledge_base.behavior import load
+    data=load();entry=next(e for e in data['entries'] if e['entity_id']=='MONSTER.FUZZY_WURM_CRAWLER')
+    move=next(m for m in entry['moves'] if m['handler']=='AcidGoop')
+    move['execution_evidence']=move['execution_evidence'].replace(
+        'NCreature creatureNode', 'await PlayerCmd.GainEnergy(99, base.Owner); NCreature creatureNode')
+    compiled=compile_monster(entry,data['ascension_thresholds'],{})
+    assert 'mechanics_inside_visual_guard' in compiled['moves'][0]['gaps']
 
 
 def test_potion_null_and_explicit_self_targets_are_both_compared():
@@ -457,7 +473,7 @@ def test_interrupted_upper_bound_requires_closed_reviewed_universe(boundary):
     artifact=build(records,baseline['policy_identity'])
     if boundary=='unknown_relic':snapshot['state']['player']['relics']=[dict(entity_id='RELIC.NEW')]
     if boundary=='unknown_card':initial=replace(initial,draw_composition=(('CARD.NEW',1),))
-    if boundary=='mechanics':model.entries['MONSTER.TEST']['mechanics']['AfterDeath']='Unknown();'
+    if boundary=='mechanics':model.entries['MONSTER.TEST']['unmodeled_hooks'].append('AfterDeath')
     if boundary=='missing_calibration':artifact=None
     report=analyze(snapshot,initial,entries,CombatPolicy(),settings,budget,calibration=artifact,monster_model=model)
     assert not report['search_complete']

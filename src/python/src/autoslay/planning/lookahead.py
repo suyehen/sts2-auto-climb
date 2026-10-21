@@ -7,7 +7,8 @@ from collections import Counter
 from dataclasses import replace
 from time import perf_counter
 from autoslay.decision.contracts import Operation, Transition, UnsupportedEffect
-from autoslay.rules.registry import IroncladRules
+from autoslay.rules.registry import KnowledgeRules
+from autoslay.rules.statuses import preserve_block,hand_draw_bonus,next_turn_energy
 from autoslay.rules.periodic_relics import advance
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.simulation.card_flow import plan_draw, add_to_composition
@@ -16,31 +17,11 @@ from autoslay.knowledge_base.templates import canonical
 from autoslay.planning.search import search, SearchBudget
 from autoslay.evaluation.combat import CombatEvaluator
 
-VERSION='1.4.0'
-
-class ScenarioRules(IroncladRules):
-    def card(self,card,state):
-        if not card.canonical: return super().card(card,state)
-        rule=super().card(card,replace(state,legion_ready=False))
-        effects=[]
-        for effect in rule.effects:
-            value=effect.amount
-            if effect.kind in {'damage','dismantle'}:
-                if card.enchantment_id=='ENCHANTMENT.SHARP':
-                    value+=card.enchantment_amount or 0
-                value=max(0,value+state.base_strength+state.strength_delta)
-                if state.player_weak: value=value*3//4
-                value-=state.strength_delta  # Engine adds delta; do not apply Strength twice.
-            elif effect.kind in {'block','exhaust_nonattacks'}:
-                value=max(0,value+state.base_dexterity+state.dexterity_delta)
-                if state.player_frail:value=value*3//4
-            effects.append(replace(effect,amount=value))
-        return replace(rule,effects=tuple(effects))
+VERSION='1.5.0'
 
 def templates_for(snapshot,entries):
     templates={}; variants={}
-    from autoslay.knowledge_base.repository import read_json, dataset_path
-    modifiers=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
+    from autoslay.rules.registry import modifiers_supported
     p=snapshot['state']['player']
     raw_cards=(p.get('deck') or [])+(p.get('hand') or [])+(p.get('discard') or [])+(p.get('exhaust') or [])
     raw_cards += [v['card'] for v in p.get('draw_variants') or [] if v.get('card')]
@@ -50,14 +31,16 @@ def templates_for(snapshot,entries):
                    raw.get('energy_cost'),raw.get('star_cost'),raw.get('enchantment_amount'),
                    bool(raw.get('costs_x')),bool(raw.get('costs_star_x')))
         variants.setdefault(entity,set()).add(signature)
-        if raw.get('costs_x') or raw.get('costs_star_x'):continue
-        if raw.get('affliction_id'):continue
+        if raw.get('costs_x') or raw.get('costs_star_x'):
+            from autoslay.rules.registry import ENTITY_MECHANICS
+            mechanic=ENTITY_MECHANICS.get(raw['entity_id'])
+            resource='energy' if raw.get('costs_x') else 'stars'
+            if mechanic is None or mechanic.x_resource!=resource:continue
         enchant=raw.get('enchantment_id')
-        if enchant and (enchant!='ENCHANTMENT.SHARP' or raw['entity_id'] not in modifiers.get(enchant,{}).get('card_ids',[])
-                       or type(raw.get('enchantment_amount')) is not int or raw['enchantment_amount']<0):continue
         if raw.get('has_local_cost_modifiers'):continue
         try:
             template=canonical(raw,entries)[0]
+            if not modifiers_supported(raw,template.card_type):continue
             base_cost=raw.get('base_energy_cost',template.cost)
             if raw.get('energy_cost',base_cost)!=base_cost:continue
             star_cost=raw.get('star_cost',template.star_cost)
@@ -70,10 +53,11 @@ def templates_for(snapshot,entries):
         if len(levels)>1: templates.pop(entity,None)
     return templates
 
-def draw_branches(state,count,templates,limit,seed,metadata=None):
+def draw_branches(state,count,templates,limit,seed,metadata=None,*,rules=None,from_hand_draw=False):
     """Ordinary draw and one reshuffle; branch probabilities retain exact/sample mass."""
+    templates=dict(templates)|{c.variant_key:c for c in state.generated_templates}
     plan=plan_draw(count,len(state.hand),sum(n for _,n in state.draw_composition),sum(n for _,n in state.discard_composition),
-                   blocked=state.effect_draw_blocked,discard_known=state.discard_known)
+                   blocked=state.effect_draw_blocked,discard_known=state.discard_known,from_hand_draw=from_hand_draw)
     if not plan.supported: return [],'unknown_discard'
     draw=dict(state.draw_composition); discard=dict(state.discard_composition)
     known=Counter()
@@ -96,9 +80,18 @@ def draw_branches(state,count,templates,limit,seed,metadata=None):
                 while identity in used: identity+='-next'
                 used.add(identity); cards.append(replace(templates[entity],instance_id=identity))
         remainder=Counter(pool); remainder.subtract(selected)
-        result.append((float(outcome.probability),replace(state,hand=state.hand+tuple(cards),
+        branch=replace(state,hand=state.hand+tuple(cards),
             draw_composition=tuple(sorted((k,n) for k,n in remainder.items() if n)),
-            discard_composition=() if reshuffle else state.discard_composition)))
+            discard_composition=() if reshuffle else state.discard_composition)
+        if reshuffle and branch.shuffle_block:
+            from autoslay.simulation.atomic_effects import apply_atomic
+            branch=apply_atomic(branch,'unpowered_block',branch.shuffle_block)
+        if from_hand_draw:
+            if rules is None:raise UnsupportedEffect('Opening draw requires lifecycle rules')
+            from autoslay.simulation.card_flow import apply_drawn_hooks
+            try:branch=apply_drawn_hooks(branch,cards,rules,from_hand_draw=from_hand_draw)
+            except UnsupportedEffect:branch=None
+        result.append((float(outcome.probability),branch))
     return result,outcomes.method
 
 def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,scenarios=None,policy=None):
@@ -140,6 +133,10 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
         keys=('hp_loss','remaining_enemy_hp','survived','finished','utility')
         return dict(covered_probability=covered,conditional_metrics={k:sum(p*r[k] for p,r in weighted)/covered for k in keys})
     def continue_transition(sim,before,transition,steps,ply,scenario):
+        if transition.boundary=='generated_cards_requires_observation':
+            resumed=sim.resume_generated(transition)
+            return (continue_transition(sim,transition.state,resumed,steps,ply,scenario) if resumed.boundary
+                    else visit(resumed.state,ply,scenario))
         if transition.boundary=='draw_requires_observation':
             branch_values,method=draw_branches(transition.state,transition.draw_count,templates,limit,seed+ply); methods.add(method)
             if not steps: return None
@@ -157,23 +154,24 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
             observations.add(transition.boundary); return None
         state=transition.state
         if state.hp<=0 or state.combat_won: return dict(covered_probability=1,conditional_metrics=terminal(state))
-        if any(c.instance_id in sim.unsupported and c.entity_id!='CARD.ASCENDERS_BANE' for c in state.hand):
+        if any(c.instance_id in sim.unsupported for c in state.hand):
             observations.add('unsupported_remaining_card_end_turn_hooks'); return None
         if state.warnings:
             observations.add('combat_interactions_unmodeled');return None
         from autoslay.rules.scheduled_relics import apply_phase
         state=apply_phase(state,'side_turn_end')
         if state.combat_won:return dict(covered_probability=1,conditional_metrics=terminal(state))
-        discarded=add_to_composition(state.discard_composition,[c.variant_key or c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE'])
-        exhausted=add_to_composition(state.exhausted_composition,[c.variant_key or c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE'])
-        state=replace(state,hand=(),discard_composition=discarded,exhausted_composition=exhausted)
+        from autoslay.simulation.card_flow import flush_hand
+        try:state=flush_hand(state,sim.rules)
+        except UnsupportedEffect as exc:
+            observations.add(str(exc));return None
         if model is not None:
             try:enemy_outcomes=model.step(state,limit,select_next=ply<horizon)
             except (UnsupportedEffect,SyntaxError,KeyError) as exc:
                 observations.add(str(exc));return None
         else:
-            loss=CombatEvaluator(policy).evaluate(state,Transition(state),())['projected_hp_loss']
-            enemy_outcomes=[(1.0,replace(state,hp=max(0,state.hp-loss)),[])]
+            from autoslay.simulation.atomic_effects import visible_enemy_attacks
+            enemy_outcomes=[(1.0,visible_enemy_attacks(state),[])]
         outcomes=[]
         for probability,after,_ in enemy_outcomes:
             if after.hp<=0 or ply>=horizon:
@@ -181,24 +179,30 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
             else:outcomes.append((probability,next_player_turn(after,ply,scenario)))
         return combine(outcomes)
     def next_player_turn(state,ply,scenario):
-        if state.effect_draw_blocked or (model is None and any(e.weak for e in state.enemies)):
-            observations.add('future_draw_prevention_or_weak_duration_unmodeled'); return None
+        if model is None and any(e.weak for e in state.enemies):
+            observations.add('future_weak_duration_unmodeled'); return None
         relics=state.periodic_relics; extra_draw=extra_energy=0
         if relics:
             if any(r.counter is None for r in relics): observations.add('unknown_periodic_counter'); return None
             relics,extra_draw,extra_energy=advance(relics)
         weak_turns=state.weak_turns if model is not None else max(0,state.weak_turns-1)
         frail_turns=state.frail_turns if model is not None else max(0,state.frail_turns-1)
-        state=replace(state,hand=(),block=0,energy=energy+extra_energy,
+        from autoslay.simulation.card_flow import refresh_retained
+        try:state=refresh_retained(state,templates)
+        except UnsupportedEffect as exc:
+            observations.add(str(exc));return None
+        state=replace(state,block=state.block if preserve_block(state) else 0,energy=next_turn_energy(state,energy)+extra_energy,
             base_strength=state.base_strength+state.strength_delta-state.temporary_strength,strength_delta=0,temporary_strength=0,
             colossus=False,legion_ready=False,periodic_relics=relics,turn=(state.turn or 0)+1,
+            cards_played=0,attacks_played=0,skills_played=0,turn_cards_exhausted=0,turn_cards_drawn=0,
             weak_turns=weak_turns,frail_turns=frail_turns,
             player_weak=weak_turns>0,player_frail=frail_turns>0,
             enemies=tuple(replace(e,vulnerable=max(0,e.vulnerable-1),
                 attacks=e.attacks if model is not None else tuple(scenario['future_attacks'].get(e.instance_id,[]))) for e in state.enemies))
         from autoslay.rules.scheduled_relics import before_hand_draw,after_hand_draw
         state=before_hand_draw(state)
-        branches,method=draw_branches(state,draws+extra_draw,templates,limit,seed+ply); methods.add(method)
+        branches,method=draw_branches(state,draws+extra_draw+hand_draw_bonus(state),templates,limit,seed+ply,
+                                    rules=KnowledgeRules(),from_hand_draw=True); methods.add(method)
         outcomes=[]
         for probability,branch in branches:
             outcomes.append((probability,visit(after_hand_draw(branch),ply+1,scenario) if branch is not None and not expired() else None))
@@ -206,7 +210,7 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
     def visit(state,ply,scenario):
         nonlocal nodes
         if expired(): return None
-        sim=CombatSimulator(state,ScenarioRules())
+        sim=CombatSimulator(state,KnowledgeRules())
         report=search(state,sim,CombatEvaluator(policy),SearchBudget(max_nodes=150,time_ms=max(1,min(25,int(total_ms))),top_k=2,max_depth=6)); nodes+=report['nodes']
         best=None
         for candidate in report['candidates'][:2]+report['observation_boundaries'][:1]:
@@ -233,7 +237,7 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
                 except (ValueError,KeyError,StopIteration) as exc: observations.add(str(exc)); result=None
                 scenario_results.append(dict(name=scenario['name'],result=result,
                     enemy_turns=list(model.trace) if model is not None else [],
-                    coverage_kind='local_behavior_adapters' if model is not None else 'explicit_attack_only_scenario'))
+                    coverage_kind='local_behavior_mechanics' if model is not None else 'explicit_attack_only_scenario'))
             output.append(dict(group=group,index=index,steps=candidate['steps'],scenarios=scenario_results))
     return dict(module_version=VERSION,horizon=horizon,candidates=output,elapsed_ms=(perf_counter()-started)*1000,
         nodes=nodes,budget_exhausted=expired(),draw_methods=sorted(methods),unmodeled=sorted(observations),
@@ -243,7 +247,7 @@ def evaluate_lookahead(snapshot,initial,candidates,boundaries,entries,settings,s
                          source_issues=sorted(model.notes) if model is not None else [],
                          entries=model.audit(initial)) if model is not None else dict(mode='explicit_attack_scenario'),
         assumptions=['uniform unknown draw order; ordinary discard reshuffle; no hidden RNG or future move selection',
-                     'version-matched local behavior adapters; unsupported transitions lose coverage' if model is not None else 'caller-specified future attacks; nonattack effects are outside this explicit scenario',
+                     'version-matched local monster mechanics; unsupported transitions lose coverage' if model is not None else 'caller-specified future attacks; nonattack effects are outside this explicit scenario',
                      'default future energy 3 / draw 5; unsupported hooks and ambiguous upgraded variants lose coverage',
                      'sampled draw fractions are seeded empirical estimates, not exact probabilities'],
         limitations=['conditional survived/finished fractions apply only to the stated scenario, not calibrated win probability',

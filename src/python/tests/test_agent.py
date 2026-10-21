@@ -239,6 +239,23 @@ def make_agent(tmp_path, **options):
     return agent,s,control,submit
 
 
+def test_local_executor_reuses_injected_bridge_and_record_setting(tmp_path):
+    async def run():
+        status=AsyncMock(return_value=dict(status='completed'))
+        agent,s,_,_=make_agent(tmp_path,status=status)
+        agent.fetch=AsyncMock(return_value=deepcopy(s))
+        agent.submit=AsyncMock(return_value=dict(status='completed'))
+        assert await agent.deterministic.fetch()==s
+        request=object()
+        assert await agent.deterministic.submit(request)==dict(status='completed')
+        assert await agent.deterministic.status('request')==dict(status='completed')
+        agent.fetch.assert_awaited_once_with()
+        agent.submit.assert_awaited_once_with(request)
+        status.assert_awaited_once_with('request')
+        assert agent.deterministic.record is False
+    asyncio.run(run())
+
+
 def test_switch_cancels_pending_model_without_dispatch(tmp_path):
     async def run():
         entered=asyncio.Event();cancelled=asyncio.Event()

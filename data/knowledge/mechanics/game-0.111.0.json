@@ -1,6 +1,6 @@
 {
   "schema_version": "mechanics/1.0",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "game_version": "0.111.0",
   "verification": "local_game_assembly_source_inspected; not live-tested in artificial scenarios",
   "entries": [
@@ -10,7 +10,7 @@
       "rule": "手牌上限为10。普通抽牌在手牌满时停止，多余牌留在抽牌堆；抽牌堆耗尽时才按通常规则洗入弃牌堆。若抽牌触发效果改变手牌或结束战斗，每张牌后需重新判断。",
       "source": "CardPile.MaxCardsInHand; CardPileCmd.DrawInternal; CheckIfDrawIsPossibleAndShowThoughtBubbleIfNot",
       "implementation": "autoslay.simulation.card_flow.plan_draw; probability.card_flow.draw_forecast",
-      "limitations": "容量和洗牌概率按无抽牌触发钩子计算，改变费用、手牌、伤害等钩子需观察或补专属适配"
+      "limitations": "容量和洗牌概率按无抽牌触发钩子计算，改变费用、手牌、伤害等钩子需观察或补充对应机制实现"
     },
     {
       "id": "hand_capacity_generated",
@@ -35,6 +35,494 @@
       "source": "HappyFlower.AfterSideTurnStart/AfterCombatEnd; Pendulum.BeforeHandDraw/ModifyHandDraw/AfterCombatEnd; PollinousCore.BeforeHandDraw/ModifyHandDraw/AfterModifyingHandDraw/AfterCombatEnd",
       "implementation": "autoslay.rules.periodic_relics; evaluation.relic_timing; planning.relic_timing",
       "limitations": "逐个保存计数，联合抽牌按共享容量计算；未知计数不猜测；延迟击杀的完整损血和可行性需未来观察"
+    },
+    {
+      "id": "native_mechanism_definitions",
+      "title": "统一机制定义与组合",
+      "rule": "卡牌、药水、遗物从 manifest 的 models JSON 加载，直接构造 EntityMechanics、Trigger、EffectSpec 组合现有操作。内容指纹进入知识快照；旧 Python 实体字典与文案数值绑定已删除。verification 只记录证据，不是执行许可。",
+      "implementation": "autoslay.rules.model_store; autoslay.rules.registry",
+      "limitations": "311 个迁移定义仍待语义复核；事件、怪物及全量模型状态机仍待迁移。",
+      "operations": [],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "powered_damage_and_rounding",
+      "title": "攻击伤害与取整",
+      "rule": "攻击伤害计入当前力量；虚弱和易伤倍率相乘后统一向下取整，逐次伤害先抵扣格挡再扣血并受伤害上限限制。原始动态数值优先于格式化文本。",
+      "implementation": "autoslay.rules.registry.KnowledgeRules.card; autoslay.simulation.engine.CombatSimulator._resolve",
+      "limitations": "只有舍入后的文本而无法还原基础伤害时停止预测。",
+      "operations": [
+        "damage",
+        "dismantle",
+        "unpowered_damage",
+        "double_vulnerable",
+        "enemy_strength",
+        "vulnerable",
+        "weak",
+        "weak_boundary"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "block_scaling",
+      "title": "格挡与修正",
+      "rule": "卡牌格挡先加敏捷，再合并军团和脆弱倍率并向下取整；无属性格挡不受它们影响。翻倍和三倍格挡使用当前值。闪避翻滚保存本次实际获得的格挡供下回合结算。",
+      "implementation": "autoslay.simulation.engine.CombatSimulator._resolve; autoslay.simulation.atomic_effects.apply_atomic",
+      "limitations": "无法安全还原脆弱前数值时需重新观察。",
+      "operations": [
+        "block",
+        "unpowered_block",
+        "multiply_block",
+        "block_and_next_turn"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "resource_changes",
+      "title": "即时资源结算",
+      "rule": "能量、星星、治疗、百分比治疗、最大生命增长和自损在已有模拟器按顺序结算。最大生命受游戏上限限制，增长时只治疗实际增加值；百分比治疗向下取整且不超过生命上限。",
+      "implementation": "autoslay.simulation.atomic_effects.apply_atomic; autoslay.simulation.engine.CombatSimulator._resolve",
+      "limitations": "剩余回合损血上限不可见时保留观察边界。",
+      "operations": [
+        "energy",
+        "lose_energy",
+        "multiply_energy",
+        "stars",
+        "heal",
+        "heal_percent",
+        "gain_max_hp",
+        "lose_hp"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "power_stacks",
+      "title": "属性及能力层数",
+      "rule": "力量、敏捷及临时属性按层数叠加；临时属性在规定阶段扣回。巨像及禁止效果抽牌通过已有状态字段与执行逻辑处理。",
+      "implementation": "autoslay.simulation.engine.CombatSimulator._resolve; autoslay.rules.monsters.MonsterRules.step",
+      "limitations": "未知能力或修改伤害、治疗、抽牌的钩子仍阻止精确推演。",
+      "operations": [
+        "strength",
+        "temporary_strength",
+        "dexterity",
+        "temporary_dexterity",
+        "colossus",
+        "no_draw"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "card_lifecycle",
+      "title": "卡牌生命周期",
+      "rule": "支付费用并移出手牌后计算依赖当前状态的数值。能力牌结算后移出本场战斗；其他牌按消耗或弃牌处理。回合结束先处理虚无，再保留，最后弃牌；不能打出的牌不会成为合法动作。",
+      "implementation": "autoslay.rules.registry.KnowledgeRules.card; autoslay.simulation.engine.CombatSimulator._resolve; autoslay.simulation.card_flow.flush_hand",
+      "limitations": "未知持有触发机制不能被当成普通弃牌。",
+      "operations": [
+        "random_exhaust_boundary",
+        "upgrade_boundary",
+        "exhaust_nonattacks"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "draw_and_generated_lifecycle",
+      "title": "抽牌与生成事件",
+      "rule": "抽牌按逐张进入手牌的顺序运行 on_draw；生成不是抽牌，不触发虚空扣能量。确定生成使用已知模板并按容量溢出至弃牌堆，新手牌实例进入执行流程前需要实际观察。",
+      "implementation": "autoslay.simulation.card_flow; autoslay.simulation.engine.CombatSimulator.resume_draw; autoslay.planning.lookahead.draw_branches",
+      "limitations": "未知随机生成身份不猜测，假想实例 ID 不能成为真实执行指令。",
+      "operations": [
+        "draw",
+        "generate_card"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "native_amount_expressions",
+      "title": "状态相关数值",
+      "rule": "数值支持变量、有限状态字段、加减乘整除和最值，不执行任意代码。升级变量从对应版本读取，实际观测变量优先。",
+      "implementation": "autoslay.rules.amounts.evaluate_expression; autoslay.rules.registry.KnowledgeRules.effects",
+      "limitations": "目前状态表达式在效果绑定时计算；新的结算时机须补充代码与测试。",
+      "operations": [],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "status_timelines",
+      "title": "持续状态与延迟资源",
+      "rule": "再生在玩家回合结束早期治疗并减层；覆甲在同阶段提供无属性格挡，在后续玩家回合开始减层。中毒在敌方开始行动前无视格挡扣血并减层。延迟格挡、能量、星星和抽牌在各自重置或抽牌阶段消费一次；仪式在玩家回合结束后加力量。",
+      "implementation": "autoslay.rules.statuses; autoslay.rules.scheduled_relics",
+      "limitations": "这里只支持已实现的拥有者和阶段；加速剂等修饰机制尚未实现。",
+      "operations": [
+        "poison",
+        "regeneration",
+        "plating",
+        "next_turn_block",
+        "next_turn_energy",
+        "next_turn_stars",
+        "next_turn_draw",
+        "ritual"
+      ],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "relic_phase_events",
+      "title": "遗物阶段触发",
+      "rule": "遗物触发直接定义在 registry 中，调度位于清空格挡后、抽牌后、玩家回合开始或结束。已观察到的开始触发不重复执行，同一触发同回合只执行一次。必要敌人死亡后终止后续战斗效果。",
+      "implementation": "autoslay.rules.registry.ENTITY_MECHANICS; autoslay.rules.scheduled_relics",
+      "limitations": "跨场状态、未知计数需来自实际观察，不能从显示状态猜测。",
+      "operations": [],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "relic_card_counters",
+      "title": "出牌计数与触发",
+      "rule": "牌的所有效果及抽牌续算结束后，再按拥有顺序触发遗物计数。按攻击、技能或能力筛选；回合计数在新回合抽牌前重置，跨回合计数保留。致死牌仍推进计数，但战斗结束时不能继续获得资源或能力。",
+      "implementation": "autoslay.rules.triggered_relics; autoslay.simulation.engine.CombatSimulator._resolve",
+      "limitations": "原始计数字段优先于动画中的显示计数，未知计数不得假定为零。",
+      "operations": [],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "native_event_transitions",
+      "title": "事件与路线资源机制",
+      "rule": "事件阶段与选择由已有 event_sequences 执行；重复泡澡、深入花朵和解读石板在代码中定义。路线估值需区分已知资源分量、未定价效果和完整选项效用。源码与描述资料供参考，不能批准新执行机制。",
+      "implementation": "autoslay.evaluation.event_sequences; autoslay.evaluation.entity_effects; autoslay.evaluation.route",
+      "limitations": "事件和遗物的全部钩子尚未实现，未知分支保留未知。",
+      "operations": [],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "snapshot_boundary",
+      "title": "状态读取与游戏版本",
+      "rule": "桥接只读取实际可观察的状态并由 normalize 转换为模拟状态。全局版本和程序集校验用于防止把旧机制用于新游戏，不参与逐实体机制审批。",
+      "implementation": "autoslay.decision.normalize; autoslay.rules.registry.IMPLEMENTATION_SHA256",
+      "limitations": "不读取隐藏抽牌顺序或未来随机结果。",
+      "operations": [],
+      "source": "native implementation and inspected local game source"
+    },
+    {
+      "id": "stacked_attack_modifiers",
+      "title": "活力、小刀增伤与单次攻击倍率",
+      "operations": [
+        "vigor",
+        "accuracy",
+        "cruelty",
+        "gigantification",
+        "fan_of_knives"
+      ],
+      "rule": "活力、力量、精准和附魔先合并，再进行非负截断；虚弱、易伤和巨大化合并倍率后向下取整。活力作用于一个攻击指令的全部命中并在指令结束消耗；巨大化消耗一层。群体攻击按命中轮次遍历存活目标。刀扇使已有及新生成的小刀改为群体目标。",
+      "source": "VigorPower; AccuracyPower; CrueltyPower; GigantificationPower; Shiv; AttackCommand.Execute",
+      "implementation": "autoslay.simulation.engine; autoslay.rules.registry",
+      "limitations": "随机目标攻击、重放和自定义攻击命令尚需相应机制；不能把已修饰的可见伤害再当原始值。"
+    },
+    {
+      "id": "damage_protection_retaliation",
+      "title": "无实体、缓冲、荆棘和火焰屏障",
+      "operations": [
+        "intangible",
+        "buffer",
+        "thorns",
+        "flame_barrier",
+        "artifact",
+        "player_damage",
+        "enemy_hp_loss"
+      ],
+      "rule": "无实体将伤害和生命损失上限降至1；先消耗格挡，再处理生命损失减免，缓冲仅在仍存在正生命损失时消耗。荆棘在攻击命中前反伤，火焰屏障在命中后反伤，反伤为可被格挡的无加成伤害。攻击者被前置反伤杀死仍结算当前命中，后续命中停止。人工制品逐次阻止负面状态并消耗一层。enemy_hp_loss表示无加成、不可格挡伤害，仍受伤害上限和缓冲影响。",
+      "source": "CreatureCmd.Damage; IntangiblePower; BufferPower; ThornsPower; FlameBarrierPower; ArtifactPower",
+      "implementation": "autoslay.simulation.atomic_effects; autoslay.rules.monsters; autoslay.evaluation.combat",
+      "limitations": "宠物分摊及尚未定义的伤害钩子仍会阻止精确推演。"
+    },
+    {
+      "id": "persistent_card_powers",
+      "title": "出牌与回合持续能力",
+      "operations": [
+        "afterimage",
+        "rage",
+        "envenom",
+        "demon_form",
+        "pyre",
+        "the_sealed_throne",
+        "anticipate",
+        "feeding_frenzy"
+      ],
+      "rule": "余像读取出牌前层数，因此不会因首次打出自身获得格挡；抽牌或生成中断后的续算只触发一次。愤怒在攻击牌打出后按当前层数给无加成格挡；涂毒在攻击造成正生命伤害后施加中毒。封印王座在出牌效果前给星星。恶魔形态在回合开始给力量，柴薪在能量重置后给能量；临时敏捷与力量在拥有者回合结束撤回。",
+      "source": "AfterimagePower.BeforeCardPlayed/AfterCardPlayed; RagePower; EnvenomPower; TheSealedThronePower.BeforeCardPlayed; DemonFormPower; PyrePower; TemporaryStrengthPower; TemporaryDexterityPower",
+      "implementation": "autoslay.rules.statuses; autoslay.simulation.engine",
+      "limitations": "尚未实现的抽牌、生成、重放和选牌钩子继续明确报告缺失。"
+    },
+    {
+      "id": "retention_stack_rules",
+      "title": "壁垒、模糊、全手牌保留与冰淇淋",
+      "operations": [
+        "barricade",
+        "blur",
+        "well_laid_plans",
+        "retain_hand"
+      ],
+      "rule": "壁垒和模糊阻止回合开始清空格挡，模糊在拥有者回合开始阶段递减。全手牌保留先参与回合结束的牌堆去向判断，再在拥有者回合结束递减；虚无优先于保留。符文金字塔保留手牌；冰淇淋将剩余能量加到下一回合的基础能量。",
+      "source": "BarricadePower; BlurPower; WellLaidPlansPower; RetainHandPower; RunicPyramid.ShouldFlush; IceCream.ShouldPlayerResetEnergy",
+      "implementation": "autoslay.rules.statuses; autoslay.simulation.card_flow; autoslay.planning.lookahead; autoslay.planning.combat_batches; autoslay.planning.combat_strategy",
+      "limitations": "随机降低保留牌费用、受限格挡保留等遗物需独立实现真实机制。"
+    },
+    {
+      "id": "poison_doom_demise",
+      "title": "毒素加速、灾厄与终焉",
+      "operations": [
+        "accelerant",
+        "doom",
+        "demise",
+        "resolve_doom"
+      ],
+      "rule": "敌方回合开始时，中毒在动作前触发；触发次数为中毒层数与1加促燃层数中的较小值，每次使用递减前的当前中毒伤害。敌方回合结束前先检查灾厄大于等于生命的直接击杀，再在回合结束后结算终焉的不可格挡伤害。末日降临在施加灾厄后立即检查灾厄击杀。",
+      "source": "PoisonPower; AccelerantPower; DoomPower.BeforeSideTurnEnd; DemisePower.AfterSideTurnEnd; EndOfDays.OnPlay",
+      "implementation": "autoslay.rules.statuses; autoslay.simulation.engine",
+      "limitations": "玩家灾厄与其他灾厄联动能力尚未实现，不把这些交互默认为零。"
+    },
+    {
+      "id": "enemy_stat_removal",
+      "title": "清除防御与降低力量",
+      "operations": [
+        "remove_enemy_block",
+        "remove_enemy_artifact",
+        "enemy_strength_loss",
+        "temporary_enemy_strength_loss",
+        "dark_shackles",
+        "piercing_wail",
+        "shackling_potion",
+        "crush_under",
+        "dying_star",
+        "enfeebling_touch"
+      ],
+      "rule": "清除格挡和人工制品按卡牌指令顺序执行，之后的负面效果按剩余人工制品判定。临时降力量保留来源能力及恢复量，并在目标自身回合结束恢复力量、移除对应能力。规范化读取实际来源层数；被人工制品阻止时既不降低力量也不增加恢复量。",
+      "source": "Expose.OnPlay; TemporaryStrengthPower.BeforeApplied/AfterSideTurnEnd; DarkShackles; PiercingWail; ShacklingPotion; CrushUnder; DyingStar; EnfeeblingTouch",
+      "implementation": "autoslay.rules.registry; autoslay.simulation.engine; autoslay.decision.normalize; autoslay.rules.monsters",
+      "limitations": "仅有已取整的虚弱攻击预览时，无法反推原始伤害，明确要求观察。"
+    },
+    {
+      "id": "exhaust_discard_shuffle",
+      "title": "统一消耗、弃牌与主动洗牌",
+      "operations": [
+        "exhaust_hand",
+        "discard_hand",
+        "draw_discarded",
+        "feel_no_pain",
+        "shuffle_hand_and_discard"
+      ],
+      "rule": "打出后消耗、主动消耗与虚无消耗共用消耗入口，更新牌堆及公开计数，触发无惧疼痛和卡戎之灰。主动弃牌触发坚韧绷带，回合结束自动移牌不触发主动弃牌钩子。计算下注抽实际弃牌数量。重启和瓶装潜能将手牌与弃牌堆并入抽牌堆后抽牌，不洗回消耗牌与当前打出中的牌。算盘在主动洗牌或抽牌触发重洗时给一次无加成格挡。",
+      "source": "CardCmd.Exhaust/Discard; CardPileCmd.Shuffle; FeelNoPainPower; CharonsAshes; ToughBandages; TheAbacus; Reboot; BottledPotential",
+      "implementation": "autoslay.simulation.card_flow; autoslay.simulation.engine; autoslay.planning.lookahead",
+      "limitations": "消耗时抽牌等需要继续展开的钩子尚未实现，遇到对应能力阻止精确推演；随机移牌不猜结果。"
+    },
+    {
+      "id": "held_curse_effects",
+      "title": "持有诅咒与状态的回合结束结算",
+      "operations": [
+        "lose_max_hp",
+        "player_weak",
+        "player_frail"
+      ],
+      "rule": "持有灼伤、腐朽、凋零和剧毒按无加成可格挡伤害处理；厄运、召唤和悔恨按生命损失处理。悔恨使用结束时原手牌张数。疑虑与羞耻受人工制品阻挡；新施加的虚弱或脆弱设置跳过下次持续时间递减，已有状态则不新增跳过标记。明焰按源码在能量与抽牌后降低最大生命。",
+      "source": "Burn; Decay; Wither; Toxic; BadLuck; Beckon; Regret; Doubt; Shame; BrightestFlame",
+      "implementation": "autoslay.simulation.card_flow; autoslay.simulation.engine; autoslay.rules.monsters; AutoSlayBridge.Creature",
+      "limitations": "修改手牌的其他持有钩子和未实现诅咒仍需补齐。"
+    },
+    {
+      "id": "timed_resource_buffs",
+      "title": "持续数回合的抽牌与能量",
+      "operations": [
+        "clarity",
+        "radiance"
+      ],
+      "rule": "清晰使未来每回合正常抽牌增加1，并在拥有者回合开始后递减持续回合数；光辉在能量重置后增加1能量并递减持续回合数。叠加延长持续时间，不增加每回合收益。三个规划入口共用同一抽牌和能量结算。",
+      "source": "ClarityPower.ModifyHandDraw/AfterSideTurnStart; RadiancePower.AfterEnergyReset",
+      "implementation": "autoslay.rules.statuses; autoslay.rules.scheduled_relics; autoslay.planning.lookahead; autoslay.planning.combat_batches; autoslay.planning.combat_strategy",
+      "limitations": "不推断未公开抽牌顺序；实际抽到的牌继续按公开牌堆分支或新快照处理。"
+    },
+    {
+      "id": "public_combat_history",
+      "title": "公开战斗历史与状态数值绑定",
+      "operations": [],
+      "rule": "桥接导出本回合已完成出牌数、攻击与技能数、整场出牌数、整场与本回合消耗数、回合内效果抽牌数。回合开始抽牌不计入效果抽牌数。终结技、超光速和死亡行军使用这些实际计数；旧快照缺失历史时拒绝依赖历史的计算。X费用先消耗当前全部资源，再以保存的X结算重复次数，X为0时仍完成出牌和攻击指令结束钩子。",
+      "source": "CombatManager.History; CardPlayFinishedEntry; CardDrawnEntry.FromHandDraw; CardExhaustedEntry; Finisher; Ftl; DeathMarch; AttackCommand.Execute",
+      "implementation": "AutoSlayBridge.CombatCounters; autoslay.decision.normalize; autoslay.rules.amounts; autoslay.simulation.engine",
+      "limitations": "尚未公开的逐目标命中历史、实例修改和战斗外永久进度不能由这些汇总计数替代。"
+    },
+    {
+      "id": "native_scheduled_state_binding",
+      "title": "遗物阶段状态绑定",
+      "operations": [],
+      "rule": "阶段遗物在实际触发时读取手牌数、回合数及本回合攻击数，不在读取快照时冻结未来数值。护手扣按结束时手牌数给格挡，涟漪盆按当前回合无攻击给格挡，尖叫酒杯按空手牌给群伤，挣扎先生按当前回合数造成群伤。第三回合的闪光胭脂在清空格挡后获得属性。按牌类型逐次触发的遗物使用周期1计数，周期1的进度恒为0。",
+      "source": "CloakClasp.BeforeSideTurnEnd; RippleBasin.BeforeSideTurnEnd; ScreamingFlagon.BeforeSideTurnEnd; MrStruggles.AfterPlayerTurnStart; SparklingRouge.AfterBlockCleared; LostWisp; DaughterOfTheWind",
+      "implementation": "autoslay.rules.scheduled_relics; autoslay.rules.triggered_relics; autoslay.rules.registry",
+      "limitations": "未知遗物触发顺序和未定义的阶段钩子仍需补充；阶段标记防止同一回合重复执行。"
+    },
+    {
+      "id": "osty_summon_and_absorption",
+      "title": "奥斯提召唤、攻击与代受伤害",
+      "operations": [
+        "summon",
+        "heal_osty",
+        "osty_damage",
+        "calcify"
+      ],
+      "rule": "召唤在奥斯提存活时同时增加最大生命与当前生命；不存在或死亡时按本次召唤量设置最大生命并恢复至该值。治疗受最大生命限制，治疗本身不复活。敌方加成攻击先消耗玩家格挡，未格挡部分由存活奥斯提代受，溢出再应用玩家的生命损失减免和缓冲；无加成伤害及直接生命损失不由奥斯提代受。奥斯提攻击使用钙化增伤，不使用玩家力量、虚弱、活力与涂毒；可受卡牌巨大化及拥有者残虐影响。敌方荆棘反伤奥斯提时使用共享格挡，直接命中奥斯提的溢出不扣玩家生命。奥斯提不存在时，攻击牌仍能打出但跳过攻击指令。",
+      "source": "OstyCmd.Summon; CreatureCmd.GainMaxHp/Damage; DieForYouPower.ModifyUnblockedDamageTarget; AttackCommand.FromOsty; CalcifyPower; BoneFlute; BoundPhylactery.AfterEnergyResetLate; PhylacteryUnbound.AfterSideTurnStart",
+      "implementation": "AutoSlayBridge.Creature; autoslay.decision.normalize; autoslay.simulation.atomic_effects; autoslay.simulation.engine; autoslay.rules.scheduled_relics",
+      "limitations": "当前支持基础奥斯提状态和代受能力；其他宠物类型及奥斯提自身的额外能力会明确阻止精确推演。奥斯提的选牌、死亡联动、自动攻击等实体仍需补齐。"
+    },
+    {
+      "id": "native_one_shot_progress",
+      "title": "每场战斗一次的遗物触发",
+      "operations": [],
+      "rule": "永冻只在本场战斗第一张能力牌打出后给7点无加成格挡；是否已触发从游戏实例的真实布尔字段读取。阶段跨回合不重置这个标志，缺失字段时明确要求观察，不按未触发处理。原生按出牌类型的计数器同时支持有限剩余触发次数。",
+      "source": "Permafrost._activatedThisCombat; Permafrost.AfterCardPlayed",
+      "implementation": "AutoSlayBridge.RuntimeFields.ReadRelicCounters; autoslay.rules.triggered_relics; autoslay.telemetry.verification",
+      "limitations": "不通过遗物展示状态猜测内部进度。"
+    },
+    {
+      "id": "card_phase_power_hooks",
+      "title": "虚无牌出牌前格挡与灵魂出牌后召唤",
+      "operations": [
+        "spirit_of_ash",
+        "devour_life"
+      ],
+      "rule": "灰烬之灵在拥有者打出虚无牌的效果之前获得无加成格挡，只使用已有能力，不因首次施加自身触发。噬魂在拥有者的灵魂牌全部效果完成后召唤奥斯提；抽牌续算只在完成后触发一次。",
+      "source": "SpiritOfAshPower.BeforeCardPlayed; DevourLifePower.AfterCardPlayed",
+      "implementation": "autoslay.rules.statuses.before_card/after_card; autoslay.simulation.engine",
+      "limitations": "尚未实现的其他出牌前后能力仍按缺失报告。"
+    },
+    {
+      "id": "temporary_stat_expiry",
+      "title": "临时力量与敏捷的来源和到期扣回",
+      "operations": [
+        "setup_strike",
+        "flex_potion",
+        "speed_potion"
+      ],
+      "rule": "铺垫打击、肌肉药水、速度药水、预判与进食狂潮分别保留实际来源能力，临时属性汇总来自所有已观察的来源。拥有者回合结束时，按能力的实际应用顺序移除来源，再施加对应的负属性；人工制品可阻止这次扣回并使获得的属性保留。下一回合能量和属性重置不重复扣除已到期数值。",
+      "source": "TemporaryStrengthPower.AfterSideTurnEnd; TemporaryDexterityPower.AfterSideTurnEnd; SetupStrikePower; FlexPotionPower; SpeedPotionPower",
+      "implementation": "autoslay.rules.statuses.expire_temporary_stats; autoslay.decision.normalize; autoslay.simulation.engine; autoslay.telemetry.verification",
+      "limitations": "未实现的其他临时属性来源继续报告缺失；不把所有临时力量伪装成肌肉药水能力。"
+    },
+    {
+      "id": "run_resource_commands",
+      "title": "跨场景资源与获得命令",
+      "rule": "战斗与非战斗共用资源算术。最大生命减少先结算 Damage 与损血钩子，再设置/钳制最大生命。删牌只执行游戏实际的 BeforeCardRemoved；未覆盖前置钩子阻止删牌和后续推演。新增牌使用 AfterCardChangedPiles，不虚构全局删牌后或升级后钩子。支付按 PlayerCmd.LoseGold 封底为零；商店另在购买入口检查足额金币。",
+      "implementation": "autoslay.rules.resources; autoslay.rules.run_commands; autoslay.evaluation.strategic",
+      "source": "CreatureCmd; RelicCmd; CardPileCmd; Mango; PotionBelt",
+      "operations": [
+        "add_to_deck",
+        "damage",
+        "gain_gold",
+        "increase_potion_capacity",
+        "kill",
+        "lose_hp",
+        "lose_max_hp",
+        "lose_relic",
+        "obtain_potion",
+        "obtain_relic",
+        "pay_gold",
+        "remove_card",
+        "upgrade_card"
+      ],
+      "limitations": "缺少 run_hooks 的遗物明确报告；转化及完整卡牌加入/移除修正仍待实施。"
+    },
+    {
+      "id": "merchant_purchase_order",
+      "title": "商店顺序与价格分支",
+      "rule": "遗物先支付后获得；卡牌/药水先加入或取得再支付。购买后消耗当前库存，执行 AfterItemPurchased；报价从公开 base_cost 经已定义的价格修正计算。会员卡用动态 Discount 变量引用 price_percent 操作。 入口足额校验和实际扣款分开；获得效果执行后按游戏 LoseGold 截断当前余额。",
+      "implementation": "autoslay.rules.run_commands.RunCommands.purchase/quote; autoslay.evaluation.shop",
+      "source": "MerchantEntry; MerchantRelicEntry; MerchantCardEntry; MerchantPotionEntry; MembershipCard",
+      "operations": [
+        "price_percent"
+      ],
+      "limitations": "补货结果、未知钩子及未知价格基础值需要重新观察；未完整实现关联奖励与商店随机生成。"
+    },
+    {
+      "id": "rest_resource_commands",
+      "title": "休息治疗与多张升级",
+      "rule": "休息基础治疗比例来自 models.parameters，先叠加休息修正再取整与封顶；若实际快照已有修正后治疗量，不重复叠加。SmithCount 驱动有限升级组合，各升级执行公共命令。",
+      "implementation": "autoslay.rules.run_commands.RunCommands.rest; autoslay.evaluation.rest; Bridge.RestCommands",
+      "source": "HealRestSiteOption; SmithRestSiteOption; RegalPillow",
+      "operations": [],
+      "limitations": "其他休息选项的真实入口已开放，预测尚未全部实现；新导出未部署，不假定现有游戏已提供这些字段。"
+    },
+    {
+      "id": "declared_event_flows",
+      "title": "声明式事件页面与随机升级",
+      "rule": "FlowMachine 从 models.flows 读取变量、页面、稳定选项键、回调和有序命令。公开计数与动态变量绑定当前状态；既有文案和源码证据不参与执行。随机升级按实际可升级池等概率分支，每次升级后更新池；最终全部升级逐张调用公共命令。",
+      "implementation": "autoslay.rules.flows; autoslay.evaluation.event_sequences; autoslay.rules.run_commands",
+      "source": "AbyssalBaths; ColossalFlower; TabletOfTruth; TheLanternKey; DenseVegetation",
+      "operations": [
+        "set_variable",
+        "branch",
+        "upgrade_deck",
+        "rest_heal",
+        "enter_combat"
+      ],
+      "limitations": "只定义五个事件，其余事件/先古保持未知；搜索预算截断不构成完整比较；估值仍是资源/牌组代理。"
+    },
+    {
+      "id": "event_observation_boundaries",
+      "title": "战斗入口与精确小数观察",
+      "rule": "进入战斗只记录遭遇、附加奖励描述和观察边界，不提前获得胜利奖励。边界必须终止全部外层命令序列。事件休息使用游戏公开的修正后治疗量和 Mimic 来源；非整数 decimal 必须有精确十进制字符串，不能从浮点值猜测原数值。",
+      "implementation": "autoslay.rules.flows; autoslay.rules.resources; Bridge.EventCommands; Bridge.DynamicVariables",
+      "source": "Creature.LoseHpInternal/HealInternal; EventModel.EnterCombatWithoutExitingEvent; PlayerCmd.MimicRestSiteHeal",
+      "operations": [
+        "enter_combat",
+        "rest_heal"
+      ],
+      "limitations": "尚不支持战斗后恢复事件；缺少公开小数或后续结果时报告未知。新 Bridge 字段未部署验证。"
+    },
+    {
+      "id": "declared_monster_state_machines",
+      "title": "怪物结构化表达式与命令状态机",
+      "rule": "models.monsters 声明数值/条件表达式树、进阶阈值、动作命令顺序、字段赋值、随机权重、冷却及重复限制。预测只读取公开实例字段；缺少历史、参数、钩子或未知表达式时停止受影响的预测。C# 整数除法向零截断，短路条件只读所需分支。",
+      "implementation": "autoslay.rules.monster_models; autoslay.rules.monsters; autoslay.dashboard.monster_graphs",
+      "source": "MonsterMoveStateMachine; MoveState; ConditionalBranchState; RandomBranchState",
+      "operations": [
+        "attack",
+        "strength",
+        "block",
+        "weak",
+        "frail",
+        "draw",
+        "discard",
+        "set_field"
+      ],
+      "limitations": "119 个怪物只完成结构迁移，全部仍待逐项语义复核；召唤/复苏及复杂钩子未补齐。monster_compiler 仅由离线工具调用，未识别源码不转为空效果。"
+    },
+    {
+      "id": "observed_selection_provenance",
+      "title": "真实选牌调用来源与候选约束",
+      "rule": "Bridge 通过只读 Harmony 观察记录实际 CardSelectCmd 调用链、来源实例/模型类型/选项键/回调，并以每次选择的新完成令牌绑定。AsyncLocal 上下文跨 await 保留、嵌套恢复和并发隔离；BeforeChosen 与实际 OnChosen 的回调入口分开，不将前置选择误记为正式选项。候选资格、最少/最多张数、手动确认、可取消性来自实际游戏界面对象。",
+      "source": "CardSelectCmd; CardSelectorPrefs; EventOption.Chosen; NCardGridSelectionScreen; NPlayerHand.SelectCards",
+      "implementation": "Bridge.SelectionObservation; Bridge.SelectionProvenance; Bridge.SelectionCommands; Bridge.CombatChoiceCommands",
+      "operations": [],
+      "limitations": "观测不执行游戏效果；来源缺失保持未知，不从界面名或本地化提示推断。新 Bridge 尚未部署，运行时观测待实机验证。"
+    },
+    {
+      "id": "declared_selection_continuations",
+      "title": "多选组合与调用方后续命令",
+      "rule": "models.selections 通过来源模型/类型、实例回调、稳定选项键及实际 API 精确匹配选择合同；公共命令逐张处理实际候选组合，然后执行声明的付款或房间生命周期。当前状态已包含选牌前效果，不重复治疗/扣款；休息升级全部完成后只调用一次 AfterRestSiteSmith，取消则跳过。只绑定当前真实可用的一个 UI 操作，后续重新观察。 Cook 先逐张移除，再 GainMaxHp(5)，取消跳过；休息 Smith 入口和选牌续算使用同一 JSON 合同。",
+      "source": "SmithRestSiteOption.OnSelect; SapphireSeed.Eat; ZenWeaver.RemoveCardsAndProceed; CookRestSiteOption.OnSelect",
+      "implementation": "autoslay.rules.selections; autoslay.evaluation.selections; autoslay.decision.unified",
+      "operations": [
+        "upgrade_card",
+        "remove_card",
+        "pay_gold",
+        "gain_max_hp"
+      ],
+      "limitations": "当前五个选择合同只覆盖这些回调的选牌后续部分，不代表完整事件效果；转化/附魔和其他调用方尚未定义。组合预算截断、未定价修饰、能力/遗物钩子保持未知；本地报告保留完整组合，AI 包截取前 12 组。"
+    },
+    {
+      "id": "declared_value_inputs",
+      "title": "缺失机制不再由描述补齐默认估值",
+      "rule": "默认牌组特征仅绑定已声明的公共效果，移除 immediate_features 描述回退。战斗批次未建模动作不赋文案估值或零分，保留未定价标记；存在未定价动作时交由模型决策。战斗选牌使用实际操作语义和声明式固定效果代理，忽略本地化提示与描述中的数字；未知卡牌或状态相关效果不自动排名。 商店药水与储备代理仅消费 KnowledgeRules.potion；治疗和最大生命的顺序、封顶使用公共命令。储备区间仅存在于策略配置。entity_reference 只保留文案参考，全部数值估值和触发次数未知；未知价格/中间命令停止商店续算。",
+      "source": "models dataset; existing common effect commands",
+      "implementation": "autoslay.evaluation.run; autoslay.evaluation.selections; autoslay.planning.combat_batches; autoslay.decision.local_combat; autoslay.evaluation.resources; autoslay.evaluation.potion_value; autoslay.evaluation.entity_effects",
+      "operations": [],
+      "limitations": "资源代理仍是启发式，不是未来战斗或完整续局价值；HP 敏感药水的未来储备、随机/持续效果、完整能力与钩子以及 S01–S12 仍待补齐。"
     }
-  ]
+  ],
+  "execution_source": "native_code"
 }

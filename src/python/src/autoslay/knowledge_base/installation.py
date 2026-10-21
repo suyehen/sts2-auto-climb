@@ -14,6 +14,6 @@ def version_status(installation_path=None,catalog_path=None):
         current=read_json(catalog)['game_version']
         return dict(status='current' if actual==current else 'game_updated',installed_game_version=actual,
                     catalog_game_version=current,version_matches=actual==current,
-                    action='none' if actual==current else 'compatible_bridge_and_rule_review_required_before_calculation')
+                    action='none' if actual==current else 'update_bridge_catalog_and_native_mechanics')
     except (OSError,ValueError,KeyError,TypeError):
         return dict(status='unavailable',version_matches=None)

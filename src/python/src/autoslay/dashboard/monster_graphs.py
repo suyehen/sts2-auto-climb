@@ -5,7 +5,7 @@ import re
 from autoslay.knowledge_base.behavior import load
 from autoslay.knowledge_base.repository import scoped
 from autoslay.decision.contracts import Enemy, UnsupportedEffect
-from autoslay.rules.monsters import MonsterRules, expression
+from autoslay.rules.monsters import MonsterRules
 
 
 def condition_label(value):
@@ -49,95 +49,49 @@ def visible_enemy(raw,turn):
 def next_moves(model,enemy,entry,current):
     """Keep unresolved branches visible; assign probabilities only with full eligibility."""
     graph=entry['state_graph'];nodes={n['variable']:n for n in graph['nodes']}
-    # Transition predicates run AFTER the current move. An unmodeled mutation
-    # must not be evaluated using the old field value as if it were unchanged.
-    from autoslay.rules.mechanism_scope import reviewed_move_scope
-    move=next((m for m in entry.get('moves',[]) if m['variable']==current),{})
-    scope=reviewed_move_scope(entry,move) or {};fields=dict(enemy.runtime_fields)
-    for update in move.get('state_updates',[]):
-        variable=update['variable']
-        if variable in scope.get('ignored_state_updates',[]):continue
-        field=graph.get('definitions',{}).get(variable,variable)
-        value='__unresolved_after_action__'
-        if scope and (field in fields or variable in scope.get('initialized_fields',[])):
-            try:value=expression(update['value_expression'],model.values(enemy,entry)|fields)
-            except UnsupportedEffect:pass
-        fields[variable]=value;fields[field]=value
-    enemy=replace(enemy,runtime_fields=tuple(fields.items()))
-    def truth(text):
-        try:return bool(expression(text,model.values(enemy,entry)))
-        except UnsupportedEffect:return None
-    def walk(target,visited=()):
-        if target in visited or target not in nodes:return []
+    move=model.moves(entry).get(current)
+    certain=True
+    if move:
+        try:
+            model.commands(move)
+            fields=dict(enemy.runtime_fields)
+            for command in move['commands']:
+                if command['operation']=='set_field':
+                    fields[command['field']]=model.evaluate(command['amount'],replace(enemy,runtime_fields=tuple(fields.items())),entry)
+            enemy=replace(enemy,runtime_fields=tuple(fields.items()))
+        except UnsupportedEffect:certain=False
+    roots=[e['target'] for e in graph['edges'] if e['source']==current]
+    if certain:
+        try:
+            result={}
+            if len(roots)!=1:raise UnsupportedEffect('followup_state_unknown')
+            for probability,target in model.destinations(enemy,entry,roots[0]):result[target]=result.get(target,0)+probability
+            return [dict(id=k,probability=v) for k,v in result.items()]
+        except UnsupportedEffect:pass
+    def reachable(target,seen=()):
+        if target in seen or target not in nodes:return set()
         node=nodes[target]
-        if node['kind']=='MoveState':return [(target,1.0)]
-        branches=node.get('branches',[]);eligible=[];complete=True
-        conditional=node['kind']=='ConditionalBranchState';prior_unknown=False
-        for b in branches:
-            tests=[truth(c) for c in b.get('registration_conditions',[])]
-            if conditional:tests.append(truth(b.get('condition_expression','')))
-            if False in tests:continue
-            known=None not in tests
-            dest=b['target'];history=enemy.move_history
-            if not conditional:
-                repeat=b.get('repeat_type');cooldown=b.get('cooldown',0)
-                if repeat=='CannotRepeat' and history and history[-1]==dest:continue
-                if repeat=='UseOnlyOnce':
-                    if dest in history:continue
-                    known &= enemy.history_complete
-                if repeat=='CanRepeatXTimes':
-                    count=b.get('max_consecutive')
-                    if not isinstance(count,int) or count<1:known=False
-                    elif len(history)>=count and all(h==dest for h in history[-count:]):continue
-                    elif len(history)<count and all(h==dest for h in history):known &= enemy.history_complete
-                if isinstance(cooldown,int) and cooldown>0:
-                    if dest in history[-cooldown:]:continue
-                    if len(history)<cooldown:known &= enemy.history_complete
-                elif cooldown:known=False
-                try:
-                    weight=expression(b.get('weight_expression','1'),model.values(enemy,entry))
-                    if type(weight) not in {int,float} or not isfinite(weight) or weight<0:weight=None
-                except UnsupportedEffect:weight=None
-                if weight==0:continue
-                known &= weight is not None
-            else:weight=1
-            complete &= known
-            eligible.append((dest,weight))
-            if conditional:
-                if known:break
-                prior_unknown=True
-        if conditional and prior_unknown:complete=False
-        total=sum(w for _,w in eligible if w is not None)
-        result=[]
-        for dest,weight in eligible:
-            probability=(1.0 if conditional else weight/total) if complete and total>0 else None
-            for end,p in walk(dest,visited+(target,)):
-                result.append((end,probability*p if probability is not None and p is not None else None))
-        return result
-    result={}
-    for edge in graph.get('edges',[]):
-        if edge['source']!=current:continue
-        for target,p in walk(edge['target']):
-            if target not in result:result[target]=p
-            elif result[target] is None or p is None:result[target]=None
-            else:result[target]+=p
-    return [dict(id=k,probability=v) for k,v in result.items()]
+        if node['kind']=='MoveState':return {target}
+        return {end for branch in node['branches'] for end in reachable(branch['target'],seen+(target,))}
+    possible={end for root in roots for end in reachable(root)}
+    return [dict(id=k,probability=None) for k in nodes if k in possible]
 
 
 @scoped
-def project(snapshot,behavior=None):
+def project(snapshot,behavior=None,models=None):
     state=(snapshot or {}).get('state') or {}
     if state.get('phase')!='combat':return []
     data=load() if behavior is None else behavior
     entries={e['entity_id']:e for e in data.get('entries',[]) if e.get('category')=='monster'}
-    model=MonsterRules(snapshot,{},data);result=[]
+    model=MonsterRules(snapshot,{},models);result=[]
     for raw in state.get('enemies') or []:
         if raw.get('hp',1)<=0:continue
         row=dict(instance_id=raw['instance_id'],name=raw.get('name'),nodes=[],edges=[],initial=[],next_moves=[])
         result.append(row);entry=entries.get(raw.get('entity_id'));graph=(entry or {}).get('state_graph') or {}
         if not graph.get('nodes'):
             row['note']='本地源码资料尚未收录该怪物的状态机';continue
-        compatible=model.compatible and entry.get('provenance',{}).get('game_assembly_sha256')==data.get('game_assembly_sha256')
+        declared=model.entries.get(raw.get('entity_id'))
+        compatible=model.compatible and data.get('game_assembly_sha256')==snapshot.get('game_assembly_sha256') and declared is not None
         row['version_matches']=compatible
         enemy=visible_enemy(raw,(state.get('player') or {}).get('turn'))
         moves={m['variable']:m for m in entry.get('moves',[])}
@@ -154,20 +108,16 @@ def project(snapshot,behavior=None):
             if move:
                 if compatible:
                     try:
-                        hits=model.attacks(enemy,entry,move)
+                        hits=model.attacks(enemy,declared,model.moves(declared)[move['variable']])
                         if hits:effects.append('攻击 '+' + '.join(map(str,hits)))
                     except UnsupportedEffect:pass
                     try:
-                        for kind,amount,identity in model.effects(enemy,entry,move):
+                        for kind,amount,identity in model.effects(enemy,declared,model.moves(declared)[move['variable']]):
                             if kind in {'draw','discard'}:effects.append('生成 '+str(amount)+' 张状态牌，置入'+('抽牌堆' if kind=='draw' else '弃牌堆'))
                             else:effects.append({'block':'格挡','strength':'力量','weak':'虚弱','frail':'脆弱'}.get(kind,kind)+' '+str(amount))
                     except (UnsupportedEffect,ValueError,KeyError):pass
                 if not effects:
                     intent=move.get('intent_expression','')
-                    status=re.search(r'new StatusIntent\(([^()]+)\)',intent)
-                    if status and compatible:
-                        try:effects.append('生成 '+str(model.number(status[1],enemy,entry))+' 张状态牌')
-                        except UnsupportedEffect:pass
                     for key,title in [('AttackIntent','攻击'),('StatusIntent','生成状态牌'),('BuffIntent','强化'),('DebuffIntent','削弱'),('DefendIntent','防御'),('SleepIntent','睡眠'),('EscapeIntent','逃跑')]:
                         if key in intent and not effects:effects.append(title)
             title=(move or {}).get('title') or {'RandomBranchState':'随机选择','ConditionalBranchState':'条件判断'}.get(node['kind'],node['state_id'])
@@ -175,7 +125,7 @@ def project(snapshot,behavior=None):
             for b in node.get('branches',[]):row['edges'].append(dict(source=node['variable'],target=b['target'],label=branch_label(b,node['kind'])))
         row['edges'].extend(dict(source=e['source'],target=e['target'],label='行动结束') for e in graph.get('edges',[]))
         row['initial']=[dict(target=c['target'],label='；'.join(condition_label(x) for x in c.get('conditions',[])) or '初始') for c in graph.get('initial_choices',[])]
-        if current and compatible:row['next_moves']=next_moves(model,enemy,entry,current)
+        if current and compatible:row['next_moves']=next_moves(model,enemy,declared,current)
         if not compatible:row['note']='行为图来自其他游戏版本，仅供参考'
         elif not current:row['note']='已展示完整规则；当前行动尚无法唯一定位'
         elif any(m['probability'] is None for m in row['next_moves']):row['note']='分支规则已列出；具体概率取决于尚未读取的条件或历史'

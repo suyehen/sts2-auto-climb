@@ -1,24 +1,25 @@
-"""Materialize the full catalog model and all currently relevant entity instances."""
+"""Materialize catalog references for observed instances, without text scoring."""
 from collections import Counter
 from autoslay.knowledge_base.repository import read_json,read_view,dataset_path,document_sha256
-from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.rules.registry import mechanism_status, VERSION as RULES_VERSION
+from autoslay.knowledge_base.templates import index
 from autoslay.knowledge_base.effect_profiles import compile_catalog,profile_for,interaction_edges,VERSION
-from autoslay.evaluation.entity_effects import evaluate_entity
+from autoslay.evaluation.entity_effects import entity_reference
 from autoslay.decision.cache import digest
 
 
-def registry_summary(book=None):
-    book=book or Rulebook()
+def registry_summary():
+    references=index()[0]
     try:inventory_path=dataset_path('source_inventory')
     except KeyError:inventory_path=None
     inventory=read_json(inventory_path,default={}) if inventory_path else {}
-    key='effect-registry-summary/'+VERSION+'/'+book.fingerprint+'/'+str(document_sha256(inventory_path) if inventory_path else None)
+    key='effect-registry-summary/'+VERSION+'/'+RULES_VERSION+'/'+str(document_sha256(inventory_path) if inventory_path else None)
     def build(catalog):
         source_ok=(inventory.get('game_version')==catalog.get('game_version')
                    and bool(catalog.get('game_assembly_sha256'))
                    and inventory.get('game_assembly_sha256')==catalog.get('game_assembly_sha256'))
         registry=compile_catalog(catalog['entries'],inventory if source_ok else {},
-                                 {i:book.status(i) for i in book.references})
+                                 {i:mechanism_status(i) for i in references})
         return {k:v for k,v in registry.items() if k!='profiles'}|dict(
             source_metadata_matches=source_ok,game_version=catalog.get('game_version'),
             game_assembly_sha256=catalog.get('game_assembly_sha256'))
@@ -58,13 +59,13 @@ def analyze_entities(snapshot,context,entries,policy):
     for key,value in observed.items():
         profile=profile_for(value,entries)
         if profile:profiles.setdefault(profile['entity_id'],profile)
-        evaluated=evaluate_entity(value,context,entries,policy)
+        evaluated=entity_reference(value,entries)
         rows.append(dict(instance_id=value.get('instance_id'),upgrade_level=value.get('upgrade_level',0),
                          origins=sorted(origins[key]),source_metadata=sources.get(value.get('entity_id')),**evaluated))
     return dict(module_version=VERSION,registry=summary,entities=rows,
         interaction_candidates=interaction_edges(list(profiles.values())),
         evaluation_counts=dict(Counter(r['coverage'] for r in rows)),
         execution_authorized=False,limitations=[
-            'complete catalog registration does not certify exact simulation or calibrated utility',
-            'unparsed and conditional effects remain in clause programs; no zero substitution',
+            'description references do not define executable effects or numerical utility',
+            'parsed clauses and conditional text remain reference material; use declared models for predictions',
             'interaction edges require target, timing and resource feasibility checks; no additive synergy score'])

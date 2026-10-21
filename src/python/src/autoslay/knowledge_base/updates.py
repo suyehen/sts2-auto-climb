@@ -1,11 +1,12 @@
-"""Catalog differences, compatibility gates, explicit rollback and menu-only sync."""
+"""Catalog differences, explicit rollback and menu-only sync."""
 import asyncio
 from autoslay.knowledge_base.repository import read_json
 import time
 from pathlib import Path
 from threading import RLock
 from autoslay.decision.cache import digest
-from autoslay.knowledge_base.rulebook import entry_fingerprint
+def entry_fingerprint(entry):
+    return digest({k:v for k,v in entry.items() if k!='name'})
 
 LOCK=RLock()
 
@@ -38,13 +39,13 @@ def compare(old,new):
         else: continue
         changes.append(dict(entity_id=identity,category=(b or a)['category'],kind=kind,
                             changed_fields=sorted(k for k in (a or {}).keys()|(b or {}).keys() if (a or {}).get(k)!=(b or {}).get(k)),
-                            rules_require_review=kind in {'added','removed','semantic_changed'}))
+                            mechanics_may_need_update=kind in {'added','removed','semantic_changed'}))
     version_changed=bool(old and old['game_version']!=new['game_version'])
     implementation_changed=bool(old and old.get('game_assembly_sha256')!=new.get('game_assembly_sha256'))
     return dict(previous_game_version=(old or {}).get('game_version'),game_version=new['game_version'],
                 version_changed=version_changed,changes=changes,content_sha256=content_fingerprint(new),
-                implementation_changed=implementation_changed,all_rules_require_review=version_changed or implementation_changed,
-                note='Catalog changes do not approve executable rules; rule fingerprints are checked on every load')
+                implementation_changed=implementation_changed,mechanics_update_required=version_changed or implementation_changed,
+                note='Catalog diffs describe reference changes; mechanic behavior is defined in source code')
 
 def rollback(filename,path=None):
     from autoslay.knowledge_base.catalog import CATALOG_PATH,save_catalog
@@ -54,36 +55,6 @@ def rollback(filename,path=None):
     data=read_json(path.parent/'history'/filename, fresh=True)
     return save_catalog(data,path,allow_rollback=True)
 
-
-def rebind_added_export_metadata(rulebook,old,new):
-    """Explicit one-time exporter schema migration, never game-version approval.
-
-    The already reviewed rules must pin this exact game binary. All previously
-    exported semantic fields must remain byte-equivalent JSON values. Only newly
-    added model_type/dynamic_variables fields are permitted; no changed, removed,
-    or new entities get an executable rule.
-    """
-    from copy import deepcopy
-    if rulebook['game_version']!=new['game_version'] or old['game_version']!=new['game_version']:
-        raise ValueError('Metadata migration cannot approve a game version change')
-    if not new.get('game_assembly_sha256') or new['game_assembly_sha256']!=rulebook.get('game_assembly_sha256'):
-        raise ValueError('Metadata migration requires the previously pinned game assembly')
-    if old.get('game_assembly_sha256') and old['game_assembly_sha256']!=new['game_assembly_sha256']:
-        raise ValueError('Previous assembly differs')
-    before={e['entity_id']:e for e in old['entries']}; after={e['entity_id']:e for e in new['entries']}
-    result=deepcopy(rulebook); accepted=[]; rejected=[]
-    for identity,rule in result['entries'].items():
-        a,b=before.get(identity),after.get(identity)
-        if a is None or b is None or rule['reference_sha256']!=entry_fingerprint(a):
-            rejected.append(identity); continue
-        if any(b.get(k)!=v for k,v in a.items() if k!='name') or set(b)-set(a)-{'model_type','dynamic_variables'}:
-            rejected.append(identity); continue
-        rule['reference_sha256']=entry_fingerprint(b)
-        rule['export_metadata_migration']=dict(previous_reference_sha256=entry_fingerprint(a),
-            assembly_sha256=new['game_assembly_sha256'],added_fields=sorted(set(b)-set(a)),
-            basis='same pinned binary; every previous semantic field unchanged; exporter metadata addition only')
-        accepted.append(identity)
-    return result,dict(rebound=accepted,unchanged_validation=True,rejected=rejected,full_support=False)
 
 class CatalogSynchronizer:
     """No save loading, menu navigation or gameplay. Game must already be in menu."""

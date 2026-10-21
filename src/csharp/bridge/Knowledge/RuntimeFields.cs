@@ -5,6 +5,24 @@ namespace AutoSlayBridge;
 // Read primitive instance fields only. Never invoke arbitrary property getters or RNG.
 internal static class RuntimeFields
 {
+    // Observed card-play progress, not presentation counters or future RNG.
+    public static object ReadRelicCounters(object? model)
+    {
+        var values = new Dictionary<string, object>();
+        var missing = new List<string>();
+        var names = new HashSet<string> { "_attacksPlayed", "_attacksPlayedThisTurn", "_skillsPlayedThisTurn", "_activatedThisCombat" };
+        for (var type = model?.GetType(); type != null && type.Name != "RelicModel"; type = type.BaseType)
+        {
+            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            {
+                if (field.FieldType != typeof(int) && field.FieldType != typeof(bool) || !names.Contains(field.Name) || values.ContainsKey(field.Name)) continue;
+                try { values[field.Name] = field.GetValue(model)!; }
+                catch { missing.Add(field.Name); }
+            }
+        }
+        return new { fields = values, unavailable_fields = missing, source = "observed_relic_progress" };
+    }
+
     public static object Read(object? model)
     {
         var values = new Dictionary<string, object?>();

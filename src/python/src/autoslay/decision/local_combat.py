@@ -15,6 +15,7 @@ def select_batch(report,snapshot):
         return None,['local_combat_requires_matching_analysis']
     batches=(report.get('combat') or {}).get('batches') or {}
     batch=batches.get('selected_batch')
+    if batches.get('unpriced_actions'):return None,['combat_batch_unmodeled_actions']
     if not batch or not batch.get('steps'):return None,['combat_batch_analysis_required']
     legal=operations([a for a in snapshot['state'].get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}])
     if batch['steps'][0] not in legal:return None,['combat_batch_first_operation_stale']
@@ -29,32 +30,34 @@ def select_batch(report,snapshot):
 def select_combat_selection(snapshot):
     """Resolve a public nested combat selector locally, one observed choice at a time."""
     from .deterministic import operations,ADMIN
-    from autoslay.planning.combat_batches import visible_action_score
-    from autoslay.evaluation.combat_resources import DEFAULTS
+    from autoslay.evaluation.selections import declared_card_proxy
     selection=snapshot['state'].get('card_selection') or {}
     if selection.get('decision_ready') is False:return None
+    semantics=selection.get('semantics') or {}
+    if semantics.get('schema_version')!='observed-selection/1' or semantics.get('operation') not in {'discard','exhaust','upgrade','add','play'}:
+        return None
     actions=[a for a in snapshot['state'].get('legal_actions') or [] if a.get('type') not in ADMIN]
     ops=operations(actions);cards=selection.get('cards') or [];selected=sum(c.get('selected') is True for c in cards)
     needed=selection.get('min_select')
-    needed=needed if type(needed) is int and needed>0 else 1
+    if type(needed) is not int or needed<0:return None
     confirms={a['action_id'] for a in actions if a.get('type') in {'confirm_card_selection','confirm_combat_selection','preview_card_selection','close_card_selection'}}
     chosen=next((op for op in ops if op['action_id'] in confirms),None) if selected>=needed else None
     if chosen is None:
-        prompt=selection.get('prompt') or '';negative=any(word in prompt.lower() for word in ('discard','exhaust','移除','消耗','弃'))
+        negative=semantics['operation'] in {'discard','exhaust'}
         ranked=[]
         for row in cards:
             op=next((op for op in ops if op['action_id']==row.get('action_id')),None)
             if op and row.get('available') is True and row.get('selected') is not True:
                 card=row.get('card') or {}
-                proxy=dict(state=dict(snapshot['state'],player=dict(snapshot['state']['player'],hand=[card])))
-                score=visible_action_score(proxy,Operation('play_'+card['instance_id']),{},DEFAULTS) if card.get('instance_id') else 0
+                try:score=declared_card_proxy(card)
+                except (ValueError,KeyError,TypeError):return None
                 ranked.append(((-score if negative else score),op))
         if ranked:chosen=max(ranked,key=lambda pair:(pair[0],pair[1]['action_id']))[1]
     if chosen is None:chosen=next((op for op in ops if op['action_id'] in confirms),None)
     if not chosen:return None
     return dict(rule_id='local_combat_selection',decision_basis='local_combat_selection',
-        reason='本地按当前选牌提示和可见卡牌收益选择；完成后重新观察父动作与选择界面。',
-        steps=[chosen],evidence=dict(optimality_proven=False,decision_unit='observed_selection',prompt=selection.get('prompt')))
+        reason='本地按实际选牌操作语义和可见卡牌收益选择；完成后重新观察父动作与选择界面。',
+        steps=[chosen],evidence=dict(optimality_proven=False,decision_unit='observed_selection',semantics=selection.get('semantics')))
 
 
 def select(report, snapshot):
@@ -74,9 +77,8 @@ def select(report, snapshot):
         return None, ['local_combat_hidden_hooks_not_observed']
     if any(c.get('modifiers_complete') is not True for c in player.get('hand') or []):
         return None, ['local_combat_card_modifiers_not_observed']
-    reviewed=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
-    if any(c.get('affliction_id') or c.get('enchantment_id') and (
-               c['enchantment_id'] not in reviewed or c['entity_id'] not in reviewed[c['enchantment_id']].get('card_ids',[]))
+    from autoslay.rules.registry import modifiers_supported
+    if any(not modifiers_supported(c)
            for c in player.get('hand') or []):
         return None, ['local_combat_card_modifier_not_certified']
     actions = [a for a in state.get('legal_actions') or [] if a.get('type') not in ADMIN | {'discard_potion'}]
@@ -107,7 +109,7 @@ def select(report, snapshot):
     for candidate in candidates:
         metrics = candidate.get('metrics') or {}
         boundary=candidate.get('boundary')
-        if boundary not in {None,'draw_requires_observation','next_turn_requires_observation'}:
+        if boundary not in {None,'draw_requires_observation','next_turn_requires_observation','generated_cards_requires_observation'}:
             continue
         uncertainties=set(metrics.get('uncertainty') or [])
         if uncertainties-({boundary} if boundary else set()) or metrics.get('confidence') not in {'modeled_current_turn','partial'}:
@@ -165,11 +167,10 @@ def select_calibrated(report, snapshot, policy):
     state=snapshot['state'];player=state.get('player') or {}
     if any(c.get('hidden_power_ids')!=[] for c in [player.get('creature') or {},*(state.get('enemies') or [])]):
         reasons.append('local_combat_hidden_hooks_not_observed')
-    reviewed=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
+    from autoslay.rules.registry import modifiers_supported
     for card in player.get('hand') or []:
         if card.get('modifiers_complete') is not True:reasons.append('local_combat_card_modifiers_not_observed')
-        enchant=card.get('enchantment_id')
-        if card.get('affliction_id') or enchant and (enchant not in reviewed or card['entity_id'] not in reviewed[enchant].get('card_ids',[])):
+        if not modifiers_supported(card):
             reasons.append('local_combat_card_modifier_not_certified')
     actions=[a for a in state.get('legal_actions') or [] if a.get('type') not in ADMIN|{'discard_potion'}]
     legal={Operation(**op) for op in operations(actions)}

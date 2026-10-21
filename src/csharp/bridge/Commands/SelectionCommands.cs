@@ -18,19 +18,20 @@ public static partial class Bridge
 {
     private sealed record SelectionView(string? ScreenId, string? ScreenType, string? Prompt,
         int? MinSelect, int? MaxSelect, bool Cancelable, bool Preview, bool DecisionReady, object[] Cards, object[] Controls,
-        object? Enchantment = null);
+        object? Enchantment = null, object? Semantics = null, bool RequireManualConfirmation = false,
+        string? Interaction = null);
     private sealed record SelectionBinding(NCardGridSelectionScreen Screen, string Kind, string Before,
         string RunId, Action Dispatch, Task Completion, CardModel? SourceCard = null);
     private static readonly Dictionary<string, SelectionBinding> SelectionBindings = new();
     private static SelectionBinding? activeSelection;
     private static Task[] pendingSelectionEffects = [];
 
-    private static bool SupportedSelection(NCardGridSelectionScreen screen) => screen is NDeckCardSelectScreen or NDeckUpgradeSelectScreen or NDeckEnchantSelectScreen or NSimpleCardSelectScreen;
+    private static bool SupportedSelection(NCardGridSelectionScreen screen) => screen is NDeckCardSelectScreen or NDeckUpgradeSelectScreen or NDeckEnchantSelectScreen or NDeckTransformSelectScreen or NSimpleCardSelectScreen;
     private static bool SelectionIdle(RunState? run, Player? player, NCardGridSelectionScreen screen) => UiIdle(run, player)
         && SupportedSelection(screen) && IsActive(screen) && screen.IsNodeReady()
         && screen.MouseFilter == Control.MouseFilterEnum.Stop && NGame.Instance?.Transition?.InTransition != true
         && !ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(screen, "_completionSource").Task.IsCompleted;
-    private static bool SelectionPreview(NCardGridSelectionScreen screen) => screen is not NSimpleCardSelectScreen && (screen is NDeckCardSelectScreen
+    private static bool SelectionPreview(NCardGridSelectionScreen screen) => screen is not NSimpleCardSelectScreen && (screen is NDeckCardSelectScreen or NDeckTransformSelectScreen
         ? ReadUiField<Control>(screen, "_previewContainer").Visible
         : screen is NDeckEnchantSelectScreen
             ? ReadUiField<Control>(screen, "_enchantSinglePreviewContainer").Visible
@@ -65,7 +66,7 @@ public static partial class Bridge
                 && ReadUiField<bool>(holder, "_isClickable")
                 && (screen is not NSimpleCardSelectScreen || selected.Contains(card) || selected.Count < prefs.MaxSelect);
             var actionId = "select_" + Id(screen) + "_" + Id(card);
-            cards.Add(new { card = Card(card), selected = selected.Contains(card), available = enabled, action_id = enabled ? actionId : null });
+            cards.Add(new { card = Card(card), eligible = true, selected = selected.Contains(card), available = enabled, action_id = enabled ? actionId : null });
             if (enabled)
             {
                 ready = true;
@@ -75,7 +76,7 @@ public static partial class Bridge
         }
         var fields = screen is NSimpleCardSelectScreen
             ? new[] { ("_confirmButton", "confirm_card_selection") }
-            : screen is NDeckCardSelectScreen
+            : screen is NDeckCardSelectScreen or NDeckTransformSelectScreen
             ? (preview ? new[] { ("_previewConfirmButton", "confirm_card_selection"), ("_previewCancelButton", "cancel_selection_preview") }
                 : new[] { ("_confirmButton", "preview_card_selection"), ("_closeButton", "close_card_selection") })
             : (preview ? (prefs.MaxSelect == 1
@@ -102,7 +103,8 @@ public static partial class Bridge
                     amount = ReadUiField<int>(screen, "_enchantmentAmount"),
                     title = ReadUiField<EnchantmentModel>(screen, "_enchantment").Title.GetFormattedText(),
                     description = ReadUiField<MegaRichTextLabel>(screen, "_enchantmentDescription").Text }
-                : null);
+                : null, SelectionSemantics(ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(screen, "_completionSource")),
+            prefs.RequireManualConfirmation, "toggle");
     }
     private static LegalAction[] SelectionActions() => SelectionBindings.Select(p => new LegalAction(p.Key, p.Value.Kind, null, [], true,
         new(ActionCatalog.Require(p.Value.Kind).SourceKinds[0], p.Value.SourceCard?.Id.ToString(),

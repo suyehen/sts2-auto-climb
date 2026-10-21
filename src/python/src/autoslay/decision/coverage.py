@@ -37,7 +37,7 @@ def diagnose(snapshot, report=None, primary=None):
     from autoslay.actions import action_types
     if any(a.get('type') not in action_types(group='combat') for a in actions):
         add('action','local_combat_action_not_modeled')
-    reviewed=read_json(dataset_path('certificates')).get('local_combat_modifiers') or {}
+    from autoslay.rules.registry import modifiers_supported
     legal_cards={a.get('card_instance_id') or a['action_id'].removeprefix('play_')
                  for a in actions if a.get('type')=='play_card'}
     try:
@@ -69,9 +69,7 @@ def diagnose(snapshot, report=None, primary=None):
     for card in player.get('hand') or []:
         if card.get('modifiers_complete') is not True:
             add('observation','local_combat_card_modifiers_not_observed',card.get('entity_id'),card.get('instance_id'))
-        if card.get('affliction_id') or card.get('enchantment_id') and (
-                card['enchantment_id'] not in reviewed or
-                card.get('entity_id') not in reviewed[card['enchantment_id']].get('card_ids',[])):
+        if not modifiers_supported(card):
             add('card','local_combat_card_modifier_not_certified',card.get('entity_id'),card.get('instance_id'))
     if combat.get('search_truncated'):add('search','local_combat_search_incomplete')
     for problem in combat.get('problems') or []:add('search','unsupported_branch',details=problem)

@@ -33,9 +33,11 @@ public static partial class Bridge
         MerchantCardEntry card when card.IsStocked && card.CreationResult != null => new { card = Card(card.CreationResult.Card) },
         MerchantRelicEntry relic when relic.IsStocked && relic.Model != null => new { entity_id = relic.Model.Id.ToString(),
             name = relic.Model.Title.GetFormattedText(), description = relic.Model.DynamicDescription.GetFormattedText(),
+            dynamic_variables = relic.Model.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray(),
             hover_tips = relic.Model.HoverTipsExcludingRelic.Select(EventTip).ToArray() },
         MerchantPotionEntry potion when potion.IsStocked && potion.Model != null => new { entity_id = potion.Model.Id.ToString(),
-            name = potion.Model.Title.GetFormattedText(), description = potion.Model.DynamicDescription.GetFormattedText() },
+            name = potion.Model.Title.GetFormattedText(), description = potion.Model.DynamicDescription.GetFormattedText(),
+            dynamic_variables = potion.Model.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray() },
         MerchantCardRemovalEntry => new { description = "Choose one removable deck card; payment applies only after confirmation." },
         _ => new { unavailable = true }
     };
@@ -78,6 +80,7 @@ public static partial class Bridge
                 var enabled = idle && supported && slot.IsVisibleInTree() && entry.IsStocked && entry.EnoughGold && capacity;
                 var actionId = "buy_" + Id(inventory) + "_" + Id(entry);
                 items.Add(new { item_id = Id(entry), type = entry.GetType().Name, cost = entry.Cost,
+                    base_cost = ReadUiField<int>(entry, "_cost"),
                     stocked = entry.IsStocked, affordable = entry.EnoughGold, capacity_ok = capacity, supported,
                     details = ShopItem(entry), available = enabled, action_id = enabled ? actionId : null });
                 if (enabled)

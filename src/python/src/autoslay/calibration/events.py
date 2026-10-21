@@ -21,12 +21,6 @@ def compare(candidate,before,after):
             if type(old[k]) is int and all(type(v) is int for _,v in values):
                 predicted[k]=sum(p*(v-old[k]) for p,v in values)
                 support[k]=sorted(set(v-old[k] for _,v in values))
-    elif candidate.get('trace'):
-        first=candidate['trace'][0]
-        if first.get('operation')=='gain_max_hp_then_damage':
-            predicted['hp']=first['hp_after']-first['hp_before']; predicted['max_hp']=first['gain_max_hp']
-        elif first.get('operation')=='exit': predicted['hp']=first['heal'];predicted['max_hp']=0
-        support={k:[v] for k,v in predicted.items()}
     residual={k:actual[k]-v if actual[k] is not None else None for k,v in predicted.items()}
     return dict(module_version=VERSION,predicted_change=predicted,actual_change=actual,residual=residual,
                 within_modeled_support={k:actual[k] in values if actual[k] is not None else None for k,values in support.items()},
@@ -58,6 +52,8 @@ def record_action(report,before,after,action_id,result,directory=None):
     if type(before.get('state_version')) is not int or type(after.get('state_version')) is not int or after['state_version']<=before['state_version']: return None
     candidates=(report.get('event_sequence') or {}).get('candidates',[])
     matched=[c for c in candidates if c.get('action_id',c.get('first_action_id'))==action_id]
+    if any(b.get('observation_boundary') for c in matched for b in c.get('branches',[])):
+        return None  # A battle-entry observation is not a predicted battle outcome.
     if not matched:
         matched=[c for c in (report.get('event') or {}).get('candidates',[]) if c.get('action_id')==action_id]
     if not matched and not any(o.get('action_id')==action_id for o in (old.get('event_screen') or {}).get('options',[])): return None

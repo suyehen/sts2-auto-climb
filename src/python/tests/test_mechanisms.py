@@ -56,7 +56,7 @@ def test_full_inventory_does_not_claim_reference_is_executable():
     result=inventory()
     assert len(result['entries'])==596+66+299+190
     assert all(e['tier']=='reference_only' for e in result['entries'] if e['category']=='monster')
-    assert result['counts']['adapter']>0 and result['counts']['ai_required']>0
+    assert result['counts']['defined']>0 and result['counts']['ai_required']>0
 
 
 def test_local_proof_does_not_claim_full_future_simulation():

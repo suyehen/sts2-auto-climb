@@ -1,13 +1,13 @@
 """Shared situational utility. Points are explicit proxies, not win probabilities."""
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from math import isfinite
 from autoslay.knowledge_base.templates import canonical
-from autoslay.rules.registry import IroncladRules
+from autoslay.rules.registry import KnowledgeRules
 from autoslay.decision.contracts import CombatState, UnsupportedEffect
 from autoslay.probability.draw import at_least_one
 from autoslay.evaluation.contextual import load_interactions,score
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 @dataclass(frozen=True)
 class RunPolicy:
@@ -69,17 +69,15 @@ def card_features(value, entries):
     try:
         card, variant = canonical(value, entries)
     except ValueError as exc:
-        from autoslay.evaluation.entity_effects import immediate_features
-        semantic=immediate_features(value,entries)
-        if semantic is not None:
-            semantic['warnings'].append(str(exc))
-            return semantic
         return dict(entity_id=value.get("entity_id"), cost=value.get("energy_cost", -1), type=value.get("type"), damage=0, block=0, draw=0, strength=0, vulnerable=0, self_hp=0, warnings=[str(exc)])
     features=dict(entity_id=card.entity_id, cost=card.cost, type=card.card_type,
-                  damage=0, block=0, draw=0, energy=0, strength=0, vulnerable=0, self_hp=0,hits=0,exhaust_nonattack_block=0)
+                  damage=0, block=0, draw=0, energy=0, strength=0, vulnerable=0, self_hp=0,hits=0,exhaust_nonattack_block=0,
+                  costs_x=card.costs_x,costs_star_x=card.costs_star_x,star_cost=card.star_cost,healing_effects=[])
     try:
-        rule=IroncladRules().card(card, CombatState(80,80,0,3,(),(),()))
+        rule=KnowledgeRules().card(card, CombatState(80,80,0,3,(),(),()))
         for effect in rule.effects:
+            if effect.kind in {'heal','heal_percent','gain_max_hp'} and not rule.dynamic:
+                features['healing_effects'].append(dict(operation=effect.kind,amount=effect.amount))
             if effect.kind in {"damage", "dismantle"}:
                 features["damage"] += effect.amount * effect.repeats
                 features['hits'] += effect.repeats
@@ -94,11 +92,7 @@ def card_features(value, entries):
             warnings.append("CONDITIONAL_VALUE_NOT_CALIBRATED")
         if card.target_type == "AllEnemies": features["area"] = True
     except UnsupportedEffect:
-        from autoslay.evaluation.entity_effects import immediate_features
-        semantic=immediate_features(value,entries)
-        if semantic is not None:
-            return semantic
-        if card.card_type not in {"Curse", "Status"}: warnings.append("UNMODELED_CARD_VALUE:"+card.entity_id)
+        warnings.append("UNMODELED_CARD_VALUE:"+card.entity_id)
     features["warnings"]=warnings
     if card.star_cost>0: warnings.append('UNMODELED_CARD_VALUE:STAR_RESOURCE:'+card.entity_id)
     return features
@@ -109,9 +103,9 @@ def unmodeled(features):
 def intrinsic_value(value,entries,policy=None):
     policy=policy or RunPolicy(); f=card_features(value,entries)
     if unmodeled(f):
-        from autoslay.evaluation.entity_effects import evaluate_entity
+        from autoslay.evaluation.entity_effects import entity_reference
         return dict(utility=None,features=f,warnings=f['warnings'],
-                    semantic_analysis=evaluate_entity(value,RunContext(80,80,0),entries,policy))
+                    semantic_analysis=entity_reference(value,entries))
     parts=dict(damage=f['damage']*policy.damage_weight,block=f['block']*policy.block_weight,
                draw=f['draw']*policy.draw_weight,energy=f.get('energy',0)*policy.energy_weight,strength=f['strength']*policy.strength_weight,
                vulnerable=f['vulnerable']*policy.vulnerable_weight,self_hp=-f['self_hp']*policy.hp_weight,
@@ -147,30 +141,38 @@ def deck_value(deck, context, entries, policy=None, interactions=None):
         opening_damage_proxy=damage, opening_block_proxy=block, opening_draw_proxy=cycling,
         opening_strength_proxy=strength, curse_status_count=curses,
         opening_productive_probability=float(at_least_one(n,len(productive),draw))),
-        warnings=warnings, basis='canonical local descriptions; average opening resources capped by energy demand',
+        warnings=warnings, basis='declared model commands; average opening resources capped by energy demand',
         confidence='partial' if warnings else 'heuristic',
         limitations=['unknown card contributions are excluded; known-component deltas are provisional and may mis-rank synergies',
                      'resource proxies are not simulated encounter damage/HP loss',
                      'conditional triggers, exhaust engine and card retention require dedicated valuations'])
 
-def compare_choice(deck, context, entries, *, add=None, remove=None, upgrade=None, policy=None,interactions=None):
+def compare_choice(deck, context, entries, *, add=None, remove=None, upgrade=None, policy=None,interactions=None,relics=()):
+    policy=policy or RunPolicy()
     before=deck_value(deck,context,entries,policy,interactions)
-    after=list(deck)
     if sum(x is not None for x in (add,remove,upgrade)) > 1: raise ValueError('One deck change per comparison')
-    if add is not None: after.append(add)
-    if remove is not None or upgrade is not None:
-        wanted=remove if remove is not None else upgrade
-        matches=[i for i,c in enumerate(after) if c.get('instance_id')==wanted]
-        if len(matches)!=1: raise ValueError('Card instance must match exactly once')
-        if remove is not None:
-            _,variant=canonical(after[matches[0]],entries)
-            if 'Eternal' in variant.get('keywords',[]): raise ValueError('Eternal card cannot be removed')
-            after.pop(matches[0])
-        else:
-            c=dict(after[matches[0]]); c['upgrade_level']=c.get('upgrade_level',0)+1
-            canonical(c,entries)  # No invented upgraded variant.
-            after[matches[0]]=c
-    result=deck_value(after,context,entries,policy,interactions)
-    return dict(delta_utility=result['utility_points']-before['utility_points'], before=before, after=result,
-                component_deltas={k:result['components'][k]-v for k,v in before['components'].items()},
+    from autoslay.rules.run_commands import RunCommands,RunTransition
+    from autoslay.evaluation.strategic import RunResources
+    state=RunResources(context.hp,context.max_hp,context.gold,dead=context.hp==0,deck=tuple(deck),relics=tuple(relics))
+    commands=RunCommands(references=entries)
+    command=(dict(operation='add_to_deck',card=add) if add is not None else
+             dict(operation='remove_card',instance_id=remove) if remove is not None else
+             dict(operation='upgrade_card',instance_id=upgrade) if upgrade is not None else None)
+    try:transition=commands.execute(state,command,source='choice') if command else RunTransition(state)
+    except UnsupportedEffect as exc:raise ValueError(str(exc)) from exc
+    changed=replace(context,hp=transition.state.hp,max_hp=transition.state.max_hp,gold=transition.state.gold)
+    result=deck_value(list(transition.state.deck),changed,entries,policy,interactions)
+    gaps=list(transition.gaps);utility=None
+    from autoslay.evaluation.events import transition_value
+    try:
+        valued=transition_value(state,transition.state,context,entries,policy,interactions=interactions)
+        if not gaps:utility=valued['utility']
+    except ValueError as exc:gaps.append(str(exc))
+    components={k:result['components'][k]-v for k,v in before['components'].items()}
+    resources=((transition.state.hp-state.hp)*policy.hp_weight*context.urgency+
+        (transition.state.max_hp-state.max_hp)*policy.max_hp_weight+(transition.state.gold-state.gold)*policy.gold_weight)
+    if resources:components['run_resources']=resources
+    return dict(delta_utility=utility, before=before, after=result,after_resources=asdict(transition.state),
+                command_trace=list(transition.trace),mechanism_gaps=gaps,
+                component_deltas=components,
                 metric_deltas={k:result['metrics'][k]-v for k,v in before['metrics'].items()})

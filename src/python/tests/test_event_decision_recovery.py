@@ -76,9 +76,10 @@ def test_event_loading_timeout_is_specific_and_never_calls_model(tmp_path,monkey
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('code',['ILLEGAL_ACTION','ILLEGAL_TARGET','TARGET_REQUIRED','STALE_MODEL_RESULT'])
+@pytest.mark.parametrize('fault',['UNKNOWN_DECISION_CANDIDATE','STALE_MODEL_RESULT','EXTRA_ACTION','RAW_STEPS'])
 @pytest.mark.parametrize('outcome',['corrected','invalid_again','state_changed','paused'])
-def test_semantic_decision_errors_get_one_state_checked_correction(tmp_path,code,outcome):
+def test_candidate_reply_errors_get_one_state_checked_correction(tmp_path,fault,outcome):
+    code=fault if fault in {'UNKNOWN_DECISION_CANDIDATE','STALE_MODEL_RESULT'} else 'MODEL_INVALID_DECISION'
     async def run():
         agent,s,_,submit=make_agent(tmp_path);origin=deepcopy(s)
         agent.running=True;agent.generation=1
@@ -86,13 +87,14 @@ def test_semantic_decision_errors_get_one_state_checked_correction(tmp_path,code
         class Provider:
             async def decide(self,packet):
                 packets.append(packet)
-                value=dict(state_token=source(origin)['state_sha256'],reason='测试',
-                    steps=[dict(action_id='play_a',target_id='e')])
+                value=dict(state_token=source(origin)['state_sha256'],reason='测试',candidate_id='option_1')
                 if len(packets)==1 or outcome=='invalid_again':
-                    if code=='ILLEGAL_ACTION':value['steps'][0]['action_id']='old-screen-option'
-                    if code=='ILLEGAL_TARGET':value['steps'][0]['target_id']='old-enemy'
-                    if code=='TARGET_REQUIRED':value['steps'][0]['target_id']=None
-                    if code=='STALE_MODEL_RESULT':value['state_token']='old-state'
+                    if fault=='UNKNOWN_DECISION_CANDIDATE':value['candidate_id']='old-screen-option'
+                    if fault=='STALE_MODEL_RESULT':value['state_token']='old-state'
+                    if fault=='EXTRA_ACTION':value.update(action_id='quit_game',target_id='old-enemy')
+                    if fault=='RAW_STEPS':
+                        value.pop('candidate_id')
+                        value['steps']=[dict(action_id='play_a',target_id=None)]
                 if len(packets)==1:
                     if outcome=='state_changed':s['state']['legal_actions'].pop()
                     if outcome=='paused':agent.running=False

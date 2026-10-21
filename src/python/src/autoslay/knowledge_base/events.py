@@ -29,27 +29,23 @@ def observe(snapshot,directory=None):
             temp.replace(path)
     return dict(recorded=True,observation_id=identity)
 
-def rules(path=None):
-    path=Path(path or dataset_path('event_rules'))
-    data=read_json(path)
-    if data.get('schema_version')!='events/1.0': raise ValueError('Invalid event rules')
-    return data
+
+def rules():
+    from copy import deepcopy
+    from autoslay.rules.model_store import load_models
+    from autoslay.rules.registry import GAME_VERSION, IMPLEMENTATION_SHA256
+    models=load_models()
+    return dict(version=models.rules_version,game_version=GAME_VERSION,
+                game_assembly_sha256=IMPLEMENTATION_SHA256,entries=deepcopy(dict(models.flows)))
+
 
 def resource_hook_warnings(player,inventory_path=None):
     """Source-backed event gate. No assumptions that every relic affects event HP."""
-    inventory=read_json(inventory_path or dataset_path('source_inventory'))
-    by_id={e['entity_id']:e for e in inventory['entries']}
-    sensitive={'AfterCurrentHpChanged','AfterDamageReceived','AfterDeath','AfterDiedToDoom',
-               'AfterModifyingHpLostAfterOsty','AfterPreventingDeath','ModifyHpLostAfterOsty',
-               'ModifyHpLostAfterOstyLate','ShouldDieLate','ModifyDamageAdditive','ModifyDamageMultiplicative'}
-    sensitive |= {'AfterGoldGained','AfterModifyingGoldGained','ModifyGoldGained',
-                  'OnEventFinished','AfterEventStarted','BeforeEventStarted',
-                  'OnUpgrade','BeforeCardRemoved','AfterPotionProcured','ShouldProcurePotion',
-                  'ModifyRestSiteHealAmount','TryModifyRestSiteHealRewards'}
+    from autoslay.rules.model_store import load_models
+    models=load_models()
     warnings=[]
     for relic in player.get('relics') or []:
-        row=by_id.get(relic['entity_id'])
-        if not row: warnings.append('UNKNOWN_RELIC_SOURCE:'+relic['entity_id'])
-        elif sensitive.intersection(row['hooks']): warnings.append('EVENT_RESOURCE_HOOK:'+relic['entity_id'])
+        row=models.records.get(relic['entity_id'])
+        if row is None or 'run_hooks' not in row:warnings.append('EVENT_RESOURCE_MODEL_MISSING:'+relic['entity_id'])
     if (player.get('creature') or {}).get('powers'): warnings.append('EVENT_PLAYER_POWER_HOOKS_NOT_VERIFIED')
     return warnings

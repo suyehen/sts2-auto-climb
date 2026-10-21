@@ -1,0 +1,2413 @@
+{
+  "schema_version": "independent-rule-migration-evidence/1",
+  "execution_authority": false,
+  "full_support": false,
+  "source_game_version": "0.111.0",
+  "source_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "inventory": {
+    "source_files": 3538,
+    "source_type_declarations": 5900,
+    "raw_pe_types": 9761,
+    "concrete_inheritance_candidates": 1660,
+    "mock_constant_true": 51,
+    "deprecated_name_hints": 14,
+    "runtime_roster_verified": false,
+    "categories": {
+      "MegaCrit.Sts2.Core.Models.AchievementModel": 9,
+      "MegaCrit.Sts2.Core.Models.ActModel": 5,
+      "MegaCrit.Sts2.Core.Models.AfflictionModel": 10,
+      "MegaCrit.Sts2.Core.Models.BadgeModel": 2,
+      "MegaCrit.Sts2.Core.Models.CardModel": 603,
+      "MegaCrit.Sts2.Core.Models.CardPoolModel": 14,
+      "MegaCrit.Sts2.Core.Models.CharacterModel": 8,
+      "MegaCrit.Sts2.Core.Models.EnchantmentModel": 24,
+      "MegaCrit.Sts2.Core.Models.EncounterModel": 98,
+      "MegaCrit.Sts2.Core.Models.EventModel": 69,
+      "MegaCrit.Sts2.Core.Models.ModifierModel": 17,
+      "MegaCrit.Sts2.Core.Models.MonsterModel": 126,
+      "MegaCrit.Sts2.Core.Models.OrbModel": 7,
+      "MegaCrit.Sts2.Core.Models.PotionModel": 66,
+      "MegaCrit.Sts2.Core.Models.PotionPoolModel": 10,
+      "MegaCrit.Sts2.Core.Models.PowerModel": 283,
+      "MegaCrit.Sts2.Core.Models.RelicModel": 299,
+      "MegaCrit.Sts2.Core.Models.RelicPoolModel": 9,
+      "MegaCrit.Sts2.Core.Models.SingletonModel": 1
+    },
+    "source_generated_subtype_count": 1660,
+    "caveat": "The source-generated table and PE concrete-inheritance set agree by full type name. Mocks/deprecated types remain included; live mods/injections/availability and semantic support remain unverified.",
+    "static_model_type_set_verified": true,
+    "static_roster_report": ".runtime/analysis/independent-static-roster.json"
+  },
+  "compiled_model_definitions": 12,
+  "full_model_support_certified": 0,
+  "models": [
+    {
+      "model_id": "CARD.DAZED",
+      "source_type": "MegaCrit.Sts2.Core.Models.Cards.Dazed",
+      "source_sha256": "41ef3c48ad9459d39d364f2f38863bbd15827e01fe2b48a243b40444cec0a28b",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Cards/Dazed.cs",
+      "generated_sha256": "20351e908f3fbe3bda3b7b01c343f62bedd58ff3475eae318a839bffd06fdf17",
+      "verified_callbacks": [
+        "constructor",
+        "CanonicalKeywords",
+        "MaxUpgradeLevel"
+      ],
+      "verified_scope": "source-synchronized native class; parameterized canonical energy cost, local/global keyword state and observed upgrades; no complete play/ethereal/exhaust/card-source lifecycle certification"
+    },
+    {
+      "model_id": "CARD.ENLIGHTENMENT",
+      "source_type": "MegaCrit.Sts2.Core.Models.Cards.Enlightenment",
+      "source_sha256": "0728fb65a7941754fc7d71dcdd221f25e770ccae922a6531df434ae4e8538d5d",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs",
+      "generated_sha256": "234e3b07f1173500099bdd36d8bf2599ae7ce4459936bea582021d117a8b73e1",
+      "verified_callbacks": [
+        "constructor",
+        "CanonicalKeywords",
+        "OnPlay"
+      ],
+      "verified_scope": "direct protected OnPlay callback with explicit upgraded state modifies Hand through existing native energy costs; normal turn/played vs upgraded combat expiration; no complete play/exhaust lifecycle certification"
+    },
+    {
+      "model_id": "CARD.INJURY",
+      "source_type": "MegaCrit.Sts2.Core.Models.Cards.Injury",
+      "source_sha256": "1ee52eb32a79f085cca2178f438ed0936bbd68df50604206111edf0b97c8b87b",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Cards/Injury.cs",
+      "generated_sha256": "a84466c1c1c06c40495aa57f312e332603fa1b5e71d9828dc4e65a3a75954560",
+      "verified_callbacks": [
+        "constructor",
+        "CanonicalKeywords",
+        "MaxUpgradeLevel"
+      ],
+      "verified_scope": "source-synchronized native class; parameterized canonical energy cost, local/global keyword state and observed upgrades; no complete play/ethereal/exhaust/card-source lifecycle certification"
+    },
+    {
+      "model_id": "POWER.ARTIFACT_POWER",
+      "source_type": "MegaCrit.Sts2.Core.Models.Powers.ArtifactPower",
+      "source_sha256": "d2b7f2c1bfc36466e5ab0bd4e4581697c8299ce579c6f978a4fe7a1535c9eb3a",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Powers/ArtifactPower.cs",
+      "generated_sha256": "28871473ac643b05b3816c32432c563be9d0548915106841cfac2a854564fb84",
+      "verified_callbacks": [
+        "TryModifyPowerAmountReceived",
+        "AfterModifyingPowerAmountReceived",
+        "GetScaledAmountForMultiplayer"
+      ],
+      "verified_scope": "observed-empty unrelated domains; null card source; nested Artifact/Strength commands and pure scaling"
+    },
+    {
+      "model_id": "POWER.MINION_POWER",
+      "source_type": "MegaCrit.Sts2.Core.Models.Powers.MinionPower",
+      "source_sha256": "8acbaf43969b256e0777bed2371830f7399e8c32fc45c8c35a3de7cde8b8c392",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Powers/MinionPower.cs",
+      "generated_sha256": "2391860279e9a7e918e31bc3ab8435d61682d2833e5881a5c3de4ebd6067e757",
+      "verified_callbacks": [
+        "OwnerIsSecondaryEnemy",
+        "ShouldOwnerDeathTriggerFatal",
+        "ShouldPowerBeRemovedAfterOwnerDeath"
+      ],
+      "verified_scope": "native flags and owned-player apply/remove only; full enemy/death pipeline pending"
+    },
+    {
+      "model_id": "POWER.NO_ENERGY_GAIN_POWER",
+      "source_type": "MegaCrit.Sts2.Core.Models.Powers.NoEnergyGainPower",
+      "source_sha256": "951b1f4d7d5565f52c99adf2fe8501aa5e1871849ffff2ada894723cbe7a5d5a",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Powers/NoEnergyGainPower.cs",
+      "generated_sha256": "37f79170a87db9123b92a672a21d4aadf9a393f79a8cf22b4cd3f50643c59498",
+      "verified_callbacks": [
+        "ModifyEnergyGain",
+        "AfterModifyingEnergyGain",
+        "AfterSideTurnEnd"
+      ],
+      "verified_scope": "source-synchronized model blocks only its owner; direct participant-scoped callback removal through PowerCmd; complete turn-end scheduler pending"
+    },
+    {
+      "model_id": "POWER.STRENGTH_POWER",
+      "source_type": "MegaCrit.Sts2.Core.Models.Powers.StrengthPower",
+      "source_sha256": "70eb670ee85e6d4c92c68f9e20f869035de8f299880e1c49a97ce45a52437a69",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Powers/StrengthPower.cs",
+      "generated_sha256": "127824810f8285a3383c3864f33c35b65ca5f4b16ac152fa65fece60cb75a14c",
+      "verified_callbacks": [
+        "ModifyDamageAdditive"
+      ],
+      "verified_scope": "owned-player PowerCmd apply/modify/remove, signed amounts, Artifact interception; powered-attack additive callback, not full Damage command"
+    },
+    {
+      "model_id": "RELIC.LEES_WAFFLE",
+      "source_type": "MegaCrit.Sts2.Core.Models.Relics.LeesWaffle",
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Relics/LeesWaffle.cs",
+      "source_sha256": "f196ef79d95b68155195e8171448c098fdc2342a3935f4c88de3a66a9521a019",
+      "generated_sha256": "6f23d95cd1d310bb33b3427f05864f662348be1d21746213fa7fe755bce1c37f",
+      "compiled": true,
+      "verified_callback": "AfterObtained",
+      "verified_scope": "owned-state normal noncombat resource/history path",
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false
+    },
+    {
+      "model_id": "RELIC.MANGO",
+      "source_type": "MegaCrit.Sts2.Core.Models.Relics.Mango",
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Relics/Mango.cs",
+      "source_sha256": "e76c97e377e887229e3492d9bcf3cda05fec8c476335b5a59e240af050857e2a",
+      "generated_sha256": "e74d62dd3a36994d1a468fe266516ea54be3b9de2b4c78c8fa30e999afc64a83",
+      "compiled": true,
+      "verified_callback": "AfterObtained",
+      "verified_scope": "owned-state normal noncombat resource/history path",
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false
+    },
+    {
+      "model_id": "RELIC.PEAR",
+      "source_type": "MegaCrit.Sts2.Core.Models.Relics.Pear",
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Relics/Pear.cs",
+      "source_sha256": "87c39f523195105ffad7f240251af0873ea3dc88bc8e113db3790f764ff8e19f",
+      "generated_sha256": "77dc9b8f06bad29e610f61ee87130092b6a17545e9f6b9a740540118613769f2",
+      "compiled": true,
+      "verified_callback": "AfterObtained",
+      "verified_scope": "owned-state normal noncombat resource/history path",
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false
+    },
+    {
+      "model_id": "RELIC.STRAWBERRY",
+      "source_type": "MegaCrit.Sts2.Core.Models.Relics.Strawberry",
+      "generated_source": "src/csharp/rules/Generated/Code/MegaCrit.Sts2.Core.Models.Relics/Strawberry.cs",
+      "source_sha256": "2dcaa250e85d9bf5aceade5a472003aceb7a0a9976b3975ea89cce8eb4fbc1cd",
+      "generated_sha256": "4ad100790180ebf6c21891922fb26a4f569312c357ca78aad01c99f54f7e65a4",
+      "compiled": true,
+      "verified_callback": "AfterObtained",
+      "verified_scope": "owned-state normal noncombat resource/history path",
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false
+    },
+    {
+      "model_id": "SINGLETON.MULTIPLAYER_SCALING_MODEL",
+      "source_type": "MegaCrit.Sts2.Core.Models.Singleton.MultiplayerScalingModel",
+      "source_sha256": "7ce76c42063ec5d52efb5d20df1f266201f05642e36d7b55cbce0a9b39d757d1",
+      "compiled": true,
+      "full_model_support": false,
+      "default_prediction_entry": false,
+      "runtime_game_comparison": false,
+      "port_source": "src/csharp/rules/Native/Models/Singleton/MultiplayerScalingModel.cs",
+      "port_sha256": "1e067ae3750a82a06ecc5feb9fd0bab9ba42619b1541bedb04d87deea7040252",
+      "migration_method": "owned_port_of_native_rule_members",
+      "verified_callbacks": [
+        "Initialize",
+        "OnCombatEntered",
+        "ModifyBlockMultiplicative",
+        "GetMultiplayerScaling"
+      ],
+      "verified_scope": "shared owned run/combat references, listener placement and player/boss formula branches; encounter spawning/complete block command pending"
+    }
+  ],
+  "core_ports": [
+    {
+      "source_type": "MegaCrit.Sts2.Core.Entities.Creatures.Creature",
+      "source_path": "MegaCrit.Sts2.Core.Entities.Creatures/Creature.cs",
+      "source_sha256": "c6a998d46ad143990aa69a320a584497e303cb101f875bafd83b94382991931d",
+      "port_file": "src/csharp/rules/Native/Entities/Creatures/Creature.cs",
+      "port_sha256": "6d9817b0f0ed4ef7663ecb046eaff31f127162f5edfd940faf65ec4eb479983f",
+      "native_methods": [
+        {
+          "name": "DamageBlockInternal",
+          "parameters": "(decimal amount, ValueProp props)",
+          "line": 431,
+          "source_sha256": "8e18f89bd5e014f133572f712ae57dda0ed4b094648425fb6fcd92551634982c"
+        },
+        {
+          "name": "LoseHpInternal",
+          "parameters": "(decimal amount, ValueProp props)",
+          "line": 446,
+          "source_sha256": "3101a25822034c2b3a81be20b5186f848fdd25b899d28ea507af4456bfef50c4"
+        },
+        {
+          "name": "GainBlockInternal",
+          "parameters": "(decimal amount)",
+          "line": 460,
+          "source_sha256": "77c542154ebc2089456fdce96d37a2b1ba8e329ccce46b0498584d6705c2e18c"
+        },
+        {
+          "name": "LoseBlockInternal",
+          "parameters": "(decimal amount)",
+          "line": 469,
+          "source_sha256": "ae8fdd17539e645807bd6b1e8d173b6d02957b0b8cfa2ffee69f5293bc1a7dd8"
+        },
+        {
+          "name": "HealInternal",
+          "parameters": "(decimal amount)",
+          "line": 478,
+          "source_sha256": "c97082d92aee13fecf821a1c24ba9088179ff4cf5567b1969c59ef381ddad67e"
+        },
+        {
+          "name": "SetCurrentHpInternal",
+          "parameters": "(decimal amount)",
+          "line": 489,
+          "source_sha256": "a1ddf13aba4e654ccda85ad19d7ca7152f4fda069f69008599155b94550a787f"
+        },
+        {
+          "name": "SetMaxHpInternal",
+          "parameters": "(decimal amount)",
+          "line": 494,
+          "source_sha256": "b5d6c70312570ebd176bd2d588e13ce25c7a88add8410af56a7b3ad84b586d68"
+        },
+        {
+          "name": "HasPower",
+          "parameters": "()",
+          "line": 561,
+          "source_sha256": "cc3a38dfdc002ba29e0b8d4c21b3bc8bbfd7cf7f0cb4972a0dd8fa11aabd178d"
+        },
+        {
+          "name": "HasPower",
+          "parameters": "(ModelId id)",
+          "line": 566,
+          "source_sha256": "79d17d13cefbf5628ab80127b26cae9fb991724a1a0e71dc623463c51a2d3448"
+        },
+        {
+          "name": "GetPower",
+          "parameters": "()",
+          "line": 571,
+          "source_sha256": "8fde6b625e49a773df33d55f679dccaa060cf5aab52f0741bba597964b5faa04"
+        },
+        {
+          "name": "GetPower",
+          "parameters": "(ModelId id)",
+          "line": 576,
+          "source_sha256": "8505e153bd259ae611b928b84cb7a4de5266a0962f7dbfd56e9b1a5344709ff4"
+        },
+        {
+          "name": "GetPowerInstances",
+          "parameters": "()",
+          "line": 581,
+          "source_sha256": "596878a5bd39cad3d60a400c5e863d9c99f46a26650a2d67388739a3eb44a6f1"
+        },
+        {
+          "name": "GetPowerInstances",
+          "parameters": "(ModelId id)",
+          "line": 586,
+          "source_sha256": "356593ebf81d07fe729875e8e2f7e170b68d74a0ac753d9159dcc370b82fd53b"
+        },
+        {
+          "name": "GetPowerById",
+          "parameters": "(ModelId id)",
+          "line": 591,
+          "source_sha256": "b3e616fc4127204f6d8f42a12eef11121edb8a9294b065034b4a86ae88344e39"
+        },
+        {
+          "name": "GetPowerAmount",
+          "parameters": "()",
+          "line": 596,
+          "source_sha256": "514aa3dc3d7d28eff62594a4e7e073bcebdafd726c2ee7f33aff94ff2d819fc1"
+        },
+        {
+          "name": "ApplyPowerInternal",
+          "parameters": "(PowerModel power)",
+          "line": 606,
+          "source_sha256": "d56c27567196abe3f47067bd22ad1f20c2adbba016dae9647edabeb943faed38"
+        },
+        {
+          "name": "InvokePowerModified",
+          "parameters": "(PowerModel power, int change, bool silent)",
+          "line": 627,
+          "source_sha256": "feedb31c7889e6a14ff7055a22054f2f377b88d5fdb5b4ac728ee0819c1dee12"
+        },
+        {
+          "name": "RemovePowerInternal",
+          "parameters": "(PowerModel power)",
+          "line": 648,
+          "source_sha256": "5f5f59981e8a9dae031d8d95cb8ff8100955b77c07f7450974f181f0ed9c2c9d"
+        },
+        {
+          "name": "RemoveAllPowersInternalExcept",
+          "parameters": "(IEnumerable<PowerModel>? except = null)",
+          "line": 663,
+          "source_sha256": "964ecfecf00b47a7712c7ee8ee6c971af16caa18d87a81dcf102c566de1b12c4"
+        },
+        {
+          "name": "BeforeTurnStart",
+          "parameters": "(CombatSide side)",
+          "line": 678,
+          "source_sha256": "7dd68a4431dac7bc174545c90132045e17782752dc762d02f8e522f4f3eea0b4"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Block",
+          "line": 39,
+          "source_sha256": "80c21b21b06ea2e05db40efc219722c76f6951e6957a44d5443fb4b7c838ec6a"
+        },
+        {
+          "name": "CurrentHp",
+          "line": 60,
+          "source_sha256": "fd458381c07ed5a850a737d1ca7a4c8f938acb592a1eb3dafca75159ece57084"
+        },
+        {
+          "name": "MaxHp",
+          "line": 81,
+          "source_sha256": "fb56e4d2723626b4ee53ed275cd2f9626b7a9da100a4732a5e9e47bac3c75d75"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Commands.CreatureCmd",
+      "source_path": "MegaCrit.Sts2.Core.Commands/CreatureCmd.cs",
+      "source_sha256": "3e11f255f18296998511d03ee952a7b16974f5999de7db8941e35a3ef4e92768",
+      "port_file": "src/csharp/rules/Native/Commands/CreatureCmd.cs",
+      "port_sha256": "86aded5afdede6b1ffaf25d79eac05dfac78dbf2f299f35b26bf4051422c21a9",
+      "native_methods": [
+        {
+          "name": "Heal",
+          "parameters": "(Creature creature, decimal amount, bool playAnim = true)",
+          "line": 738,
+          "source_sha256": "32d5502c79cbaaa8b777a18fa5bb9e899c5df552c61ffa5104c0dc50f7ea19e8"
+        },
+        {
+          "name": "SetCurrentHp",
+          "parameters": "(Creature creature, decimal amount)",
+          "line": 817,
+          "source_sha256": "0562ce6513506bbc35d181ef5a0bc67d2b04f3f9532bc836f2d4c89f1b87cb24"
+        },
+        {
+          "name": "GainMaxHp",
+          "parameters": "(Creature creature, decimal amount)",
+          "line": 841,
+          "source_sha256": "b4edf1f1cd96376f170a4d8dbf41f285410937c657b55f5b15c5c6a5748b7810"
+        },
+        {
+          "name": "SetMaxHp",
+          "parameters": "(Creature creature, decimal amount)",
+          "line": 894,
+          "source_sha256": "c7ac794afc0eba6adfbd02811364623054de7109b933e4d99daa7de5bdd20751"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Commands.PowerCmd",
+      "source_path": "MegaCrit.Sts2.Core.Commands/PowerCmd.cs",
+      "source_sha256": "9ee742b19c0e000b5016d7638ddb27ad155598be8edd9101d54606d4b8a62680",
+      "port_file": "src/csharp/rules/Native/Commands/PowerCmd.cs",
+      "port_sha256": "8ba12b1d1a608117286b7e03c160e0022f4fbcae3a4c03366a8cf905f8703ce8",
+      "native_methods": [
+        {
+          "name": "Apply",
+          "parameters": "(PlayerChoiceContext choiceContext, IEnumerable<Creature>? targets, decimal amount, Creature? applier, CardModel? cardSource, bool silent = false)",
+          "line": 36,
+          "source_sha256": "f5a320775fb35b0febd9ecb4ae97d92bf584c2c3ff795355d9500fb0563e4725"
+        },
+        {
+          "name": "Apply",
+          "parameters": "(PlayerChoiceContext choiceContext, Creature target, decimal amount, Creature? applier, CardModel? cardSource, bool silent = false)",
+          "line": 71,
+          "source_sha256": "139bfdbeebf1ecaab9b4032f404a8f5ea451baf80c407e168a1009a6ab098a50"
+        },
+        {
+          "name": "Apply",
+          "parameters": "(PlayerChoiceContext choiceContext, PowerModel power, Creature target, decimal amount, Creature? applier, CardModel? cardSource, bool silent = false)",
+          "line": 105,
+          "source_sha256": "287616908b40aef1523a3d50cc718bc7aa745921b9a39f0d1e0c2391531ac443"
+        },
+        {
+          "name": "FindExistingInstanceForStacking",
+          "parameters": "(PowerModel basePower, Creature target, Creature? applier)",
+          "line": 169,
+          "source_sha256": "582f4f69ef2810275c6be68b493f1594812bc0d63ac6a96a5fe7ee4ffe274bbc"
+        },
+        {
+          "name": "Decrement",
+          "parameters": "(PowerModel power)",
+          "line": 184,
+          "source_sha256": "8af01cad8a35829c6d140a69f7c72f0a5248c6f4c380aa907621a0f64f7b846c"
+        },
+        {
+          "name": "TickDownDuration",
+          "parameters": "(PowerModel power)",
+          "line": 194,
+          "source_sha256": "a07390ff7839cbc8a5d04bfe3954402c387dc8ffba904628aac17341deebf759"
+        },
+        {
+          "name": "ModifyAmount",
+          "parameters": "(PlayerChoiceContext choiceContext, PowerModel power, decimal offset, Creature? applier, CardModel? cardSource, bool silent = false)",
+          "line": 219,
+          "source_sha256": "b893ee278c74dabd177788d7bccf1da658764f174306f00711d8dcaa1f0ec1d8"
+        },
+        {
+          "name": "Remove",
+          "parameters": "(Creature creature)",
+          "line": 282,
+          "source_sha256": "ea78c053908b61b6fd95edb9556f1035b979357922321a81cb76d6e98d54c0e5"
+        },
+        {
+          "name": "Remove",
+          "parameters": "(PowerModel? power)",
+          "line": 291,
+          "source_sha256": "6def5a1150e92aa0ab861ab16918278abb2468c61bc5bc8ebe581af357c61d7c"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Hooks.Hook",
+      "source_path": "MegaCrit.Sts2.Core.Hooks/Hook.cs",
+      "source_sha256": "863390330330ed1c72e3994405c8d4dbe90fd3c3837b46b39ec1e1d8924c86c9",
+      "port_file": "src/csharp/rules/Native/Hooks/Hook.cs",
+      "port_sha256": "7d927f3b4f0d4bc457d3778a2f2a8eb9d95c834142b19172fef8c8e13c7ac0da",
+      "native_methods": [
+        {
+          "name": "IterateCombatHookListeners",
+          "parameters": "(ICombatState combatState)",
+          "line": 53,
+          "source_sha256": "f38e4e2f6abab2bff0f2db41b7209362c2ef314f0981cbd988c1d53b0bcd9d74"
+        },
+        {
+          "name": "AfterCurrentHpChanged",
+          "parameters": "(IRunState runState, ICombatState? combatState, Creature creature, decimal delta)",
+          "line": 386,
+          "source_sha256": "4867d765aa485a12c9a757e22b8603ccedcce51ba283e0c43ac5b1803e6fdd37"
+        },
+        {
+          "name": "AfterEnergySpent",
+          "parameters": "(ICombatState combatState, CardModel card, int amount)",
+          "line": 532,
+          "source_sha256": "68f037e4ea154728dbea48d16e041abaa81bd708f583530ab0b808589b7e7364"
+        },
+        {
+          "name": "AfterModifyingEnergyGain",
+          "parameters": "(ICombatState combatState, IEnumerable<AbstractModel> modifiers)",
+          "line": 721,
+          "source_sha256": "461e9ccde4b23bf2293aaabe46f8b6b97531ae850cfebafb38ce3b42e4054f26"
+        },
+        {
+          "name": "AfterModifyingPowerAmountGiven",
+          "parameters": "(ICombatState combatState, IEnumerable<AbstractModel> modifiers, PowerModel modifiedPower)",
+          "line": 811,
+          "source_sha256": "4eeb51c34c74470980bfad06ef75f382c074b394c0179dca929b9f39e039bc39"
+        },
+        {
+          "name": "AfterModifyingPowerAmountReceived",
+          "parameters": "(ICombatState combatState, IEnumerable<AbstractModel> modifiers, PowerModel modifiedPower)",
+          "line": 826,
+          "source_sha256": "d8b6f9e779ccb0c77b370fdaaeca08820fe7f065f51695c428574244f18033e0"
+        },
+        {
+          "name": "BeforePowerAmountChanged",
+          "parameters": "(ICombatState combatState, PowerModel power, decimal amount, Creature target, Creature? applier, CardModel? cardSource)",
+          "line": 1020,
+          "source_sha256": "4b0c115e1d824ec5f686f3908c229648ee1bd9e713728b9fbca9ec3ed9a53ecd"
+        },
+        {
+          "name": "AfterPowerAmountChanged",
+          "parameters": "(ICombatState combatState, PlayerChoiceContext choiceContext, PowerModel power, decimal amount, Creature? applier, CardModel? cardSource)",
+          "line": 1032,
+          "source_sha256": "b32d74614eb24f06fabee40714dddac8fd97d594f5033cd73794e389edbec795"
+        },
+        {
+          "name": "AfterStarsGained",
+          "parameters": "(ICombatState combatState, int amount, Player gainer)",
+          "line": 1192,
+          "source_sha256": "8bcbfd3701296daf0dd26c7ef506d1435fbee565e8f6802b445a78849b122183"
+        },
+        {
+          "name": "AfterStarsSpent",
+          "parameters": "(ICombatState combatState, int amount, Player spender)",
+          "line": 1204,
+          "source_sha256": "4b44fbd0cd6c57dcdd57b58358c8ed7d96c6deab044190ccc91cc1e35e0f9fc5"
+        },
+        {
+          "name": "ModifyEnergyCostInCombat",
+          "parameters": "(ICombatState combatState, CardModel card, decimal originalCost)",
+          "line": 1583,
+          "source_sha256": "a80a8d0622b9d484877f7a97a9771791431d82c255f4ba6ca0d98dbed4927ebb"
+        },
+        {
+          "name": "ModifyKeywordsInCombat",
+          "parameters": "(ICombatState combatState, CardModel card, ISet<CardKeyword> keywords)",
+          "line": 1604,
+          "source_sha256": "66b0c110d292828e928477167bfe205a1f0180e9bc6a9ab16a9bfb811d616ebe"
+        },
+        {
+          "name": "ModifyEnergyGain",
+          "parameters": "(ICombatState combatState, Player player, decimal originalAmount, out IEnumerable<AbstractModel> modifiers)",
+          "line": 1615,
+          "source_sha256": "428628ae8c504dce7e9ccedd9db43908e350ab1d375c650aada7670f114c8962"
+        },
+        {
+          "name": "ModifyPowerAmountGiven",
+          "parameters": "(ICombatState combatState, PowerModel power, Creature giver, decimal amount, Creature? target, CardModel? cardSource, out IEnumerable<AbstractModel> modifiers)",
+          "line": 1897,
+          "source_sha256": "615308131abdc9e224df769fb026d2e47c1bb68ad103778134366e63df4a76fb"
+        },
+        {
+          "name": "ModifyPowerAmountReceived",
+          "parameters": "(ICombatState combatState, PowerModel canonicalPower, Creature target, decimal amount, Creature? giver, out IEnumerable<AbstractModel> modifiers)",
+          "line": 1926,
+          "source_sha256": "d072dd3ea145bb82e2a9a4c9e07ad119e69870a4dbc8e2985b9a91cb43863d8e"
+        },
+        {
+          "name": "ModifyStarCost",
+          "parameters": "(ICombatState combatState, CardModel card, decimal originalCost)",
+          "line": 2024,
+          "source_sha256": "b8c41780fbf72675dff53db73b79bc34bc334fa3494c75ae61b7d385cfe7653b"
+        },
+        {
+          "name": "ShouldAllowHitting",
+          "parameters": "(ICombatState combatState, Creature creature)",
+          "line": 2140,
+          "source_sha256": "ac52638fe3c1db8f1848206e3175f14651784488b694886be0fab468b17b4ed0"
+        },
+        {
+          "name": "ShouldGainStars",
+          "parameters": "(ICombatState combatState, decimal amount, Player player)",
+          "line": 2340,
+          "source_sha256": "6e2994d8807f2cdbd2ef851adfc3944f9fe082604a7e40cd784f7264cf48021e"
+        },
+        {
+          "name": "ShouldPayExcessEnergyCostWithStars",
+          "parameters": "(ICombatState combatState, Player player)",
+          "line": 2355,
+          "source_sha256": "1de451de2b54e09eaf00e8d32f5a0c8931a77cafa04e3e60f4cd31413f5a526d"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Models.CardModel",
+      "source_path": "MegaCrit.Sts2.Core.Models/CardModel.cs",
+      "source_sha256": "c28300cd936122f0c567fb058c67987ff2da0eeeb465dec7ff6e8e867f8c852c",
+      "port_file": "src/csharp/rules/Native/Models/CardModel.cs",
+      "port_sha256": "1336a5160c749efa545bad827e38173eadea91b232d6855dfbb1127ee41b1ec0",
+      "native_methods": [
+        {
+          "name": "CardModel",
+          "parameters": "(int canonicalEnergyCost, CardType type, CardRarity rarity, TargetType targetType, bool shouldShowInCardLibrary = true)",
+          "line": 1087,
+          "source_sha256": "a36f25ec0c0ba400b1e458812a201ed2aeffe1ae66c844fb3a17b8ae4f012aec"
+        },
+        {
+          "name": "InvokeEnergyCostChanged",
+          "parameters": "()",
+          "line": 1108,
+          "source_sha256": "f780e07f60a55ac8db45c15a82a932c31a86c4236bc5ba02263881234f3dc40c"
+        },
+        {
+          "name": "GetKeywordsWithSources",
+          "parameters": "(KeywordSources sources)",
+          "line": 1153,
+          "source_sha256": "6ca2b6a7b786d7974b5d556426b4ab6dcb579ce60a787ff6116166b0e26b0fb1"
+        },
+        {
+          "name": "ToMutable",
+          "parameters": "()",
+          "line": 1188,
+          "source_sha256": "c904491e9737ccc1913fd3a1d17cb7421dc3f876371b8f7eeab179e4d8992153"
+        },
+        {
+          "name": "DeepCloneFields",
+          "parameters": "()",
+          "line": 1194,
+          "source_sha256": "f68d7f054b2b7cddc3129820721afa31b0107235bc63b22278bfc0a4ea420cc8"
+        },
+        {
+          "name": "AfterCloned",
+          "parameters": "()",
+          "line": 1219,
+          "source_sha256": "18c0a8377e2922970cfe26077df8a686503309e3e7ec83624bbd77af8f7ca1bc"
+        },
+        {
+          "name": "SetStarCostUntilPlayed",
+          "parameters": "(int cost)",
+          "line": 1279,
+          "source_sha256": "eedf1a468d8527f67b1a6e79ba113d2ec3ba7f64b558faf7a3e7ba8f51d69756"
+        },
+        {
+          "name": "SetStarCostThisTurn",
+          "parameters": "(int cost)",
+          "line": 1284,
+          "source_sha256": "58f8804f5ece7613d3591c61346fbcda97bc9c4d09be7e8875ea222cb41c9b2b"
+        },
+        {
+          "name": "SetStarCostThisCombat",
+          "parameters": "(int cost)",
+          "line": 1289,
+          "source_sha256": "bc2c98ae6c576b829607eb212df497d0fa0e7999ccb5c956c99778e9623acac4"
+        },
+        {
+          "name": "GetStarCostThisCombat",
+          "parameters": "()",
+          "line": 1294,
+          "source_sha256": "26d4f7e836e4da836278f3665819c0f180cba2cbbbbeb7570bfaa7d0868d57a8"
+        },
+        {
+          "name": "AddTemporaryStarCost",
+          "parameters": "(TemporaryCardCost cost)",
+          "line": 1299,
+          "source_sha256": "bb48aaa9a1bab356e564716376201054b29d9d32aac12b9c9e2b11bbfce9883d"
+        },
+        {
+          "name": "UpgradeStarCostBy",
+          "parameters": "(int addend)",
+          "line": 1311,
+          "source_sha256": "bd2671aa99eb4ada73f10e515885b87bc93370a8f03dfa6a5cff9ba8457dffc0"
+        },
+        {
+          "name": "AddKeyword",
+          "parameters": "(CardKeyword keyword)",
+          "line": 1330,
+          "source_sha256": "5349b74b37c1019cc1627d30d78e72d0ef20f027ee0dfdcc3bc1cb4f3f4a431a"
+        },
+        {
+          "name": "RemoveKeyword",
+          "parameters": "(CardKeyword keyword)",
+          "line": 1337,
+          "source_sha256": "58180718014cc99b00f770b3f005b387ee82a1ee337d0aaa67f9bc5217a93f56"
+        },
+        {
+          "name": "GetStarCostWithModifiers",
+          "parameters": "()",
+          "line": 1556,
+          "source_sha256": "19c2eec05241ab1522f54ade3d7db5b27812cfad11fe564a234861a2bcf1f460"
+        },
+        {
+          "name": "OnPlay",
+          "parameters": "(PlayerChoiceContext choiceContext, CardPlay cardPlay)",
+          "line": 1644,
+          "source_sha256": "e5f6a478381e7c3f6ee145987fd744f0c5456380bb5cfd4e2063e984c96257d8"
+        },
+        {
+          "name": "OnUpgrade",
+          "parameters": "()",
+          "line": 1666,
+          "source_sha256": "7f4493fd991af72ca9ea01a8002c715340e57bbad766995377fa2f2e5d58f453"
+        },
+        {
+          "name": "SpendResources",
+          "parameters": "()",
+          "line": 1807,
+          "source_sha256": "0df9a4f814a08e00e6b56c0bf9748917132c592e44105276f4bccd3f1da07f33"
+        },
+        {
+          "name": "SpendEnergy",
+          "parameters": "(int amount)",
+          "line": 1822,
+          "source_sha256": "22e31ce6b4e6d9301fba5a203f2306234d0cc8ae137654403ff22d3a3071a9b8"
+        },
+        {
+          "name": "SpendStars",
+          "parameters": "(int amount)",
+          "line": 1836,
+          "source_sha256": "2a687b6eb0ca2a3e490309d9ad36c5ba107b34e44464bfe8bc6fb81d7f87a9d6"
+        },
+        {
+          "name": "UpgradeInternal",
+          "parameters": "()",
+          "line": 2129,
+          "source_sha256": "eff9020353d5d932dacd9ecb55362b7ea6c32cd620f60e40659e1f17045d5ee4"
+        },
+        {
+          "name": "FinalizeUpgradeInternal",
+          "parameters": "()",
+          "line": 2142,
+          "source_sha256": "56759d6775ecec9d77b02cfb77cc0f259edfeb95bb1abd7c171bfdae8abfa5e1"
+        },
+        {
+          "name": "DowngradeInternal",
+          "parameters": "()",
+          "line": 2149,
+          "source_sha256": "3468de660a961e3ed8e060f0eca053ac2933796d2ea570e313fcef6ebe3587b5"
+        },
+        {
+          "name": "AfterDowngraded",
+          "parameters": "()",
+          "line": 2168,
+          "source_sha256": "f5ca0327459ba82363a3d4c1c5133f542f61731c9881b81dc3a33ab943914eaf"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Type",
+          "line": 289,
+          "source_sha256": "654c11c21ad6b8ab64313ae5571cd0377d5dfef9d86c9a0c527d3c3dac2742ec"
+        },
+        {
+          "name": "Rarity",
+          "line": 291,
+          "source_sha256": "ba0fbc730f66637a746643d4ea67beb2c61c5cc46ca84be21e818e1703caee9b"
+        },
+        {
+          "name": "Owner",
+          "line": 334,
+          "source_sha256": "bf09663968058e68195180e609aa448ebfbaa7f6bace284ee6c45c0f8f72c72b"
+        },
+        {
+          "name": "Pile",
+          "line": 356,
+          "source_sha256": "1f1c2f4b549b1ecbddb4c7d74805232b72d08628a0c7dba807c0a9913bb6260b"
+        },
+        {
+          "name": "CanonicalEnergyCost",
+          "line": 364,
+          "source_sha256": "e717c84977624795b5526f43a3fb6860aebdaf738e44580ec092c45376bdc7d2"
+        },
+        {
+          "name": "HasEnergyCostX",
+          "line": 374,
+          "source_sha256": "82a1f4c43a6dea873dd49b5a3a725031daf7ad14c807040b4e44d32c145e9359"
+        },
+        {
+          "name": "EnergyCost",
+          "line": 379,
+          "source_sha256": "fec09f00594affbb724374177d7f77f0d7f6e64c25c5e1b35be7e2505c79c2ff"
+        },
+        {
+          "name": "CanonicalStarCost",
+          "line": 410,
+          "source_sha256": "443266fd529bfc26dde00d14104e879bb11d9e2f19bac164a276f11cb5fbdca6"
+        },
+        {
+          "name": "BaseStarCost",
+          "line": 412,
+          "source_sha256": "e69bb85fbf0680a32948a79a6650eb70ca58a434351b73f287772b5c10cfd8dd"
+        },
+        {
+          "name": "WasStarCostJustUpgraded",
+          "line": 439,
+          "source_sha256": "824731c7776827d62515391052206e50956e226c555a6ab40d8ba5a2e963be60"
+        },
+        {
+          "name": "TemporaryStarCost",
+          "line": 441,
+          "source_sha256": "56d48c1c5516203e8e7e07bd86fa93d81e34f067e8bfc0b750b2f4affb83de76"
+        },
+        {
+          "name": "CurrentStarCost",
+          "line": 451,
+          "source_sha256": "4ccf1e99299fe5c3017c016825bb90b5685c939c84da1ee597e951c572175e02"
+        },
+        {
+          "name": "HasStarCostX",
+          "line": 468,
+          "source_sha256": "84d0f8453bfd1417a8cd621440afeddceb01d8c36b3e6153e91f41b4178995d0"
+        },
+        {
+          "name": "LastStarsSpent",
+          "line": 478,
+          "source_sha256": "051e3f8ea5b9c08f2da0ffb73aa1b8b7916a87f4a224d47f06962554b0c7fc6b"
+        },
+        {
+          "name": "TargetType",
+          "line": 497,
+          "source_sha256": "6fc4d0b4e0609de4af43ef0e2ee37deeeac3e289b32b2ebd073122b956be5527"
+        },
+        {
+          "name": "CanonicalKeywords",
+          "line": 499,
+          "source_sha256": "7d6c72c2dc4e69da2a96b294e32a948c88de47bce4f4330a7147154f38dbb895"
+        },
+        {
+          "name": "LocalKeywords",
+          "line": 507,
+          "source_sha256": "ffca5b7cee34fbb823b007d2fd0761dc2fbfaed7e48a6a98d0a23647a177b059"
+        },
+        {
+          "name": "Keywords",
+          "line": 526,
+          "source_sha256": "f0be2ddd0d053ec4f08ebc7b191484cd9ab102c99e0cd0663ec09b75886c34a8"
+        },
+        {
+          "name": "DynamicVars",
+          "line": 538,
+          "source_sha256": "52780e2d2b86f03dbc25bae1eb21c802993d2f3d0db9637755d776fd1e11cd11"
+        },
+        {
+          "name": "CanonicalVars",
+          "line": 552,
+          "source_sha256": "dd47722528c31f3fbaefd8eada138c9c85b93f8c8d717f9f6c04b20633381aec"
+        },
+        {
+          "name": "CurrentUpgradeLevel",
+          "line": 765,
+          "source_sha256": "ce0dcd02cd1d2b00b8a6d833270bad74aea1d0256a225db1e835b152d4d1dad8"
+        },
+        {
+          "name": "MaxUpgradeLevel",
+          "line": 782,
+          "source_sha256": "99d4883b5d9429bc98b0b03d6012143dd712899fd6b52deaad4b3a8cc41c7b52"
+        },
+        {
+          "name": "IsUpgraded",
+          "line": 784,
+          "source_sha256": "75e8de0f3fdd694f018e266734a1def9fdc8fd356fb50093dc836f74499581a6"
+        },
+        {
+          "name": "IsUpgradable",
+          "line": 786,
+          "source_sha256": "df6a1346652ffdb33ae43c430898f6f1258f34493b5c3eed2664469e2eaf6a9c"
+        },
+        {
+          "name": "UpgradePreviewType",
+          "line": 803,
+          "source_sha256": "4f24e179e8641ee5a7cae416d18a0c8e35e241ccf989f59002a15177a990ddce"
+        },
+        {
+          "name": "ShouldShowInCardLibrary",
+          "line": 829,
+          "source_sha256": "859fd67efd1c1043334e8e4bb22d399948610ef76299ceb9c192b007a4fc3f3c"
+        },
+        {
+          "name": "HasBeenRemovedFromState",
+          "line": 949,
+          "source_sha256": "090dfbeafa69aad97f755c82eb814a206e8fa2bc2e7a1e17df54436622759b92"
+        },
+        {
+          "name": "CanonicalInstance",
+          "line": 991,
+          "source_sha256": "177dadf82803dfda42675eef470a9eb9a0b90c3a77b734d2a6b91809afbe0fc3"
+        },
+        {
+          "name": "CombatState",
+          "line": 1018,
+          "source_sha256": "72afdf028d1a09aa420c7eafe644fb8086039223328f25ee67a12f64bb51c672"
+        },
+        {
+          "name": "ShouldReceiveCombatHooks",
+          "line": 1046,
+          "source_sha256": "fd4114ca204ad00cff72a52ddab33b50fc0286a0a36fb15e256bdbcff818f206"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries",
+      "additional_port_files": [
+        {
+          "path": "src/csharp/rules/Native/Models/CardModel.Upgrades.cs",
+          "sha256": "f60e0251d592debb43fbee32b065bf8a90ad2bcec4fc77de7a00d282c80d4781"
+        },
+        {
+          "path": "src/csharp/rules/Native/Models/CardModel.StarCosts.cs",
+          "sha256": "e987993106f1cc1bbb9abecf90af8f27465e5aa5224f50ab07cc8a1bcb9ec5fa"
+        },
+        {
+          "path": "src/csharp/rules/Native/Models/CardModel.Resources.cs",
+          "sha256": "1ab79fc1822f6f19aa080c2f45bdf851f84ae05ccfa53740c0d85063074011b2"
+        }
+      ]
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Commands.CardCmd",
+      "source_path": "MegaCrit.Sts2.Core.Commands/CardCmd.cs",
+      "source_sha256": "ebade20d0d84f428e7266d4cb337a488610685834b3fbe54463b59c3574d471d",
+      "port_file": "src/csharp/rules/Native/Commands/CardCmd.cs",
+      "port_sha256": "9d423c11e1ede413cf0adf1be1eec5d1948e3141425af7fa4addd9865e22931b",
+      "native_methods": [
+        {
+          "name": "Downgrade",
+          "parameters": "(CardModel card)",
+          "line": 212,
+          "source_sha256": "cf4c207d1dae40bdca99a55515106b026eda4c92212fd0f86f85381476a1d713"
+        },
+        {
+          "name": "Upgrade",
+          "parameters": "(CardModel card, CardPreviewStyle style = CardPreviewStyle.HorizontalLayout)",
+          "line": 256,
+          "source_sha256": "474ad7911364007a90a5f1f3fad733e8f711a33845bd40492495b2946c88d002"
+        },
+        {
+          "name": "Upgrade",
+          "parameters": "(IEnumerable<CardModel> cards, CardPreviewStyle style)",
+          "line": 267,
+          "source_sha256": "80717558d5b041f348ecaf6ada6fe26d5d1feb1975d82f20eb8bc6560356055d"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Localization.DynamicVars.CalculatedVar",
+      "source_path": "MegaCrit.Sts2.Core.Localization.DynamicVars/CalculatedVar.cs",
+      "source_sha256": "2d0d37a16f14817e250f9ac6cbe6954c8aa3540882fb9bde22d0c4592ffbca39",
+      "port_file": "src/csharp/rules/Native/Localization/DynamicVars/CalculatedVar.cs",
+      "port_sha256": "1722096e5ab27a63656d507e7c7772f5c78c408f28b37895cb1bb3a8fe1abf15",
+      "native_methods": [
+        {
+          "name": "CalculatedVar",
+          "parameters": "(string name)",
+          "line": 18,
+          "source_sha256": "41da8438ddbb393581102e9b66c3e1af97eb9de0c25c36eca11f794adceaa5a5"
+        },
+        {
+          "name": "SetOwner",
+          "parameters": "(AbstractModel owner)",
+          "line": 23,
+          "source_sha256": "3f25a9eb163326456b4aee4a40805dd09f90d3eccb96b4f09861129dfd9e1504"
+        },
+        {
+          "name": "WithMultiplier",
+          "parameters": "(Func<CardModel, Creature?, decimal> multiplierCalc)",
+          "line": 44,
+          "source_sha256": "7f086d8e4d21b8cdc7ceeaab75dfadc7547f4c4f2f1ff57e3d446cd2241ae220"
+        },
+        {
+          "name": "Calculate",
+          "parameters": "(Creature? target)",
+          "line": 62,
+          "source_sha256": "5b4523b956755cc56b877fe6efe2158b6d3d8f726841f7b240a6462c449c7e8f"
+        },
+        {
+          "name": "RecalculateForUpgradeOrEnchant",
+          "parameters": "()",
+          "line": 76,
+          "source_sha256": "4c4165a144d1b06cff2651e3a7d4aecf954d8d041abcccdc1bf10fb59a2aacaa"
+        },
+        {
+          "name": "GetBaseValueForIConvertible",
+          "parameters": "()",
+          "line": 107,
+          "source_sha256": "9268a3af5c911e31611a5d9ef2eba256df33ddc52ea1b8f22e325028f59861b0"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Localization.DynamicVars.DynamicVarSet",
+      "source_path": "MegaCrit.Sts2.Core.Localization.DynamicVars/DynamicVarSet.cs",
+      "source_sha256": "3b248aee3658e2fc22e3effb4ca8896aaf4fed6ff3ae3012c624a2e726638ee8",
+      "port_file": "src/csharp/rules/Native/Localization/DynamicVars/DynamicVarSet.cs",
+      "port_sha256": "ee3aadaa07e17aa9a2dcb796d55dc01b0188ee7fe539e6dcce9eb822dc0fd227",
+      "native_methods": [
+        {
+          "name": "DynamicVarSet",
+          "parameters": "(IEnumerable<DynamicVar> vars)",
+          "line": 92,
+          "source_sha256": "2118ea69a24c0165919835461e6dc4423f6f9dcbcadf4e57252fd9538b9d8e88"
+        },
+        {
+          "name": "InitializeWithOwner",
+          "parameters": "(AbstractModel model)",
+          "line": 109,
+          "source_sha256": "afdd24baa9e7df80fd579c0e3465daeda1f7a03d4bab1ae19be948d5d7a3d960"
+        },
+        {
+          "name": "ClearPreview",
+          "parameters": "()",
+          "line": 126,
+          "source_sha256": "5eaa0386700d6d7e66b04ef61e7a52ae82397fbb090dc8d0c0bb7e138466e98a"
+        },
+        {
+          "name": "FinalizeUpgrade",
+          "parameters": "()",
+          "line": 134,
+          "source_sha256": "1f76cd6100cc005608528eb6bd6a31d0c09c08d1304e4bcd65a645b91a7bc9b2"
+        },
+        {
+          "name": "RecalculateForUpgradeOrEnchant",
+          "parameters": "()",
+          "line": 145,
+          "source_sha256": "db1677f0aca408b159edb3d377f7a065c1f4ea1760f6ad8384b3d2cd0da6e85e"
+        },
+        {
+          "name": "Clone",
+          "parameters": "(AbstractModel model)",
+          "line": 153,
+          "source_sha256": "1db01b74d8394fe569f4de24ac77181e8f136e0155d9f3ca81c87ba777955d62"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Entities.Cards.CardPile",
+      "source_path": "MegaCrit.Sts2.Core.Entities.Cards/CardPile.cs",
+      "source_sha256": "6a5f3200557546d5977d2cf87d429fbb4e124fd08b84deab1956d41da3718e2a",
+      "port_file": "src/csharp/rules/Native/Entities/Cards/CardPile.cs",
+      "port_sha256": "32a116bf0dfc23ab79fc76341a024962597e8b942c6849716a343903734d5e47",
+      "native_methods": [
+        {
+          "name": "Get",
+          "parameters": "(PileType type, Player player)",
+          "line": 49,
+          "source_sha256": "45379de3b31d26845c3154f267474d1d9c745b04bee36adb9524cf4399a9dad1"
+        },
+        {
+          "name": "GetCards",
+          "parameters": "(Player player, params PileType[] piles)",
+          "line": 64,
+          "source_sha256": "5dcc0bb47f18c3b5ea96cbc40df1df81d93317e23ab8c1572dbf33d839bd57a6"
+        },
+        {
+          "name": "AddInternal",
+          "parameters": "(CardModel card, int index = -1, bool silent = false)",
+          "line": 89,
+          "source_sha256": "63e33e77cf5a63e84e1a97fb26540e79b5b8c6e369f2ab2edd44ad98a076d5e2"
+        },
+        {
+          "name": "RemoveInternal",
+          "parameters": "(CardModel card, bool silent = false)",
+          "line": 121,
+          "source_sha256": "fdfe2a9fe0ef3513a34b95903258fabd492c649735cbca834f32d4003f4a62cc"
+        },
+        {
+          "name": "MoveToBottomInternal",
+          "parameters": "(CardModel card)",
+          "line": 148,
+          "source_sha256": "ac8045ce1348f42744ec1de6b61ae4410f6329ce9b997051a5529c04112a193e"
+        },
+        {
+          "name": "MoveToTopInternal",
+          "parameters": "(CardModel card)",
+          "line": 166,
+          "source_sha256": "b12532715b47155ec2b4192c6897c208c487625382c89023c5c1220fb8261e50"
+        },
+        {
+          "name": "Clear",
+          "parameters": "(bool silent = false)",
+          "line": 176,
+          "source_sha256": "ee451300957c0bfc0d75b9e6799a900666d08c0f4b3cb07678d02814762aa328"
+        },
+        {
+          "name": "InvokeCardRemoved",
+          "parameters": "(CardModel card)",
+          "line": 185,
+          "source_sha256": "3189c972c7a7e6ba06128b5c7fbb49f214f072cd98898f4000f90f0f220fac58"
+        },
+        {
+          "name": "InvokeCardAddFinished",
+          "parameters": "()",
+          "line": 190,
+          "source_sha256": "71c6fd98dde7e66e0885a9668113e78c2368692503a67d0e65d1d1963e9f8681"
+        },
+        {
+          "name": "InvokeCardRemoveFinished",
+          "parameters": "()",
+          "line": 195,
+          "source_sha256": "27a3c8f8ed51ef5235c91fdefa0c8909e69b7c8b613d47a9b9d9b7a6b74456e9"
+        },
+        {
+          "name": "InvokeContentsChanged",
+          "parameters": "()",
+          "line": 200,
+          "source_sha256": "9faa8468a084ba088c5ab79956c282cdbe3cfc8ad44423260a048ab9adb3f873"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "MaxCardsInHand",
+          "line": 21,
+          "source_sha256": "0091a5f60e8a678e99f5394c3f5d1c413990a162bd8d7661d61f77e0687d2022"
+        },
+        {
+          "name": "Type",
+          "line": 23,
+          "source_sha256": "3496b595fc5700586a32d2b0e2cb5b860f219d3fd34a738ff45017afa9b188a4"
+        },
+        {
+          "name": "Cards",
+          "line": 25,
+          "source_sha256": "84cbbf2279f8db8d65249d00e3f401b00440c1cb197c8d47202ef214cdccf139"
+        },
+        {
+          "name": "IsEmpty",
+          "line": 27,
+          "source_sha256": "81b6596ecf55f33b31b4de602e3555850c1c1cfcfd5e49f3438276a98733d982"
+        },
+        {
+          "name": "IsCombatPile",
+          "line": 29,
+          "source_sha256": "26fada180f964ee62b9e2700fbba10b7b5a35b9d47d2099cf1a5ac5198fcc059"
+        },
+        {
+          "name": "UpgradableCardCount",
+          "line": 31,
+          "source_sha256": "f76f54a0a86ab45d7cb7ac984247fbb52c011430bc09125cea5ce8745e9e97ff"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Entities.Cards.PileTypeExtensions",
+      "source_path": "MegaCrit.Sts2.Core.Entities.Cards/PileTypeExtensions.cs",
+      "source_sha256": "2cac3cff0b162bae852b912d94312430568f46e83a52413f4505dbc95f3c7301",
+      "port_file": "src/csharp/rules/Native/Entities/Cards/PileTypeExtensions.cs",
+      "port_sha256": "a9303d815a4b468eda6a59f5dc67354113803d5ed4d0fddb2c2cf9daa80225ee",
+      "native_methods": [
+        {
+          "name": "GetPile",
+          "parameters": "(this PileType pileType, Player player)",
+          "line": 13,
+          "source_sha256": "aa0baa2bb7ebde9d67f4339851dffb64fc79fcb4f035e1bf380f483a07ad46aa"
+        },
+        {
+          "name": "IsCombatPile",
+          "parameters": "(this PileType pileType)",
+          "line": 35,
+          "source_sha256": "980c96012ffc48d0b13fa7da5f1ce92aa7cec2ea7bcce48ce655fca2cbd19edd"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Entities.Players.PlayerCombatState",
+      "source_path": "MegaCrit.Sts2.Core.Entities.Players/PlayerCombatState.cs",
+      "source_sha256": "e7aa6f8a9561806f6b963a62fd33105f90278f77be8efb269f94647483aa3fa3",
+      "port_file": "src/csharp/rules/Native/Entities/Players/PlayerCombatState.cs",
+      "port_sha256": "d8e80152e3dfd3168f92c3795f7ca88f7be59f6571a8f62cb02d19fb53c8dc6c",
+      "native_methods": [
+        {
+          "name": "LoseEnergy",
+          "parameters": "(decimal amount)",
+          "line": 172,
+          "source_sha256": "ec51fd728a9d881f15bad356cfbd9932eccb66d081b15372261a39253e86ef1a"
+        },
+        {
+          "name": "GainEnergy",
+          "parameters": "(decimal amount)",
+          "line": 181,
+          "source_sha256": "f611bb58fac2e1739083c6470be57fa468adda066b159477e459fa0fe4832a90"
+        },
+        {
+          "name": "HasEnoughResourcesFor",
+          "parameters": "(CardModel card, out UnplayableReason reason)",
+          "line": 190,
+          "source_sha256": "efd367c593d03166d0ba2c6133315b29db65027dab7f87af88cd6c7d2f14f30c"
+        },
+        {
+          "name": "LoseStars",
+          "parameters": "(decimal amount)",
+          "line": 211,
+          "source_sha256": "4aac7a550e6d61911d6c1cc3d69f58e3cf23c74785b773a35e8350ae56de76ab"
+        },
+        {
+          "name": "GainStars",
+          "parameters": "(decimal amount)",
+          "line": 220,
+          "source_sha256": "d4c13ecb1c10596b1a507b8639be6d0d8da2081e0da6a4a87b5c3e54c3fbd207"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Hand",
+          "line": 60,
+          "source_sha256": "2f20a8569cf6034ba3329551abcf756e7accebd6dfec200deee24aa8a6e2fa88"
+        },
+        {
+          "name": "DrawPile",
+          "line": 62,
+          "source_sha256": "b628e92938c21453679b2876da85d1eefa7a02d7ecf6109b838f3dd54ab3a593"
+        },
+        {
+          "name": "DiscardPile",
+          "line": 64,
+          "source_sha256": "43169a439978424abe472cda9c754b5a955a6aa03f3722a9ec8e5017815b06ad"
+        },
+        {
+          "name": "ExhaustPile",
+          "line": 66,
+          "source_sha256": "7552159a4fcedcf2bb65a17349d0bcc00a2793d9cc9200c83e5950b13c9fce01"
+        },
+        {
+          "name": "PlayPile",
+          "line": 68,
+          "source_sha256": "d374b7f9b5b12200c5c02e456da50a15d0800bbf785e1e18c5d8886ae410ee93"
+        },
+        {
+          "name": "AllPiles",
+          "line": 70,
+          "source_sha256": "e442fc2e4ac17f833fc3fd6f8dfbbd08b14fe8608c10c1dc1f65a8e17ad520bb"
+        },
+        {
+          "name": "AllCards",
+          "line": 82,
+          "source_sha256": "a8f349d33a3bef548a560f6799d2a12360cb54ad9225a48398495c3aa66d152b"
+        },
+        {
+          "name": "Energy",
+          "line": 84,
+          "source_sha256": "dd10d80bb2d46e66cd44b0d66f955d38db8851dc84485d70eebffc93451116dd"
+        },
+        {
+          "name": "Stars",
+          "line": 103,
+          "source_sha256": "c4ab918929d5959576c0850772bd36447b644486aa832ba9502bfb248c1796ca"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Commands.PlayerCmd",
+      "source_path": "MegaCrit.Sts2.Core.Commands/PlayerCmd.cs",
+      "source_sha256": "c359ad806bbd92144ffbc80c85ecf86ef13a560a17bc5075548081aaa7c2db7c",
+      "port_file": "src/csharp/rules/Native/Commands/PlayerCmd.cs",
+      "port_sha256": "6752712c00405a226ba937f8d2ceb00b36279add284305ec68057e0e1580b6f2",
+      "native_methods": [
+        {
+          "name": "GainEnergy",
+          "parameters": "(decimal amount, Player player)",
+          "line": 29,
+          "source_sha256": "b17cf6ca6d89de818e44ac65650d850f6216937969c93e4a5eedd8505165d874"
+        },
+        {
+          "name": "LoseEnergy",
+          "parameters": "(decimal amount, Player player)",
+          "line": 50,
+          "source_sha256": "ac0e2b68147b227472cdcb4e01bc887e12fdae3da84c4bd242a7f52726c67700"
+        },
+        {
+          "name": "SetEnergy",
+          "parameters": "(decimal amount, Player player)",
+          "line": 69,
+          "source_sha256": "80fb6229d353ac3025c6d2185c26bff489fcd3815491c541e415a449521cae59"
+        },
+        {
+          "name": "GainStars",
+          "parameters": "(decimal amount, Player player)",
+          "line": 90,
+          "source_sha256": "f58257b9e1622315d5f3165970c470fee7518096479490c64aeb0edd4f7179fa"
+        },
+        {
+          "name": "LoseStars",
+          "parameters": "(decimal amount, Player player)",
+          "line": 104,
+          "source_sha256": "acbaa658b0c0ce86dcadcbe4de8b5c62d89c1d2a93281dec19eb6853f000bda9"
+        },
+        {
+          "name": "SetStars",
+          "parameters": "(decimal amount, Player player)",
+          "line": 119,
+          "source_sha256": "c67c6d28813ba6294b6651ab5cb53f8d2a9a0bf23fbc1f4d8d6aa9d17b739173"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Models.PowerModel",
+      "source_path": "MegaCrit.Sts2.Core.Models/PowerModel.cs",
+      "source_sha256": "f6d98de1fda7dfa975ecda15cd462389dffc4b8763f2922c11c694936c157b50",
+      "port_file": "src/csharp/rules/Native/Models/PowerModel.cs",
+      "port_sha256": "73233bee1625438a989a307f83d11deb45f9b75769165ae2d66c9e5f2e10a3b3",
+      "native_methods": [
+        {
+          "name": "StartPulsing",
+          "parameters": "()",
+          "line": 440,
+          "source_sha256": "804d0ee6b648addbd9b10baf20fe79ea3edebd17b61ad25cd0fba3410c812ca2"
+        },
+        {
+          "name": "StopPulsing",
+          "parameters": "()",
+          "line": 445,
+          "source_sha256": "c979a8f7a2dc4e8766b9dfb92afd12c8a0f3860ee5da1d495825555913047163"
+        },
+        {
+          "name": "Flash",
+          "parameters": "()",
+          "line": 450,
+          "source_sha256": "ca0221925b004d2eae88bce2c76453a77e6a7a4d5b098d97550b44b48fbc6eb0"
+        },
+        {
+          "name": "InvokeDisplayAmountChanged",
+          "parameters": "()",
+          "line": 455,
+          "source_sha256": "c7a80823b4f984d170fd79eb229afb1e7288c73049d3d42c3b971937997c5a79"
+        },
+        {
+          "name": "GetTypeForAmount",
+          "parameters": "(decimal customAmount)",
+          "line": 460,
+          "source_sha256": "b3ffde91a5555ae22980b2926d825b4074d5bd2a848d8e182515d10ac2fe873b"
+        },
+        {
+          "name": "ShouldRemoveDueToAmount",
+          "parameters": "()",
+          "line": 478,
+          "source_sha256": "317fd5d1cfaff9cf5075a5c79c6082b7513d8bead936683f57d87695f0c4a4e8"
+        },
+        {
+          "name": "GetScaledAmountForMultiplayer",
+          "parameters": "(ICombatState combatState, Creature? applier, decimal amount, Creature target, CardModel? cardSource)",
+          "line": 503,
+          "source_sha256": "bd6eb431367b88ecde2a6955742025eeed2393e35fc5259dc631e300aafe4a37"
+        },
+        {
+          "name": "InitInternalData",
+          "parameters": "()",
+          "line": 512,
+          "source_sha256": "30be949531c04cc9af3a5f0ad7ac28efe9c6c2dbbc3bac3081cbe5d8fedc4335"
+        },
+        {
+          "name": "GetInternalData",
+          "parameters": "()",
+          "line": 523,
+          "source_sha256": "5b88a528ffafeab4d411869ccbc9855737d7251d079be33500ef5878256a0e1a"
+        },
+        {
+          "name": "SetAmount",
+          "parameters": "(int amount, bool silent = false)",
+          "line": 542,
+          "source_sha256": "e74e834651fd89a76a66ccbd78560fa4db77971080341d9c282b30d78ceda7ae"
+        },
+        {
+          "name": "ToMutable",
+          "parameters": "(int initialAmount = 0)",
+          "line": 555,
+          "source_sha256": "09a51870eea08bf76460d47e7804c47f37c57e7ab7e713988ee03c2d39d8f27d"
+        },
+        {
+          "name": "ApplyInternal",
+          "parameters": "(Creature owner, decimal amount, bool silent = false)",
+          "line": 564,
+          "source_sha256": "10ba023d835ba96e7818258a6c1f49bb3a615aa0fa2c1733dc5145f4ec1e3d31"
+        },
+        {
+          "name": "RemoveInternal",
+          "parameters": "()",
+          "line": 575,
+          "source_sha256": "9472f552942f6b2937048ab72bd40dfaec0bd1745c6d36c5f0bc83ab994f9bcd"
+        },
+        {
+          "name": "DeepCloneFields",
+          "parameters": "()",
+          "line": 582,
+          "source_sha256": "1fd7cefa8fb31d47c4b3ee36e1b3401d55736fdeaa08a202995d9e04f8b2f27e"
+        },
+        {
+          "name": "AfterCloned",
+          "parameters": "()",
+          "line": 589,
+          "source_sha256": "4c59b1369ee4379224a947394ed34eb61aac7e86fd77bc56ac51533685f45e60"
+        },
+        {
+          "name": "BeforeApplied",
+          "parameters": "(Creature target, decimal amount, Creature? applier, CardModel? cardSource)",
+          "line": 608,
+          "source_sha256": "f5671087a5ab08dd71614ffe9873e0dcf540fe551e8985f209191d6215fe0073"
+        },
+        {
+          "name": "AfterApplied",
+          "parameters": "(Creature? applier, CardModel? cardSource)",
+          "line": 619,
+          "source_sha256": "37e8b1bd041eead176bcb177d4d1b331fa2e46e3f2e9a862919ffc4f2104fa1c"
+        },
+        {
+          "name": "AfterRemoved",
+          "parameters": "(Creature oldOwner)",
+          "line": 628,
+          "source_sha256": "808b26e1b08dfcfd70b49dbefe22185ff41c611eccab31c251816ffcde4a31a7"
+        },
+        {
+          "name": "ShouldPowerBeRemovedAfterOwnerDeath",
+          "parameters": "()",
+          "line": 637,
+          "source_sha256": "8f2e0a434c47919353580c701aa032c75a8fabbe7e14405e079346a52ab65053"
+        },
+        {
+          "name": "ShouldOwnerDeathTriggerFatal",
+          "parameters": "()",
+          "line": 646,
+          "source_sha256": "3acd8675df9bb31264596118b927b8e576f7450869804436abe807b8ba785117"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Type",
+          "line": 142,
+          "source_sha256": "7a4d9bb6139471869682bba69bd9536f572d55a48c2488c07eaefecc5ecd27a7"
+        },
+        {
+          "name": "InstanceType",
+          "line": 144,
+          "source_sha256": "98ba79a8b18fe69fa726151fb51b824bbb2bdd161866a2c5ad43a98f3cfdfade"
+        },
+        {
+          "name": "IsVisible",
+          "line": 150,
+          "source_sha256": "0d3c3d13323707e937f1c9984af2b61ae6fea147aec728caa554f46064ea5429"
+        },
+        {
+          "name": "IsVisibleInternal",
+          "line": 167,
+          "source_sha256": "8d60c3390d5629d0bdf0f225ce8d3fb298b149256fd0fa3744c6ac8f448b03cd"
+        },
+        {
+          "name": "ShouldPlayVfx",
+          "line": 174,
+          "source_sha256": "c711604c546d96899ca983a5aa9ae0574ee23dbd18a73316f4dbd92000a72cbd"
+        },
+        {
+          "name": "Amount",
+          "line": 187,
+          "source_sha256": "5575dae8ac3e2d83113eb00a0cb9d09c31b38ac1c29a00dc9915a3cf5318b5b4"
+        },
+        {
+          "name": "AmountOnTurnStart",
+          "line": 205,
+          "source_sha256": "fa58a87f7b6fb4e2964daa79e6075366659ee995188b10848fb0b512f0f244a7"
+        },
+        {
+          "name": "DisplayAmount",
+          "line": 218,
+          "source_sha256": "1ddd361d1a16b4520206a695bf839cd884a39e162f7e0c459c779e1d9440de7c"
+        },
+        {
+          "name": "StackType",
+          "line": 236,
+          "source_sha256": "662e9f29c55328c262e6a3aba213b508100eb50a23db137477af7b130dc0a4b3"
+        },
+        {
+          "name": "AllowNegative",
+          "line": 238,
+          "source_sha256": "0ad2d97b19b42d8a313b5f6afd650be9032793d11799c31b5ca04427e6a838d1"
+        },
+        {
+          "name": "TypeForCurrentAmount",
+          "line": 240,
+          "source_sha256": "2dee604777cae684f0268fdcb1baa24ead5fc9aefd65dd29ee99808b273a3074"
+        },
+        {
+          "name": "SkipNextDurationTick",
+          "line": 246,
+          "source_sha256": "b0cdbe062e905dc32c4a71b183e27722a6b4f70dc21b9f55ac886c5fc52555c2"
+        },
+        {
+          "name": "Owner",
+          "line": 264,
+          "source_sha256": "f0c4e9954621624759ca6ead4f48d8f5f337e68e77a927e7845d7dd1eef986b3"
+        },
+        {
+          "name": "CombatState",
+          "line": 287,
+          "source_sha256": "ed763c114e082dc45f2b068ac2d5db91c5e54ab91391ff14b18a95647000d788"
+        },
+        {
+          "name": "Applier",
+          "line": 289,
+          "source_sha256": "f9feb0c75a82ed55643c8fbe3cc0da099a1324dc0baba90dacafca4f7de6b500"
+        },
+        {
+          "name": "Target",
+          "line": 306,
+          "source_sha256": "65480074aa96d45fb2ca4eab0a73491a930025c063e72417aa68b672f789aef7"
+        },
+        {
+          "name": "DynamicVars",
+          "line": 325,
+          "source_sha256": "572542b4ccc0c6f3b30cebe8e2f7557cb43b9257b042b29b92c84d0c12f3a580"
+        },
+        {
+          "name": "ShouldScaleInMultiplayer",
+          "line": 342,
+          "source_sha256": "80c8e1239d6d8c0252e550a330590ac879a9d6b700c97318c7555b8ae7a8a01d"
+        },
+        {
+          "name": "CanonicalVars",
+          "line": 344,
+          "source_sha256": "dd47722528c31f3fbaefd8eada138c9c85b93f8c8d717f9f6c04b20633381aec"
+        },
+        {
+          "name": "CanonicalInstance",
+          "line": 405,
+          "source_sha256": "cbf6e1f9601c883994238371eaa88184cb59f2df69b706c10e426e70aaac4a73"
+        },
+        {
+          "name": "ShouldReceiveCombatHooks",
+          "line": 422,
+          "source_sha256": "64e027fa361147cfa7b4a567e746ec6e7c3b4c8c1a3670b7f1f1b23f5858b434"
+        },
+        {
+          "name": "OwnerIsSecondaryEnemy",
+          "line": 428,
+          "source_sha256": "d3a9501443530b0b7c03455b532ee6ae4c0bf4858a89c49d026f4c1126a00fa3"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Models.Powers.TemporaryStrengthPower",
+      "source_path": "MegaCrit.Sts2.Core.Models.Powers/TemporaryStrengthPower.cs",
+      "source_sha256": "692dead244d5d3c0daf6b9a90fa921d02ad4ce88842f4a27a3a0f85c3a3f9cc6",
+      "port_file": "src/csharp/rules/Native/Models/Powers/TemporaryStrengthPower.cs",
+      "port_sha256": "b1df7a7ed3842fb4d3b82eb730afa49c570461d5851f9ff0ef91575d7940a7dc",
+      "native_methods": [
+        {
+          "name": "BeforeApplied",
+          "parameters": "(Creature target, decimal amount, Creature? applier, CardModel? cardSource)",
+          "line": 134,
+          "source_sha256": "1d10d76e9287ae061a91ec40dde80fb49c8a967c371cde88c3326354ebbaff7a"
+        },
+        {
+          "name": "AfterPowerAmountChanged",
+          "parameters": "(PlayerChoiceContext choiceContext, PowerModel power, decimal amount, Creature? applier, CardModel? cardSource)",
+          "line": 139,
+          "source_sha256": "919775147dfde637cebd21e440b2df41dca0527d22e441cd70399b25c570d0fa"
+        },
+        {
+          "name": "AfterSideTurnEnd",
+          "parameters": "(PlayerChoiceContext choiceContext, CombatSide side, IEnumerable<Creature> participants)",
+          "line": 147,
+          "source_sha256": "9f7b7bf27031f17397505197d476a4039806cf1c00772b12c72a8f23d833ec51"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Type",
+          "line": 25,
+          "source_sha256": "4674d12df273e8eb747e1fb0cb46cdb774b806e3dbf50e2250bac9cc7ac5b966"
+        },
+        {
+          "name": "StackType",
+          "line": 37,
+          "source_sha256": "e913c492d89d299f1b9123b5c6d85e4158b25a331d670c36d46b13e7f111eaf0"
+        },
+        {
+          "name": "OriginModel",
+          "line": 42,
+          "source_sha256": "c23cefc2a74fd3f838d103fcc0bccad202737ed544f0bf2aed97f05232e88251"
+        },
+        {
+          "name": "InternallyAppliedPower",
+          "line": 44,
+          "source_sha256": "cad3a1d383e89a6b139771cc1a5d83c775f1d7dd8557acc1a37bb8529349dd9e"
+        },
+        {
+          "name": "IsPositive",
+          "line": 49,
+          "source_sha256": "654d897ef0f988b25f241ba3114a0fe4d13fc24f6170e18d38e76d3a096dc2a0"
+        },
+        {
+          "name": "Sign",
+          "line": 54,
+          "source_sha256": "e79245203a811b775e3e50c794d1f55a496376a1ede4fe422843f7c63fde1cd7"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Models.Singleton.MultiplayerScalingModel",
+      "source_path": "MegaCrit.Sts2.Core.Models.Singleton/MultiplayerScalingModel.cs",
+      "source_sha256": "7ce76c42063ec5d52efb5d20df1f266201f05642e36d7b55cbce0a9b39d757d1",
+      "port_file": "src/csharp/rules/Native/Models/Singleton/MultiplayerScalingModel.cs",
+      "port_sha256": "1e067ae3750a82a06ecc5feb9fd0bab9ba42619b1541bedb04d87deea7040252",
+      "native_methods": [
+        {
+          "name": "Initialize",
+          "parameters": "(RunState state)",
+          "line": 33,
+          "source_sha256": "349edde38890c3bed3c14ee28fa954cae7ce42e751130a253a7e9365f690e6a4"
+        },
+        {
+          "name": "OnCombatEntered",
+          "parameters": "(CombatState combatState)",
+          "line": 42,
+          "source_sha256": "4aa8b21bca8ed5a924b01a6e851cacbc7124dc0955f436bcf939dbc9a6f35c4a"
+        },
+        {
+          "name": "OnCombatFinished",
+          "parameters": "()",
+          "line": 47,
+          "source_sha256": "baaa1c66b8ce2939273ecd62ecccaeeb34de71a3369a163021b34de1de0e8650"
+        },
+        {
+          "name": "ModifyBlockMultiplicative",
+          "parameters": "(Creature target, decimal block, ValueProp props, CardModel? cardSource, CardPlay? cardPlay)",
+          "line": 52,
+          "source_sha256": "a6a37bc6b02dfb5e7db479fa08f9cc95ed7f065a49c370bd5963294185b6bbda"
+        },
+        {
+          "name": "GetMultiplayerScaling",
+          "parameters": "(EncounterModel? encounter, int actIndex)",
+          "line": 70,
+          "source_sha256": "ec19753891ea6e1b6cf23c7013eb0c8e90f05a686b2bb8bd55fb29990a740d40"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "ShouldReceiveCombatHooks",
+          "line": 28,
+          "source_sha256": "64e027fa361147cfa7b4a567e746ec6e7c3b4c8c1a3670b7f1f1b23f5858b434"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Combat.History.CombatHistoryEntry",
+      "source_path": "MegaCrit.Sts2.Core.Combat.History/CombatHistoryEntry.cs",
+      "source_sha256": "21345634933577d6913f42723917a6d421bad6eb5431016237fe917fd7854138",
+      "port_file": "src/csharp/rules/Native/Combat/History/CombatHistoryEntry.cs",
+      "port_sha256": "c59007252cdc7f1bff5812cbad4e3b3d62a7dd5aa49b043d5e16ef719ff5410c",
+      "native_methods": [
+        {
+          "name": "CombatHistoryEntry",
+          "parameters": "(Creature actor, int roundNumber, CombatSide currentSide, CombatHistory history, IEnumerable<Player> players)",
+          "line": 47,
+          "source_sha256": "4cc9cec623572b5d192cbdfa4889f82bbf9801bbe9c7ee3b19c577a3e27cebae"
+        },
+        {
+          "name": "HappenedThisTurn",
+          "parameters": "(ICombatState? state)",
+          "line": 62,
+          "source_sha256": "2c7adec4ff3a5f1db75ab83ce79c44278e6047e26726549fae309496b7df6a9e"
+        },
+        {
+          "name": "HappenedLastPlayerTurn",
+          "parameters": "(Player player)",
+          "line": 99,
+          "source_sha256": "214ddf796fc437bd840558f9e0bded533044d1c81292598adaabbd3702dc6dff"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Actor",
+          "line": 20,
+          "source_sha256": "617d6fc39ae60691c6e3d682b28270e56f6aa05b5c1d31e8bf1cf178073c0a5a"
+        },
+        {
+          "name": "RoundNumber",
+          "line": 27,
+          "source_sha256": "696587ff93fc2f45e6b0966e290eed0c660768d478cdcd6d7850c5474ad61e3a"
+        },
+        {
+          "name": "CurrentSide",
+          "line": 36,
+          "source_sha256": "4ce63c1507a110b74d6c5c3f1efd8256f192af5306f37b19ca97d7051e3019ed"
+        },
+        {
+          "name": "History",
+          "line": 41,
+          "source_sha256": "e81a23d3167a4e37c47e753a6107f32cf3f45e81141d76b90dc2526d9c6406f4"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Combat.History.Entries.PowerReceivedEntry",
+      "source_path": "MegaCrit.Sts2.Core.Combat.History.Entries/PowerReceivedEntry.cs",
+      "source_sha256": "329343d9b1400d3ec23ccf850711f5f4ff7fbff0cbd49d434883584c20480f55",
+      "port_file": "src/csharp/rules/Native/Combat/History/Entries/PowerReceivedEntry.cs",
+      "port_sha256": "ca4fbecda85b24832e2800069e491a781070e923f2852710f0f79074fa51bfcb",
+      "native_methods": [
+        {
+          "name": "PowerReceivedEntry",
+          "parameters": "(PowerModel power, decimal amount, Creature? applier, int roundNumber, CombatSide currentSide, CombatHistory history, IEnumerable<Player> players)",
+          "line": 28,
+          "source_sha256": "133e9ed08cbc834499d5cddd3a5e15bb1961ad7d70d284f3b63a72c0dfc4aeba"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Power",
+          "line": 10,
+          "source_sha256": "2ba88bd759f486e315f33e31d3594901d9c0eaefdf28775b5b17425d7f3fa8d1"
+        },
+        {
+          "name": "Amount",
+          "line": 12,
+          "source_sha256": "8d819713b822c95cd05b570082c8b94b8b1a3b2aac869b42a96d09106e756db1"
+        },
+        {
+          "name": "Applier",
+          "line": 14,
+          "source_sha256": "49f34f941a060a701f95e18e3370a66844ac075bfdbd753f613bdc7c705597d0"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Combat.History.CombatHistory",
+      "source_path": "MegaCrit.Sts2.Core.Combat.History/CombatHistory.cs",
+      "source_sha256": "b88dcb2ad04403c5751719b22d8ea486b8b84b00472fd8fb3b610bf8db0984ee",
+      "port_file": "src/csharp/rules/Native/Combat/History/CombatHistory.cs",
+      "port_sha256": "8993afc3f516f71afe9f40dc203bc9ed693244e4f7646537b96c50638d05778e",
+      "native_methods": [
+        {
+          "name": "EnergySpent",
+          "parameters": "(ICombatState combatState, int amount, Player player)",
+          "line": 88,
+          "source_sha256": "88b447f4e4d6192f8dcd54ebc877428cfc2f1d11fbe07191e0bbcaab2d4baaef"
+        },
+        {
+          "name": "PowerReceived",
+          "parameters": "(ICombatState combatState, PowerModel power, decimal amount, Creature? applier)",
+          "line": 108,
+          "source_sha256": "6f4cb4b63891c315d8f0261d4b34fc20efe0a7743533fc39fffe43456fad9f73"
+        },
+        {
+          "name": "StarsModified",
+          "parameters": "(ICombatState combatState, int amount, Player player)",
+          "line": 113,
+          "source_sha256": "80a4979541eb07c4c0aa8cbeda7ac8449d0c9879a553deebb7254437cbd520cd"
+        }
+      ],
+      "native_properties": [],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Combat.History.Entries.EnergySpentEntry",
+      "source_path": "MegaCrit.Sts2.Core.Combat.History.Entries/EnergySpentEntry.cs",
+      "source_sha256": "f159cb9cde93d2a62767113e853f8de4da3e8053892c1e2e2c0d3c82d86c7c36",
+      "port_file": "src/csharp/rules/Native/Combat/History/Entries/EnergySpentEntry.cs",
+      "port_sha256": "2bc2fce51ce2e643322bcf57f0590b11ce3d0ca990b601864703ce95613f64fd",
+      "native_methods": [
+        {
+          "name": "EnergySpentEntry",
+          "parameters": "(int amount, Player player, int roundNumber, CombatSide currentSide, CombatHistory history, IEnumerable<Player> players)",
+          "line": 12,
+          "source_sha256": "5a57e4f28bc292443a5810160f540ec9790e15ebe73907c465770fac16e8a16a"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Amount",
+          "line": 8,
+          "source_sha256": "5007993af867f7a8fc4b3e03beab182de342a10b04d7e4735ff4e676aa2eddc2"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Combat.History.Entries.StarsModifiedEntry",
+      "source_path": "MegaCrit.Sts2.Core.Combat.History.Entries/StarsModifiedEntry.cs",
+      "source_sha256": "0958637bbdc70931c8900433f28cd4aa6c6f0d0e30fa79442672fc84019b180e",
+      "port_file": "src/csharp/rules/Native/Combat/History/Entries/StarsModifiedEntry.cs",
+      "port_sha256": "849d934c479bc028548ae9bdd3ba898e38f050a247268f203f952b5181de789f",
+      "native_methods": [
+        {
+          "name": "StarsModifiedEntry",
+          "parameters": "(int amount, Player player, int roundNumber, CombatSide currentSide, CombatHistory history, IEnumerable<Player> players)",
+          "line": 12,
+          "source_sha256": "e79f8b784f4f290ca3789d2c79e470ad96ae342ff1fec9d4ce3b7759b507bc90"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "Amount",
+          "line": 8,
+          "source_sha256": "5007993af867f7a8fc4b3e03beab182de342a10b04d7e4735ff4e676aa2eddc2"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.GameActions.Multiplayer.PlayerChoiceContext",
+      "source_path": "MegaCrit.Sts2.Core.GameActions.Multiplayer/PlayerChoiceContext.cs",
+      "source_sha256": "e15f8b58dd8fc68d27f61c2507f79a6bb5ef8dc06136d0038b20fd54d9c5d51f",
+      "port_file": "src/csharp/rules/Native/GameActions/Multiplayer/PlayerChoiceContext.cs",
+      "port_sha256": "c3867d7842e175e9343f902e4da98618a97a7a8d93a7b9cae99911aed8957827",
+      "native_methods": [
+        {
+          "name": "PushModel",
+          "parameters": "(AbstractModel model)",
+          "line": 44,
+          "source_sha256": "51feabc2f9854e9a40cd3f2195eb0d530919519dc13f59ef49a5d2d92e072222"
+        },
+        {
+          "name": "PopModel",
+          "parameters": "(AbstractModel model)",
+          "line": 53,
+          "source_sha256": "1925a2577b02ba2c8f07c42bbede345b942813447a26b1b03775a824afe8d647"
+        },
+        {
+          "name": "SignalPlayerChoiceBegun",
+          "parameters": "(Player chooser, PlayerChoiceOptions options)",
+          "line": 66,
+          "source_sha256": "37b58eca827aa8809bf287523c5553f8d7e01f052c7e0651e86c4e825b3b8302"
+        },
+        {
+          "name": "SignalPlayerChoiceEnded",
+          "parameters": "()",
+          "line": 68,
+          "source_sha256": "0533338ad4d34e84d0b96b4c6f80fd5ba2fba4ebd1a52e24dbd54e3145958173"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "ModelStack",
+          "line": 21,
+          "source_sha256": "773dc53036237ded14b686815fac7583326259f60540011d7c83b3345f35b130"
+        },
+        {
+          "name": "LastInvolvedModel",
+          "line": 23,
+          "source_sha256": "5a1d49c8794a946a84f198011bf95e4587c355c96399892c6e58fc8742a2d7ed"
+        },
+        {
+          "name": "OwnerId",
+          "line": 36,
+          "source_sha256": "4903ded94415c9015c43c5fd27ee7ec19edd664f645cba41d52aaf5ed029ab44"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    },
+    {
+      "source_type": "MegaCrit.Sts2.Core.Context.LocalContext",
+      "source_path": "MegaCrit.Sts2.Core.Context/LocalContext.cs",
+      "source_sha256": "fcab748441a6eb3ece86be83365f98792312cf26e85116aa3cac6684dba7cd39",
+      "port_file": "src/csharp/rules/Native/Context/LocalContext.cs",
+      "port_sha256": "b10c1d8f6dd9c66b48c9bd993e63a4364235b204b846656cdd73661d3705d870",
+      "native_methods": [
+        {
+          "name": "IsMe",
+          "parameters": "(Player? player)",
+          "line": 88,
+          "source_sha256": "82bb812bc10268d0e3d1d869368b65a389c78288d1b7206083e665d9cb27a133"
+        },
+        {
+          "name": "IsMe",
+          "parameters": "(Creature? creature)",
+          "line": 100,
+          "source_sha256": "49628b25cd514f9131a324d716424411f269f8fb08e0510ed899012104d652cd"
+        }
+      ],
+      "native_properties": [
+        {
+          "name": "NetId",
+          "line": 19,
+          "source_sha256": "7771a2a1d3ed0d08d40eaaf126f3a1b5afc0bb8ab4aae9667c06ddc7646a9e51"
+        }
+      ],
+      "status": "partial_semantic_scope_with_explicit_unmigrated_boundaries"
+    }
+  ],
+  "parameters": {
+    "active_package": "src/csharp/rules/Generated/rule-parameters.json",
+    "active_bindings": 7,
+    "behavior_sha256": "a4d6f6476c0eca6561cfc47d05d0e18a37ec7f3605e7d04d0c1a4a512ed029e7",
+    "contract_sha256": "b17909ea5d5427dd89771d50078cd1891c2b79ac7ece30423ea68fcef7a18a39",
+    "all_source_staged_package": ".runtime/analysis/independent-parameter-stage/rule-parameters.json",
+    "all_source_staged_bindings": 1719,
+    "all_source_package_is_runtime_compatible": false,
+    "source_fingerprint": "e1dd83fe9339679547f1e0936036b3e65bf7e2c95f9ea2fd2dd35091d249d48d",
+    "package_sha256": "2b0435ef261aaf695c80a5938bed20c13d3074a6c00872ed9e98dc93d1cee567",
+    "full_directory_staged_bindings": 2397,
+    "direct_card_constructor_bindings": 596,
+    "card_parameter_audit": ".runtime/analysis/independent-card-parameter-audit-15.json",
+    "full_parameter_coverage": false,
+    "canonical_star_cost_bindings": 22,
+    "immutable_constructor_context": true
+  },
+  "acceptance": {
+    "V01": {
+      "status": "partial",
+      "evidence": "Actual compiled Mango and Injury read updated external numeric data; same compiled card fixture reads updated energy, canonical star cost and variables inside its constructor and updated upgrade increments. Generated behavior/binding identity stays fixed. Full numeric extraction/default prediction not yet migrated."
+    },
+    "V02": {
+      "status": "partial",
+      "evidence": "New source relic/card fixtures compile and register without ID/effect tables; Injury/Dazed use explicit parameterized constructors selected by the generic owned factory. Full entity catalogue/default entry not verified."
+    },
+    "V03": {
+      "status": "partial",
+      "evidence": "Unported source call remains a compile error; edited generated files are protected; complete transformation catalogue still pending."
+    },
+    "V04": {
+      "status": "verified_current_host_build",
+      "evidence": "Detached directory integration and dependency checks contain only owned Host/rules DLLs plus .NET framework."
+    },
+    "V05": {
+      "status": "partial",
+      "evidence": "Current graphs include known/unknown keywords, upgrade observations, card/cost/pile/energy and power history cycles, shared singleton references, private state/delegates/reference-key collections, failed/concurrent branches. Full card/monster/RNG/queue state pending."
+    },
+    "V06": {
+      "status": "partial",
+      "evidence": "Native finite energy/star arithmetic, costs, upgrades, calculated conversion and payment members validated, including requested vs actual amounts, history/event/callback order and X capture. Complete card wrapper/legality and other consumers remain pending."
+    },
+    "V07": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V08": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V09": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V10": {
+      "status": "partial",
+      "evidence": "Native TemporaryStrengthPower common members tested with separate positive/negative fixture types and shared Artifact expiry path. Real temporary entities and complete side-turn-end dispatch still pending."
+    },
+    "V11": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V12": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V13": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V14": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V15": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V16": {
+      "status": "partial",
+      "evidence": "Heal/GainMaxHp/SetMaxHp/SetCurrentHp non-kill scopes verified; LoseMaxHp and death resolution pending."
+    },
+    "V17": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V18": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V19": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V20": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V21": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V22": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V23": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V24": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V25": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V26": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V27": {
+      "status": "partial",
+      "evidence": "Power commands require observed native domains/timeline/history; legacy hook projection cannot fill missing state. Unknown or unmigrated nonempty domains stop before affected callbacks. Complete live hydration pending."
+    },
+    "V28": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V29": {
+      "status": "partial",
+      "evidence": "Host parameter identity and checkpoint mismatches rejected; default search cache integration pending."
+    },
+    "V30": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V31": {
+      "status": "partial",
+      "evidence": "New Host unsupported operations and identity failures do not fall back; default callers not migrated."
+    },
+    "V32": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V33": {
+      "status": "not_verified_in_new_kernel"
+    },
+    "V34": {
+      "status": "not_verified_in_new_kernel"
+    }
+  },
+  "evidence_logs": [
+    ".runtime/analysis/independent-rules-build-15.txt",
+    ".runtime/analysis/independent-rules-tests-15.txt",
+    ".runtime/analysis/rule-runtime-15.xml",
+    ".runtime/analysis/independent-compiled-roster.json",
+    ".runtime/analysis/independent-unit-repeat-15.txt",
+    ".runtime/analysis/independent-contract-validation-15.txt",
+    ".runtime/analysis/independent-card-parameter-audit-15.json",
+    ".runtime/analysis/independent-static-roster.json",
+    ".runtime/analysis/independent-pe-inventory.json"
+  ],
+  "pending": [
+    "Complete native nonempty hook domains, private card state, full card wrapper and payment caller integration, keyword consumers, enchantments/afflictions and attached upgrade pipelines",
+    "Indirect/partial/chained card constructors and remaining entity numeric parameter extraction",
+    "Monster/encounter/act state, intent rules, death/revival and terminal resolution",
+    "Resumable choices, random streams, native queues and timing",
+    "Generic private-model graph checkpoint and restoration of existing history",
+    "Remaining native entities, noncombat wrappers, shared command trace and Host batch/default integration",
+    "S01-S12 strategy work and authorized live comparisons"
+  ],
+  "updated_date": "2026-10-21",
+  "selected_source_units": [
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Combat/CombatSide.cs",
+      "source_sha256": "eb472eab0fcc6b89e02d62ae4f2d7da14aab1df0ba428303f3e69e5012ec67e0",
+      "generated_sha256": "cb1930ac5e23c31beee2e8809278ce892eca4abec712ceac61fa8d76c19b5f11"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardEnergyCost.cs",
+      "source_sha256": "cc688e386f258d41fac9ae9461bc830c09e67bc6e65477c4aa1461f64ce2bfc2",
+      "generated_sha256": "ed2640403ba115216e62bbab1cf0447783e84c1a578e524038fbcb5746d07d48"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardKeyword.cs",
+      "source_sha256": "7357b1219cb898959e50208cda0a6ec881ea6218a45300e7a1cc92eb83a653b3",
+      "generated_sha256": "51fb3e29259b1de94064c2fd6fb604ea035bfc580e75f2c9688fe26f18bc3990"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardPlay.cs",
+      "source_sha256": "76ecff214f61f058ed2b34b39fe65002975a881ce9013fe76bbdfe1b0d3aa6a1",
+      "generated_sha256": "6fd1c2393545573cc9be2df8c2a1690854e83907b3331582e9e2249ba3fce51d"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardRarity.cs",
+      "source_sha256": "4069bc5c1df4e39cdd3970867f9f9f4dfd97a7d2b78d6e8432bacde74185ec34",
+      "generated_sha256": "d0d926191a00f4ea15a3ea9c11f3fd81d9070a733bc5872de13c2560960b5939"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardType.cs",
+      "source_sha256": "1af645ea67309dcc6007a2d9875f51100043aca8704ffc4baa063b5015c66c60",
+      "generated_sha256": "4220c70ccdf73da85aae2cc4cfcb7176e3e73ba3fd3adee164c7278d1652a9c2"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardUpgradePreviewType.cs",
+      "source_sha256": "de5c218d1cb13fa315bc1eda8b538a112dac2b40f8a44c6904cc6bcf6a7149dc",
+      "generated_sha256": "8f538b5e8474d30e0b20a8336e366d113a7d3ccfc6006cb8617374bede0e2c6b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardUpgradePreviewTypeExtensions.cs",
+      "source_sha256": "90701bad2dc8519225b9d61d1b60ce224424879b75a7746ec7ee0817b9e4e8dd",
+      "generated_sha256": "a4e5cee72dd0b8c42b62910517ab9242c9aed737d2a3c1e893804e04cc1f270b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CostModifiers.cs",
+      "source_sha256": "a1c6b2af36384c7b9a14ad004c7c7300b1e8e72d56c13e52b22b30e7fb2ccfb1",
+      "generated_sha256": "0b1dfc85dbc815adfca48b3af07ca9d1c7e55d91a6c05504d0a6f31935a29391"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/KeywordSources.cs",
+      "source_sha256": "8815b6b7e2028d2f5423cd5f3fd52cef34e0055ee9f4c7188864c45148cce75a",
+      "generated_sha256": "0b0787261749b315f25bf662b93caf8d7c37fd98fd7dc9884db4b7f6b99e8d84"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostModifier.cs",
+      "source_sha256": "5d26ca785faf9c91076ac292e5f013c7ec08286ddbf3a93f814d66ce0a474b1c",
+      "generated_sha256": "253a200504366ba2be9320cd70b3f7e16572a142117d7d836f705a51d8c94cd7"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostModifierExpiration.cs",
+      "source_sha256": "d2d4ca381c16435a521deca116fae0ab8bc1cc5a11b0d4bbafec700916420c19",
+      "generated_sha256": "1a2feef0c6a470ecf73a9c75824beb6cf8a8c3c9ef9c043fc10000ffcc03e0db"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostType.cs",
+      "source_sha256": "51096ef592dcb7d35ec664b0d6cc42ab24f34afb11a9343c6e585eae3efcfbad",
+      "generated_sha256": "171016ca2f0b97d14d20098280f0887a19921b5443f711a4d259db54f6c8cf80"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/PileType.cs",
+      "source_sha256": "86dc3ffed094f4ec1954bb34e8d312fccad56dcfc51805f3311728cd5c0e4396",
+      "generated_sha256": "ed368633de4423b20dbcbb7faa3422c3e601538ed3d6f9715853e9b724c7e15b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/ResourceInfo.cs",
+      "source_sha256": "834e6babc61576f4d9ed9235f6c48cda48fd95891d686a18521f8dadb316b425",
+      "generated_sha256": "cd733a1f38da27e3f125b382a202c5d74b9ca001db7034b63ff83aae6faf7f54"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/TargetType.cs",
+      "source_sha256": "e54838a668a5f0e428cf8f08ddae67183883b5a18b0dd94c36955d3757082207",
+      "generated_sha256": "7d2cb81fa2dca1c4c4135548375486cfeddd7dbd2cc6799fde91edc14710b208"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/TemporaryCardCost.cs",
+      "source_sha256": "867b328353c394b5f6a347d18912c56fde89a2c94d4ed950b9d6397c1d196793",
+      "generated_sha256": "6f7eb0da688f1eb43396f011580c57d64b3a687a3c30f171d6e3bd72d33eb19e"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/UnplayableReason.cs",
+      "source_sha256": "8599de8b722d69cab2fea28fee88efae1d1b0742ec25dafb5d2aac823ef523d0",
+      "generated_sha256": "c62246e20ae575fad4bf6e29defac9f05b39d71a5f15de7b61cf5577cdb81db8"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Creatures/DamageResult.cs",
+      "source_sha256": "c9a14306fcb32388532d5864a8aa8a38f78748b2d9b2fff6a31684dee3beb3ce",
+      "generated_sha256": "b44d74171ee1c0b1300b5d4cefa76df0f7a0b8febbd9cf0efc4b3d745b80782a"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Multiplayer/PlayerChoiceOptions.cs",
+      "source_sha256": "bdcd18c7caf92db095baf920590dcf87a6dd568c90e60339b9b8f9175dfa9d84",
+      "generated_sha256": "074bfcb90a57a6fe428219a0f1e4e1c808554217fcc3b0b27c0809710a497812"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Powers/PowerInstanceType.cs",
+      "source_sha256": "f3a3ad0eff122d43a6af0696960d0bebc6e99d1133fe55cd7694c703e68bac07",
+      "generated_sha256": "e09ddb80b91b115d9a69e1b719ae1e8e9eada5132a0abd7f404917536d8d027f"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Powers/PowerStackType.cs",
+      "source_sha256": "989795c6b3c1cf63de371d329a919421d810fea328e6f006ea184a07146c903d",
+      "generated_sha256": "3158a175a8f716c072fc3e5503d393d557dee12f245dc82d1f8d2b8ac3f27622"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Powers/PowerType.cs",
+      "source_sha256": "84c73b71dff88b6554ea37aa6c5296e2bfb877a2d80f0e2b9f3df43be0487c50",
+      "generated_sha256": "e34d583b0b16040b27ecc383828d5846894b5270bbc65c2d2f5c2cb118e61d1b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Cards/Dazed.cs",
+      "source_sha256": "41ef3c48ad9459d39d364f2f38863bbd15827e01fe2b48a243b40444cec0a28b",
+      "generated_sha256": "20351e908f3fbe3bda3b7b01c343f62bedd58ff3475eae318a839bffd06fdf17"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs",
+      "source_sha256": "0728fb65a7941754fc7d71dcdd221f25e770ccae922a6531df434ae4e8538d5d",
+      "generated_sha256": "234e3b07f1173500099bdd36d8bf2599ae7ce4459936bea582021d117a8b73e1"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Cards/Injury.cs",
+      "source_sha256": "1ee52eb32a79f085cca2178f438ed0936bbd68df50604206111edf0b97c8b87b",
+      "generated_sha256": "a84466c1c1c06c40495aa57f312e332603fa1b5e71d9828dc4e65a3a75954560"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/ArtifactPower.cs",
+      "source_sha256": "d2b7f2c1bfc36466e5ab0bd4e4581697c8299ce579c6f978a4fe7a1535c9eb3a",
+      "generated_sha256": "28871473ac643b05b3816c32432c563be9d0548915106841cfac2a854564fb84"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/MinionPower.cs",
+      "source_sha256": "8acbaf43969b256e0777bed2371830f7399e8c32fc45c8c35a3de7cde8b8c392",
+      "generated_sha256": "2391860279e9a7e918e31bc3ab8435d61682d2833e5881a5c3de4ebd6067e757"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/NoEnergyGainPower.cs",
+      "source_sha256": "951b1f4d7d5565f52c99adf2fe8501aa5e1871849ffff2ada894723cbe7a5d5a",
+      "generated_sha256": "37f79170a87db9123b92a672a21d4aadf9a393f79a8cf22b4cd3f50643c59498"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/StrengthPower.cs",
+      "source_sha256": "70eb670ee85e6d4c92c68f9e20f869035de8f299880e1c49a97ce45a52437a69",
+      "generated_sha256": "127824810f8285a3383c3864f33c35b65ca5f4b16ac152fa65fece60cb75a14c"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/LeesWaffle.cs",
+      "source_sha256": "f196ef79d95b68155195e8171448c098fdc2342a3935f4c88de3a66a9521a019",
+      "generated_sha256": "6f23d95cd1d310bb33b3427f05864f662348be1d21746213fa7fe755bce1c37f"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/Mango.cs",
+      "source_sha256": "e76c97e377e887229e3492d9bcf3cda05fec8c476335b5a59e240af050857e2a",
+      "generated_sha256": "e74d62dd3a36994d1a468fe266516ea54be3b9de2b4c78c8fa30e999afc64a83"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/Pear.cs",
+      "source_sha256": "87c39f523195105ffad7f240251af0873ea3dc88bc8e113db3790f764ff8e19f",
+      "generated_sha256": "77dc9b8f06bad29e610f61ee87130092b6a17545e9f6b9a740540118613769f2"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/Strawberry.cs",
+      "source_sha256": "2dcaa250e85d9bf5aceade5a472003aceb7a0a9976b3975ea89cce8eb4fbc1cd",
+      "generated_sha256": "4ad100790180ebf6c21891922fb26a4f569312c357ca78aad01c99f54f7e65a4"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models/ITemporaryPower.cs",
+      "source_sha256": "987eb43e763186ee6421151825071816f3c8b7ee397fecdd407265f6fcb50f06",
+      "generated_sha256": "2639e6be948defcd0edafbfa15d35596e6bc509c84214fc4192a0060c7f5e37e"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models/SingletonModel.cs",
+      "source_sha256": "2781593cd4c2c4da6582ecf84fcb7fb4d36b977e31995d650ab27ae0bc7e5126",
+      "generated_sha256": "cbf4ef2547b10e47d653819a20fa5248f0c191b76d0d2a808c0658800ff709a9"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Nodes.CommonUi/CardPreviewStyle.cs",
+      "source_sha256": "43803343ef6153f6fc1733b240d1c43e32b5a44b80225072f915fa1ca97dc777",
+      "generated_sha256": "1b17e4695037924b20f737c5af344dc2fc5bc85f8c995eb5923a82a0300165f1"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Rooms/RoomType.cs",
+      "source_sha256": "1ab2c2f4df5979138c0c30e9c5ed2773bcbd2c6f35cf06b25eae7b0e2e8e4d7e",
+      "generated_sha256": "093838d8e5c92cee794c6ec02c5b909586259299ab5fa3b28cb6ba5e0709897e"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.ValueProps/ValuePropExtensions.cs",
+      "source_sha256": "369c8cdfa3d7e60d43f78823a7dfae28dc737d0bc1d1a2686dcce0c66bfc47c3",
+      "generated_sha256": "4af5457c824a1c3a655a3cf4c93b1414f0d129e739af5896298ee81c382e8e83"
+    }
+  ],
+  "generic_world_fork": {
+    "status": "verified_for_current_owned_graph",
+    "implementation": "src/csharp/rules/State/OwnedStateCopier.cs",
+    "sha256": "7b901a7c759bcf2a279e357f9d7fefcef1ad869db69c499867214d8bde81d50f",
+    "entity_creation_callbacks_invoked": false,
+    "per_model_rebind_adapters": false,
+    "private_fields": true,
+    "internal_delegates_rebound": true,
+    "external_event_observers_excluded": true,
+    "reference_identity_keys_rehashed": true,
+    "collection_slots_and_free_list_preserved": true,
+    "limitations": [
+      "Custom equality/hash/comparer code and unknown owned/framework layouts remain explicit clone_contract_missing boundaries.",
+      "Full native card/monster/RNG/queue graphs are not yet migrated."
+    ],
+    "delegate_reference_aliases_preserved": true,
+    "power_history_and_singleton_cycles_verified": true,
+    "local_observer_context_isolated": true,
+    "card_cost_pile_energy_cycles_isolated": true,
+    "known_and_unknown_keyword_state_isolated": true,
+    "star_resources_and_payment_history_isolated": true
+  },
+  "own_checkpoint": {
+    "schema": "autoslay-independent-resource-snapshot/1",
+    "scope": "resource_relic_only_not_full_live_game_observation",
+    "full_graph_checkpoint": false,
+    "private_model_state_supported": false,
+    "power_state_supported": false,
+    "unsupported_state_export_rejected": true,
+    "native_hook_domains_supported": false,
+    "timeline_history_singleton_supported": false,
+    "detached_models_rejected": true,
+    "local_context_supported": false,
+    "card_pile_energy_supported": false,
+    "cached_canonical_cards_rejected": true
+  },
+  "validation": {
+    "csharp_passed": 100,
+    "csharp_failed": 0,
+    "python_passed": 12,
+    "python_skipped": 0,
+    "python_seconds": 1.125,
+    "rules_sha256": "76f56b8ce39a0eb7489f094f82bd0cc5a1d73f6de63f7aee99652bc11181441a",
+    "host_sha256": "5e69032fc05a41185ab960d22aac0ee7c93f03c852a02abd8efe83bf4f4ebc8a",
+    "default_prediction_switched": false,
+    "live_game_executed": false
+  },
+  "power_command_scope": {
+    "implementation": "src/csharp/rules/Native/Commands/PowerCmd.cs",
+    "source_game_rules_executed": false,
+    "entity_id_compatibility_branches": false,
+    "native_modifier_phases": true,
+    "artifact_strength_interaction": true,
+    "temporary_strength_shared_mechanism": true,
+    "native_temporary_strength_entities_verified": false,
+    "complete_side_turn_end_scheduler": false,
+    "runtime_host_simulation_available": false,
+    "hook_inventory": "owned dynamic Power/Relic/Card/Singleton domains; cards have a finite cost/pile scope; unknown or unmigrated nonempty domains reject",
+    "limitations": [
+      "Card-source execution and complete card/monster creation lifecycles remain unsupported.",
+      "Nonempty potion/orb/modifier/badge/mod subscriber and monster domains are not migrated.",
+      "Targeted visibility follows native rules and requires explicit world-local identity when that predicate reads it.",
+      "Power history domain starts from explicitly observed empty history; existing nonempty history restore pending.",
+      "Visual waits omitted in current no-queue fixture scope; full choices/random/terminal/scheduling pending.",
+      "Generic checkpoint and common all-command trace integration pending."
+    ]
+  },
+  "card_energy_scope": {
+    "source_synchronized_energy_cost": true,
+    "entity_id_compatibility_branches": false,
+    "effect_dsl": false,
+    "ordered_local_modifiers": true,
+    "ordinary_and_late_global_passes": true,
+    "native_int_truncation": true,
+    "x_captured_value_and_observed_spend": true,
+    "energy_unknown_is_not_zero": true,
+    "pile_order": [
+      "Hand",
+      "Draw",
+      "Discard",
+      "Exhaust",
+      "Play"
+    ],
+    "run_deck_separate": true,
+    "native_energy_commands": [
+      "GainEnergy",
+      "LoseEnergy",
+      "SetEnergy"
+    ],
+    "energy_modifier_notifications_compare_int": true,
+    "native_energy_block_model_verified": true,
+    "real_card_model_definitions": 3,
+    "real_card_models_certified": 0,
+    "restored_card_scope": "finite cost/pile state; separate explicit keyword, upgrade level, scalar/calculated variable and raw star-cost hydration; absent enchantment/affliction; not arbitrary private state or complete card observation",
+    "cost_hydration": "four fixed fields of owned compiled cost class; no observation-selected field names or callbacks",
+    "full_card_play_and_payment": false,
+    "native_payment_members": true,
+    "enchantment_affliction_supported": false,
+    "ui_state_tracker_omitted_scope": "only explicitly absent enchantments; RecalculateValues consumers must be migrated before widening scope",
+    "direct_card_constructor_parameter_extraction": true,
+    "full_card_constructor_parameter_extraction": false,
+    "constructor_factory": "explicit RuleParameters injection before native base initialization; no ambient world or entity ID factory",
+    "keywords_local_and_global": true,
+    "keyword_hook_uses_raw_iterator_even_during_ending": true,
+    "unknown_keywords_and_upgrade_level_rejected": true,
+    "complete_upgrade_pipeline": false,
+    "absent_attachment_upgrade_and_downgrade": true,
+    "calculated_owner_and_upgrade_recalc": true,
+    "native_context_free_bulk_upgrade": false,
+    "owned_bulk_upgrade_requires_explicit_world": true,
+    "canonical_scalar_setters_follow_native": true,
+    "modified_canonical_checkpoint_rejected": true,
+    "runtime_host_simulation_available": false,
+    "test_files": [
+      "src/csharp/tests/RulesTests/CardMechanismTests.cs",
+      "src/csharp/tests/RulesTests/EnergyMechanismTests.cs",
+      "src/csharp/tests/RulesTests/CardParameterTests.cs",
+      "src/csharp/tests/RulesTests/KeywordMechanismTests.cs",
+      "src/csharp/tests/RulesTests/UpgradeMechanismTests.cs",
+      "src/csharp/tests/RulesTests/ResourcePaymentTests.cs"
+    ]
+  },
+  "model_factory": {
+    "implementation": "src/csharp/rules/Native/Models/ModelDb.cs",
+    "sha256": "90f5bdcb756b8bdde2fca48013dc393208fe65c9cdec8e472097164f67b72cd0",
+    "parameter_injection_before_base_constructor": true,
+    "ambient_world_state": false,
+    "entity_id_factory_table": false,
+    "missing_constructor_binding_preserves_boundary_code": true
+  },
+  "card_star_and_payment_scope": {
+    "source_game_rules_executed": false,
+    "entity_id_compatibility_branches": false,
+    "effect_dsl": false,
+    "player_commands": [
+      "GainStars",
+      "LoseStars",
+      "SetStars"
+    ],
+    "explicit_observed_stars": true,
+    "native_gain_permission_and_notifications": true,
+    "local_star_cost_order_and_upgrade_trimming": true,
+    "resource_affordability_flags": true,
+    "excess_energy_to_stars_ratio": 2,
+    "spend_resources_native_order": true,
+    "x_energy_captured_before_hooks": true,
+    "payment_is_not_legality_validation": true,
+    "energy_zero_still_notifies": true,
+    "history_scope": "explicit-empty resource domain; ordered EnergySpentEntry and StarsModifiedEntry, actual signed star delta, native timeline and world-owned actor/history references",
+    "existing_nonempty_history_restore": false,
+    "combined_all_family_history_queries": false,
+    "deck_upgrade_history": "explicit-empty per-player map entry; history recorded before upgrade/downgrade callbacks",
+    "full_card_play_wrapper": false,
+    "host_simulation": false,
+    "limitations": [
+      "Present enchantments/afflictions, full preview/display and specialized calculated variables remain unsupported.",
+      "Star payment does not implement play legality, full play queue, pile transitions or keyword consumers.",
+      "Resource checkpoint rejects these observations; generic graph checkpoint is pending.",
+      "Complete mutation command tracing and all-family history queries are pending."
+    ]
+  }
+}

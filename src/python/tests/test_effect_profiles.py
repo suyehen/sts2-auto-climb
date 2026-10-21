@@ -3,7 +3,7 @@ import json
 import pytest
 from autoslay.knowledge_base.effect_profiles import (compile_entry,compile_catalog,profile_for,
     selected_variant,normalize_text,interaction_edges)
-from autoslay.evaluation.entity_effects import evaluate_entity,apply_route_effects
+from autoslay.evaluation.entity_effects import entity_reference
 from autoslay.evaluation.run import RunContext,RunPolicy,card_features
 from autoslay.evaluation.strategic import RunResources
 
@@ -17,8 +17,8 @@ def entry(identity,text,category='relic',**kwargs):
     return row
 
 
-def evaluate(row,hp=40,**kwargs):
-    return evaluate_entity(dict(entity_id=row['entity_id']),RunContext(hp,80,100),{row['entity_id']:row},RunPolicy(),**kwargs)
+def evaluate(row,hp=40):
+    return entity_reference(dict(entity_id=row['entity_id']),{row['entity_id']:row})
 
 
 def test_registry_covers_every_entity_and_every_variant_without_an_id_allowlist():
@@ -30,7 +30,7 @@ def test_registry_covers_every_entity_and_every_variant_without_an_id_allowlist(
     assert set(model['profiles'])=={r['entity_id'] for r in rows}
     assert model['counts']['card']['variants']==2
     assert model['data_coverage_complete'] and not model['full_simulation_support']
-    assert not any(p['simulation_adapter_enabled'] for p in model['profiles'].values())
+    assert not any(p['mechanism_defined'] for p in model['profiles'].values())
     with pytest.raises(ValueError,match='Duplicate'):compile_catalog(rows+[rows[0]])
 
 
@@ -59,51 +59,49 @@ def test_energy_images_preserve_numeric_multiplier_and_repeated_icons():
     for text,expected in [('获得'+icon+icon+'。',2),('获得[blue]4'+icon+'[/blue]。',4)]:
         result=evaluate(entry('POTION.ENERGY_ALIAS',text,'potion'))
         assert result['components'][0]['effect']['amount']==expected
-        assert result['utility']==expected*RunPolicy().energy_weight
+        assert result['utility'] is None and result['reference_only']
     assert 'png' not in normalize_text('获得'+icon)
 
 
 def test_negative_and_positive_lifetime_effects_are_not_separated_into_a_free_bonus():
     row=entry('RELIC.TRADEOFF','在每回合开始时获得1{ENERGY}。你无法再获得药水。')
-    result=evaluate(row,opportunities={'turn_start':4})
-    assert result['utility'] is None and result['known_component_utility']==16
+    result=evaluate(row)
+    assert result['utility'] is None and result['known_component_utility'] is None
     assert result['restrictions'][0]['kind']=='no_potion_gain'
-    assert any('药水' in str(gap) for gap in result['unpriced'])
+    assert result['reference_only'] and result['unpriced']
 
 
-def test_all_future_trigger_counts_require_explicit_opportunities():
+def test_description_reference_never_supplies_trigger_counts_or_resource_points():
     row=entry('RELIC.HEAL_ALIAS','在战斗结束时，回复6点生命。')
-    unknown=evaluate(row);known=evaluate(row,opportunities={'combat_end':2})
+    unknown=evaluate(row)
     assert unknown['utility'] is None
-    assert known['components'][0]['occurrences']==2
-    with pytest.raises(ValueError):evaluate(row,opportunities={'combat_end':-1})
+    assert unknown['components'][0]['occurrences'] is None
+    assert unknown['components'][0]['per_trigger_proxy'] is None
 
 
-def test_resource_triggers_work_for_arbitrary_relic_ids_and_do_not_repeat_pickup():
-    profiles=[compile_entry(entry('RELIC.HEAL_ALIAS','在战斗结束时，回复12点生命。')),
-              compile_entry(entry('RELIC.CASH_ALIAS','拾起时，获得150金币。'))]
-    start=RunResources(70,80,0)
-    first,notes=apply_route_effects(start,'combat_end',profiles)
-    assert first.hp==80 and first.gold==0
-    acquired,_=apply_route_effects(first,'pickup',profiles)
-    assert acquired.gold==150
-    next_fight,_=apply_route_effects(acquired,'combat_end',profiles)
-    assert next_fight.gold==150 and next_fight.hp==80
+def test_description_only_relics_do_not_execute_resource_changes():
+    from autoslay.rules.run_commands import RunCommands
+    rows=[entry('RELIC.HEAL_ALIAS','在战斗结束时，回复12点生命。'),
+          entry('RELIC.CASH_ALIAS','拾起时，获得150金币。')]
+    initial=RunResources(70,80,0,relics=tuple(dict(entity_id=r['entity_id']) for r in rows))
+    result=RunCommands(references={r['entity_id']:r for r in rows}).dispatch(initial,'after_combat_victory')
+    assert result.state==initial and len(result.gaps)==2
 
 
-def test_no_gold_restriction_prevents_parsed_gold_gain():
-    profiles=[compile_entry(entry('RELIC.NO_GOLD','你不能再获得任何金币。')),
-              compile_entry(entry('RELIC.CASH','拾起时，获得150金币。'))]
-    result,_=apply_route_effects(RunResources(40,80,0),'pickup',profiles)
-    assert result.gold==0
-    result,_=apply_route_effects(RunResources(40,80,0),'pickup',[profiles[1]],context_profiles=[profiles[0]])
-    assert result.gold==0
+def test_display_restrictions_are_not_run_command_definitions():
+    from autoslay.rules.run_commands import RunCommands
+    row=entry('RELIC.NO_GOLD','你不能再获得任何金币。')
+    initial=RunResources(40,80,0,relics=(dict(entity_id=row['entity_id']),))
+    result=RunCommands(references={row['entity_id']:row}).dispatch(initial,'after_obtained')
+    assert result.state==initial and result.gaps
 
 
-def test_conditional_heal_is_not_applied_without_observing_condition():
-    profile=compile_entry(entry('RELIC.CONDITIONAL','如果你在战斗结束时生命值等于或低于50%，回复12点生命。'))
-    resources,notes=apply_route_effects(RunResources(40,80,0),'combat_end',[profile])
-    assert resources.hp==40 and notes[0]['status']=='unmodeled'
+def test_conditional_heal_requires_a_structured_definition():
+    from autoslay.rules.run_commands import RunCommands
+    row=entry('RELIC.CONDITIONAL','如果你在战斗结束时生命值等于或低于50%，回复12点生命。')
+    initial=RunResources(40,80,0,relics=(dict(entity_id=row['entity_id']),))
+    result=RunCommands(references={row['entity_id']:row}).dispatch(initial,'after_combat_victory')
+    assert result.state.hp==40 and result.gaps
 
 
 def test_observed_description_overrides_default_for_one_upgrade_variant_only():
@@ -120,17 +118,19 @@ def test_all_upgrade_and_x_cost_metadata_remain_available_without_canonical_simu
     result=evaluate(row)
     assert result['resource_costs']['costs_x'] and result['utility'] is None
     features=card_features(dict(entity_id='CARD.X'),{'CARD.X':row})
-    assert features['costs_x'] and features['block']==5
+    assert features['costs_x'] and features['block']==0
     assert any('UNMODELED' in w for w in features['warnings'])
 
 
-def test_complete_new_numeric_card_enters_resource_scoring_without_enabling_simulation():
+def test_reference_numeric_profile_cannot_enable_default_resource_scoring():
     from autoslay.evaluation.run import unmodeled,intrinsic_value
     row=entry('CARD.NO_MANUAL_RULE','造成17点伤害。','card')
     features=card_features(dict(entity_id=row['entity_id']),{row['entity_id']:row})
-    assert features['damage']==17 and not unmodeled(features)
-    assert intrinsic_value(dict(entity_id=row['entity_id']),{row['entity_id']:row})['utility']==17
-    assert not compile_entry(row)['simulation_adapter_enabled']
+    assert features['damage']==0 and unmodeled(features)
+    assert intrinsic_value(dict(entity_id=row['entity_id']),{row['entity_id']:row})['utility'] is None
+    row['variants'][0]['description']='造成999点伤害。'
+    assert card_features(dict(entity_id=row['entity_id']),{row['entity_id']:row})['damage']==0
+    assert not compile_entry(row)['mechanism_defined']
 
 
 def test_empty_placeholder_is_registered_without_fake_zero_utility():
@@ -170,6 +170,7 @@ def test_live_hand_instances_offers_and_relic_options_all_enter_actual_decision_
     assert {row['entity_id'] for row in report['entities']}==set(entries)
     card=next(row for row in report['entities'] if row['entity_id']=='CARD.NEW')
     assert card['components'][0]['effect']['amount']==12
+    assert all(r['reference_only'] and r['utility'] is None and r['known_component_utility'] is None for r in report['entities'])
     assert len(card['origins'])==2
     packet=entity_models_packet(report)
     assert len(packet['entities'])==3 and all('clauses' not in r for r in packet['entities'])
@@ -177,7 +178,7 @@ def test_live_hand_instances_offers_and_relic_options_all_enter_actual_decision_
     json.dumps(packet,allow_nan=False)
 
 
-def test_draw_restrictions_and_victory_healing_use_catalog_effects_without_identity_checks():
+def test_draw_restrictions_and_victory_healing_require_model_definitions():
     from autoslay.decision.unified import context_for
     from autoslay.evaluation.combat_resources import capabilities
     draw=entry('RELIC.DRAW_BAN_ALIAS','在每个回合开始时，额外抽2张牌。你在回合进行中不再能抽任何牌。')
@@ -185,16 +186,18 @@ def test_draw_restrictions_and_victory_healing_use_catalog_effects_without_ident
     entries={r['entity_id']:r for r in (draw,heal)}
     snapshot={'state':{'phase':'map','player':{'creature':dict(hp=40,max_hp=80),
         'relics':[dict(entity_id=draw['entity_id']),dict(entity_id=heal['entity_id'])]}}}
-    assert context_for(snapshot,dict(draw_blocked=False),entries).draw_blocked
-    assert capabilities(snapshot,entries)['victory_heal']==12
+    assert not context_for(snapshot,dict(draw_blocked=False),entries).draw_blocked
+    assert capabilities(snapshot,entries)['victory_heal']==0
+    assert capabilities(snapshot,entries)['victory_heal_gaps']
+    snapshot['state']['player']['deck']=[dict(entity_id='CARD.UNKNOWN',description='Heal 999 HP.')]
+    assert capabilities(snapshot,entries)['healing_cards']==[]
 
 
 @pytest.mark.local_knowledge
 def test_every_local_catalog_variant_can_compile_and_evaluate_without_omission():
     from autoslay.knowledge_base.templates import index
-    from autoslay.knowledge_base.rulebook import Rulebook
     from autoslay.decision.entity_models import registry_summary
-    entries=index()[0];book=Rulebook();summary=registry_summary(book)
+    entries=index()[0];summary=registry_summary()
     assert summary['entity_count']==len(entries)
     evaluations=0
     for identity,row in entries.items():
@@ -203,8 +206,7 @@ def test_every_local_catalog_variant_can_compile_and_evaluate_without_omission()
         expected=row.get('variants',[]) if row['category']=='card' else [row]
         assert len(profile['variants'])==len(expected)
         for variant in expected:
-            result=evaluate_entity(dict(entity_id=identity,upgrade_level=variant.get('upgrade_level',0)),
-                                   RunContext(40,80,100),entries,RunPolicy())
+            result=entity_reference(dict(entity_id=identity,upgrade_level=variant.get('upgrade_level',0)),entries)
             assert result['coverage'] not in {'reference_missing','variant_missing'}
             json.dumps(result,ensure_ascii=False,allow_nan=False)
             evaluations+=1

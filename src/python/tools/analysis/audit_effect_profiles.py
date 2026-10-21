@@ -1,32 +1,31 @@
-"""Compile every local catalog entry; report data, semantic and simulation coverage."""
+"""Compile catalog description references, separate from declared rule coverage."""
 import argparse
 import json
 from pathlib import Path
 from autoslay.knowledge_base.repository import scoped,read_json,dataset_path
-from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.knowledge_base.templates import index
+from autoslay.rules.registry import mechanism_status
 from autoslay.knowledge_base.effect_profiles import compile_catalog
 
 
 @scoped
 def build():
-    book=Rulebook()
-    registry=compile_catalog(book.catalog['entries'],read_json(dataset_path('source_inventory'),default={}),
-                             {i:book.status(i) for i in book.references})
-    registry.update(game_version=book.catalog['game_version'],
-                    game_assembly_sha256=book.catalog.get('game_assembly_sha256'))
+    catalog=read_json(dataset_path('catalog')); references=index()[0]
+    registry=compile_catalog(catalog['entries'],read_json(dataset_path('source_inventory'),default={}),
+                             {i:mechanism_status(i) for i in references})
+    registry.update(game_version=catalog['game_version'],
+                    game_assembly_sha256=catalog.get('game_assembly_sha256'))
     from collections import Counter
-    from autoslay.evaluation.entity_effects import evaluate_entity
-    from autoslay.evaluation.run import RunContext,RunPolicy
-    context=RunContext(40,80,100);policy=RunPolicy();counts={}
+    from autoslay.evaluation.entity_effects import entity_reference
+    counts={}
     for identity,profile in registry['profiles'].items():
         counts.setdefault(profile['category'],Counter())
         for variant in profile['variants']:
-            valuation=evaluate_entity(dict(entity_id=identity,upgrade_level=variant['upgrade_level']),
-                                      context,book.references,policy)
-            variant['valuation']=valuation
-            counts[profile['category']][valuation['coverage']]+=1
-    registry['valuation_counts']={k:dict(v) for k,v in counts.items()}
-    registry['valuation_context']=dict(hp=40,max_hp=80,gold=100,opportunities='unknown')
+            reference=entity_reference(dict(entity_id=identity,upgrade_level=variant['upgrade_level']),references)
+            variant['reference_analysis']=reference
+            counts[profile['category']][reference['coverage']]+=1
+    registry['reference_counts']={k:dict(v) for k,v in counts.items()}
+    registry['reference_only']=True
     return registry
 
 

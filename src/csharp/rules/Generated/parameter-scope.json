@@ -1,0 +1,43 @@
+{
+  "schema_version": "autoslay-parameter-extraction-scope/1",
+  "extracted_bindings": 7,
+  "scope": "direct_scalar_model_vars_and_upgrade_arguments_plus_direct_CardModel_constructor_energy_and_canonical_star_cost",
+  "constructor_cost_sites": [
+    {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Dazed.cs",
+      "line": 17,
+      "member": "Dazed.ctor.CanonicalEnergyCost",
+      "status": "bound",
+      "reason": "explicit_factory_parameter_before_base_constructor",
+      "key": "MegaCrit.Sts2.Core.Models.Cards/Dazed.cs::Dazed.ctor.CanonicalEnergyCost::0"
+    },
+    {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs",
+      "line": 13,
+      "member": "Enlightenment.ctor.CanonicalEnergyCost",
+      "status": "bound",
+      "reason": "explicit_factory_parameter_before_base_constructor",
+      "key": "MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs::Enlightenment.ctor.CanonicalEnergyCost::0"
+    },
+    {
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Injury.cs",
+      "line": 13,
+      "member": "Injury.ctor.CanonicalEnergyCost",
+      "status": "bound",
+      "reason": "explicit_factory_parameter_before_base_constructor",
+      "key": "MegaCrit.Sts2.Core.Models.Cards/Injury.cs::Injury.ctor.CanonicalEnergyCost::0"
+    }
+  ],
+  "canonical_star_cost_sites": [],
+  "unbound_numeric_literals": [],
+  "full_parameter_coverage": false,
+  "full_support": false,
+  "limitations": [
+    "Other members, indirect constants, calculated expressions and non-numeric data are not externalized.",
+    "Card constructor binding requires a non-partial direct CardModel subclass with one public parameterless source constructor and a direct int32 base cost literal; constructor graphs remain unbound.",
+    "Generated card constructors receive RuleParameters explicitly from the owned model factory; direct zero-argument construction remains a compile error until its caller is migrated.",
+    "Direct int32 CanonicalStarCost override getters bind only when a direct card constructor context is bound; indirect and complex getters remain source code with explicit gaps.",
+    "Generated model source still requires semantic migration, dependency closure, compilation and behavior verification.",
+    "ValueProp flags and PowerVar generic model identities remain C# expressions, not numeric effect instructions."
+  ]
+}

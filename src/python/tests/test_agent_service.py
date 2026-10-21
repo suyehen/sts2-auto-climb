@@ -80,14 +80,15 @@ def test_dashboard_switch_proxy_and_assets(tmp_path,monkeypatch):
         assert data['active']=='ollama' and calls==[('/switch',dict(id='ollama'))]
         for path in ['/','/sidebar.html']:
             html=urlopen(url+path).read().decode()
-            assert 'agent-controls' in html and 'agent.js' in html
+            assert ('agent-controls' if path=='/' else 'agent-quick-controls') in html and 'agent.js' in html
         assert b'api_key' in urlopen(url+'/agent.js').read()
         sidebar=urlopen(url+'/sidebar.html').read().decode()
         # Candidate details are collapsed; the always-visible decision flow is separate.
         assert 'id="decision-flow"' in sidebar
-        assert 'id="decision-disclosure"><summary>' in sidebar
-        assert 'id="enemy-intents"' in sidebar and 'id="decision-forecast"' in sidebar
-        assert b'renderSidebarCombat' in urlopen(url+'/sidebar.js').read()
+        assert 'id="enemy-disclosure"><summary>' in sidebar
+        assert 'id="enemy-intents"' in sidebar and 'id="game-state"><summary>' in sidebar
+        sidebar_script=urlopen(url+'/sidebar.js').read()
+        assert b'renderPlans' in sidebar_script and b'renderIntentMachine' in sidebar_script
         with urlopen(url+'/sidebar-combat.js') as response:
             assert response.headers.get_content_type()=='text/javascript'
             assert b'candidateIntentFacts' in response.read()

@@ -83,7 +83,7 @@ def test_draw_plan_reshuffle_and_pile_exhaustion():
 
 
 def test_playing_draw_card_frees_a_hand_slot_and_keeps_play_card_out_of_shuffle():
-    pommel = card("p", "POMMEL_STRIKE", "Deal 9 damage. Draw 3 cards.")
+    pommel = replace(card("p", "POMMEL_STRIKE", "Deal 9 damage. Draw 3 cards."),dynamic_variables=(("Damage",9),("Cards",3)))
     s = state((pommel,) + tuple(card(i, "UNMODELED") for i in range(9)))
     sim = CombatSimulator(s)
     result = sim.apply(s, Operation("play_p", "e"))
@@ -125,7 +125,8 @@ def snapshot():
                 "creature": {"hp": 30, "max_hp": 80, "block": 0, "powers": []},
                 "energy": 3, "hand_limit": 10, "turn_phase": "Play", "turn": 2,
                 "hand": [{"instance_id": "p", "entity_id": "CARD.POMMEL_STRIKE", "energy_cost": 1,
-                          "target_type": "AnyEnemy", "description": "Deal 9 damage. Draw 3 cards."}],
+                          "target_type": "AnyEnemy", "description": "Deal 9 damage. Draw 3 cards.",
+                          "dynamic_variables": [dict(name="Damage",base_value=9),dict(name="Cards",base_value=3)]}],
                 "draw_composition": [{"entity_id": "CARD.A", "count": 1}],
                 "discard": [{"entity_id": "CARD.B"}, {"entity_id": "CARD.B"},
                             {"entity_id": "CARD.C"}, {"entity_id": "CARD.C"}],

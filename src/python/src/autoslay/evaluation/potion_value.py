@@ -1,35 +1,35 @@
 """Explainable reserve intervals; each consumed bottle is charged exactly once."""
 from math import isfinite
 
-VERSION = '1.1.0'
-DEFAULTS = {'POTION.FIRE_POTION': (8.0, 20.0), 'POTION.BLOCK_POTION': (6.0, 14.0),
-            'POTION.ENERGY_POTION': (6.0, 18.0), 'POTION.STRENGTH_POTION': (8.0, 20.0)}
+VERSION = '2.0.0'
 
 
 def reserve_cost(snapshot, potion, parameters=None, *, entries=None):
-    parameters = parameters or {}
-    values = parameters.get('costs', DEFAULTS).get(potion.entity_id)
+    from autoslay.configuration import decision_config
+    from autoslay.paths import ROOT
+    configured=decision_config(ROOT/'config/decision/combat.default.json')['potion_reserve']
+    parameters = configured if parameters is None else parameters
+    values = parameters.get('costs', configured['costs']).get(potion.entity_id)
     semantic=None;basis='explicit future reserve interval; unknown route retained in interval'
     if values is None:
         from autoslay.knowledge_base.templates import index
-        from autoslay.evaluation.entity_effects import evaluate_entity
+        from autoslay.evaluation.resources import potion_proxy
         from autoslay.evaluation.run import RunContext,RunPolicy
         if entries is None:entries=index(expected_version=snapshot.get('game_version','0.111.0'))[0]
         player=snapshot['state'].get('player') or {};creature=player.get('creature') or {}
         maximum=creature.get('max_hp',80)
         context=RunContext(creature.get('hp',maximum),maximum,player.get('gold',0))
-        semantic=evaluate_entity(dict(entity_id=potion.entity_id,description=potion.description),context,entries,RunPolicy())
-        healing=any(c['effect']['kind'] in {'heal','set_hp','max_hp'} for c in semantic.get('components',[]))
-        if semantic['utility'] is None or semantic['utility']<=0 or healing:
+        semantic=potion_proxy(potion,context,entries,RunPolicy(),relics=player.get('relics') or ())
+        if semantic['utility'] is None or semantic['utility']<=0 or semantic['resource_sensitive']:
             return dict(lower=None,upper=None,known=False,reason='potion_reserve_unmodeled',semantic_analysis=semantic)
         values=(0.0,float(semantic['utility']))
-        basis='catalog immediate-resource proxy envelope; not calibrated future value or confidence interval'
+        basis='declared immediate-resource proxy envelope; not calibrated future value or confidence interval'
     low, high = (values['lower'],values['upper']) if isinstance(values,dict) else values
     if any(type(x) not in (int,float) or not isfinite(x) or x<0 for x in (low,high)) or low>high:
         raise ValueError('Invalid potion reserve interval')
     player = snapshot['state'].get('player') or {}
     same = sum(p.get('entity_id') == potion.entity_id for p in player.get('potions') or [])
-    factor = parameters.get('substitute_discount', 0.75) if same>1 else 1.0
+    factor = parameters.get('substitute_discount', configured['substitute_discount']) if same>1 else 1.0
     if type(factor) not in (int,float) or not 0<factor<=1:raise ValueError('Invalid substitute discount')
     # No prediction of a future drop. Only a currently offered overflow counts.
     offered = (snapshot['state'].get('reward_screen') or {}).get('rewards') or []

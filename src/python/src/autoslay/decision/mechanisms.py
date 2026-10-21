@@ -2,10 +2,11 @@
 from collections import Counter, OrderedDict
 from threading import RLock
 from autoslay.knowledge_base.behavior import load
-from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.rules.registry import mechanism_status
+from autoslay.knowledge_base.templates import index
 from autoslay.knowledge_base.events import rules as event_rules
 
-VERSION = '1.0.0'
+VERSION = '2.0.0'
 
 
 class StateTracker:
@@ -44,18 +45,18 @@ TRACKER = StateTracker()
 
 
 def inventory():
-    """All entities audited; a compatible adapter still has observation boundaries."""
-    book = Rulebook()
+    """All entities audited against native definitions; boundaries remain explicit."""
+    references = index()[0]
     behavior = load()
     rows = [dict(entity_id=i, category=e['category'], name=e.get('name'),
-                 tier='adapter' if book.status(i)=='compatible' else 'ai_required',
-                 reason=book.status(i)) for i,e in book.references.items()]
+                 tier='defined' if mechanism_status(i)=='defined' else 'ai_required',
+                 reason=mechanism_status(i)) for i,e in references.items()]
     for e in behavior['entries']:
         rows.append(dict(entity_id=e['entity_id'], category=e['category'], name=e['name'],
                          tier='reference_only', reason='行为资料尚未编译为通用执行规则'))
     return dict(module_version=VERSION, entries=rows,
                 counts=dict(Counter(r['tier'] for r in rows)),
-                exactness='adapter means bounded executable effects, not complete entity simulation',
+                exactness='defined means a native mechanic definition exists; execution boundaries remain explicit',
                 game_version=behavior.get('game_version'), game_assembly_sha256=behavior.get('game_assembly_sha256'))
 
 
@@ -86,18 +87,18 @@ def inspect(snapshot, report=None, tracker=None):
                             fields=fields, field_aliases=aliases, reference_matches=matching,
                             branch_count=sum(len(n.get('branches',[])) for n in graph.get('nodes',[])),
                             branch_calculation='ai_required', reference_present=bool(entry)))
-    book = Rulebook()
+    references = index()[0]
     entities = {}
-    from autoslay.rules.mechanism_scope import reviewed_pickup
-    pickup = reviewed_pickup(snapshot, book) if state.get('phase') == 'combat' else {}
+    from autoslay.rules.mechanism_scope import observed_pickup
+    pickup = observed_pickup(snapshot) if state.get('phase') == 'combat' else {}
     def walk(value):
         if isinstance(value, dict):
             identity=value.get('entity_id')
             if isinstance(identity,str) and identity.startswith(('CARD.','POTION.','RELIC.','POWER.')):
-                status=book.status(identity,snapshot.get('game_version'))
+                status=mechanism_status(identity,snapshot.get('game_version'))
                 if identity in pickup: status='observed_in_snapshot'
-                entities[identity]=dict(entity_id=identity,name=value.get('name') or (book.references.get(identity) or {}).get('name',identity),
-                                       tier='observed_in_snapshot' if identity in pickup else 'adapter' if status=='compatible' else 'ai_required',reason=status)
+                entities[identity]=dict(entity_id=identity,name=value.get('name') or (references.get(identity) or {}).get('name',identity),
+                                       tier='observed_in_snapshot' if identity in pickup else 'defined' if status=='defined' else 'ai_required',reason=status)
             for child in value.values(): walk(child)
         elif isinstance(value,list):
             for child in value: walk(child)

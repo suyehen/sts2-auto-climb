@@ -1,4 +1,4 @@
-"""Exact outcome comparison shared by source-reviewed rule adapters.
+"""Exact outcome comparison shared by native mechanic execution.
 
 Adapters must supply every persistent dimension and the same continuation. This
 module never turns arbitrary API-supplied forecasts into execution permission.

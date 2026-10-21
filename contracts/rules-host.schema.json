@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autoslay-rules-host/1",
+  "title": "Independent rule Host request; currently identity handshake only",
+  "type": "object",
+  "required": ["protocol_version", "request_id", "operation"],
+  "properties": {
+    "protocol_version": {"const": "autoslay-rules-host/1"},
+    "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "operation": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false,
+  "$comment": "An operation name does not imply implementation or execution authority. Check Host capabilities and typed errors; no per-entity old-engine fallback."
+}

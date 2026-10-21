@@ -62,7 +62,11 @@ def compare_profiles(labels,profiles,baseline,game_version,directory=None):
                 if kind not in {'add','remove','upgrade'} or unmodeled(card_features(card,entries)): raise ValueError('Unmodeled reviewed card')
                 if kind=='upgrade' and unmodeled(card_features(dict(card,upgrade_level=card.get('upgrade_level',0)+1),entries)): raise ValueError('Unmodeled upgrade')
                 kwargs={'add':card} if kind=='add' else {kind:card['instance_id']}
-                return compare_choice(deck,context,entries,policy=policy,interactions=interaction,**kwargs)['delta_utility']
+                comparison=compare_choice(deck,context,entries,policy=policy,interactions=interaction,
+                    relics=evidence['snapshot']['state']['player'].get('relics') or [],**kwargs)
+                if comparison['delta_utility'] is None:
+                    raise ValueError('Unmodeled card choice continuation: '+str(comparison['mechanism_gaps']))
+                return comparison['delta_utility']
             pair_results={}
             for name,(policy,interaction) in profile_values.items():
                 margin=value(offers[better],policy,interaction)-value(offers[worse],policy,interaction)

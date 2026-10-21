@@ -13,8 +13,8 @@ from autoslay.simulation.engine import CombatSimulator
 from autoslay.telemetry.verification import compare_transition
 
 
-def card(instance, entity, description, cost=1, target="AnyEnemy"):
-    return Card(instance, "CARD." + entity, cost, target, description)
+def card(instance, entity, description, cost=1, target="AnyEnemy", variables=()):
+    return Card(instance, "CARD." + entity, cost, target, description,dynamic_variables=variables)
 
 
 def state(*cards, hp=30, enemy_hp=100, block=0, energy=3, vulnerable=0, cap=None, attacks=(10,), legion=False):
@@ -60,7 +60,7 @@ def test_empty_and_guaranteed_draws():
 
 
 def test_multihit_vulnerable_rounding_and_cap():
-    twin = card("twin", "TWIN_STRIKE", "Deal 7 damage twice.")
+    twin = card("twin", "TWIN_STRIKE", "Deal 7 damage twice.",variables=(("Damage",7),))
     s = state(twin, vulnerable=2, cap=9)
     sim = CombatSimulator(s)
     result = play(sim, s, "twin")
@@ -70,7 +70,7 @@ def test_multihit_vulnerable_rounding_and_cap():
 
 def test_damage_effect_order_strength_is_not_retroactive():
     setup = card("setup", "SETUP_STRIKE", "Deal 7 damage. Gain 3 Strength this turn.")
-    twin = card("twin", "TWIN_STRIKE", "Deal 7 damage twice.")
+    twin = card("twin", "TWIN_STRIKE", "Deal 7 damage twice.",variables=(("Damage",7),))
     s = state(setup, twin)
     sim = CombatSimulator(s)
     first = play(sim, s, "setup")
@@ -82,7 +82,7 @@ def test_damage_effect_order_strength_is_not_retroactive():
 
 def test_legion_only_first_block_card_doubled():
     defend = card("def", "DEFEND_IRONCLAD", "Gain 10 Block.", target="Self")
-    shrug = card("shrug", "SHRUG_IT_OFF", "Gain 20 Block. Draw 1 card.", target="Self")
+    shrug = card("shrug", "SHRUG_IT_OFF", "Gain 20 Block. Draw 1 card.", target="Self",variables=(("Block",10),("Cards",1)))
     s = state(defend, shrug, legion=True)
     sim = CombatSimulator(s)
     one = play(sim, s, "def", None)
@@ -214,7 +214,8 @@ def test_deck_probability_delta_is_not_deck_strength():
 
 def test_draw_report_does_not_invent_reshuffle_probability():
     snapshot = fixture_snapshot()
-    snapshot["state"]["player"]["hand"][0].update(entity_id="CARD.POMMEL_STRIKE", description="Deal 9 damage. Draw 2 cards.")
+    snapshot["state"]["player"]["hand"][0].update(entity_id="CARD.POMMEL_STRIKE", description="Deal 9 damage. Draw 2 cards.",
+        dynamic_variables=[dict(name='Damage',base_value=9),dict(name='Cards',base_value=2)])
     snapshot["state"]["enemies"][0]["hp"] = 50
     report = analyze(snapshot)
     boundary = report["observation_boundaries"][0]

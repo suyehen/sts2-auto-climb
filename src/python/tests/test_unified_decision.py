@@ -171,10 +171,63 @@ def test_route_prefers_rest_over_elite_at_low_hp():
     assert report['candidates'][0]['path']==['rest']
 
 def test_rest_heal_and_upgrade_comparison(entries):
-    report=evaluate_rest([dict(option_id='Heal',available=True,description='Heal 24 HP.',action_id='h'),dict(option_id='Smith',available=True,description='Upgrade a card.',action_id='s')],
+    report=evaluate_rest([dict(option_id='Heal',available=True,heal_amount=24,description='Heal 24 HP.',action_id='h'),dict(option_id='Smith',smith_count=1,available=True,description='Upgrade a card.',action_id='s')],
                          [raw('STRIKE_IRONCLAD')],context(10),entries,RunPolicy())
     assert report['candidates'][0]['action_id']=='h' and report['candidates'][0]['healed']==24
     assert all(c['utility'] is not None for c in report['candidates'])
+
+
+def test_reward_and_comparison_tools_preserve_unknown_owned_card_hooks(entries):
+    from test_deterministic import live
+    from autoslay.decision.unified import evaluate_run_choices
+    value=live();state=value['state'];state.update(phase='card_reward_selection',pending_combat_action=None)
+    player=state['player'];player['deck']=[raw('STRIKE_IRONCLAD','base')]
+    player['relics']=[dict(entity_id='RELIC.UNKNOWN')]
+    offered=raw('DEFEND_IRONCLAD','offer')
+    state['reward_screen']=dict(cards=[dict(card=offered,available=True,action_id='pick')])
+    state['legal_actions']=[dict(action_id='pick',type='select_reward_card',allows_no_target=True,allowed_target_ids=[])]
+    before=deepcopy(value)
+    report=analyze_decision(value,use_cache=False)
+    added=next(c for c in report['choices']['candidates'] if c['kind']=='add')
+    assert added['delta_utility'] is None and added['comparison']['mechanism_gaps']
+    assert len(added['comparison']['after_resources']['relics'])==1
+    removed=evaluate_run_choices(value,'remove',[player['deck'][0]])['candidates'][0]
+    assert removed['delta_utility'] is None and list(removed['comparison']['after_resources']['deck'])==player['deck']
+    event=evaluate_run_choices(value,'event',[dict(option_id='remove',effects=[dict(kind='remove_card',instance_id='base')])])
+    assert event['candidates'][0]['utility'] is None and 'before_card_removed' in event['candidates'][0]['reason']
+    assert value==before
+
+
+def test_card_choice_accounts_for_declared_resource_hooks_once(entries,monkeypatch):
+    from autoslay.rules.model_store import load_models,validate_models
+    from autoslay.evaluation.run import compare_choice
+    from autoslay.evaluation.events import transition_value
+    from autoslay.evaluation.strategic import RunResources
+    data=json.loads((ROOT/'data/knowledge/models/game-0.111.0.json').read_text('utf-8'))
+    row=next(r for r in data['models'] if r['entity_id']=='RELIC.MEMBERSHIP_CARD')
+    row['run_hooks'].append(dict(event='after_card_changed_piles',effects=[dict(operation='gain_gold',amount=7)]))
+    changed=validate_models(data);monkeypatch.setattr('autoslay.rules.model_store.load_models',lambda:changed)
+    deck=[raw('STRIKE_IRONCLAD','base')];relics=[dict(entity_id='RELIC.MEMBERSHIP_CARD')]
+    report=compare_choice(deck,context(40),entries,add=raw('DEFEND_IRONCLAD','offer'),relics=relics)
+    assert report['after_resources']['gold']==107
+    assert [t['operation'] for t in report['command_trace']]==['add_to_deck','gain_gold']
+    assert report['component_deltas']['run_resources']==pytest.approx(7*RunPolicy().gold_weight)
+    assert sum(report['component_deltas'].values())==pytest.approx(report['delta_utility'])
+    assert report['delta_utility']==transition_value(RunResources(40,80,100,deck=tuple(deck),relics=tuple(relics)),
+        RunResources(**report['after_resources']),context(40),entries,RunPolicy())['utility']
+    from autoslay.telemetry.decisions import strip_details
+    assert 'after_resources' not in strip_details(report)
+
+
+def test_shop_comparison_tool_preserves_owned_inventory(entries):
+    from test_deterministic import live
+    from autoslay.decision.unified import evaluate_run_choices
+    value=live();player=value['state']['player']
+    player.update(deck=[raw('STRIKE_IRONCLAD','base')],relics=[],gold=100,potion_slots=1,
+        potions=[dict(entity_id='POTION.BLOCK_POTION',instance_id='occupied')])
+    report=evaluate_run_choices(value,'shop',[dict(item_id='p',category='potion',entity_id='POTION.BLOCK_POTION',price=0)])
+    assert all(not c['purchases'] for c in report['candidates'])
+    assert any(row['reason']=='Potion belt full' for row in report['unvalued_items'])
 
 def test_eternal_removal_blocked_even_without_live_keywords(entries):
     deck=[raw('STRIKE_IRONCLAD'),raw('ASCENDERS_BANE')]

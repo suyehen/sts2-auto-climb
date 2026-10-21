@@ -48,17 +48,13 @@ class CombatEvaluator:
         alive = [] if s.combat_won else [e for e in s.enemies if e.hp > 0]
         incoming = sum((d // 2 if s.colossus and e.vulnerable else d) for e in alive for d in e.attacks)
         initial_incoming = sum(d for e in initial.enemies for d in e.attacks if e.hp > 0)
-        remaining_block, attack_hp_loss = s.block, 0
-        for enemy in alive:
-            for hit in enemy.attacks:
-                hit = hit // 2 if s.colossus and enemy.vulnerable else hit
-                absorbed = min(remaining_block, hit)
-                remaining_block -= absorbed
-                attack_hp_loss += max(0, hit - absorbed - s.hp_loss_reduction)
+        from autoslay.simulation.atomic_effects import visible_enemy_attacks
+        forecast=visible_enemy_attacks(s)
+        attack_hp_loss=s.hp-forecast.hp
         if s.turn_hp_loss_cap is not None:
             attack_hp_loss = min(attack_hp_loss, s.turn_hp_loss_cap)
         hp_loss = initial.hp - s.hp + attack_hp_loss
-        blocked = min(s.block, incoming)
+        blocked = s.block-forecast.block
         damage = sum(e.hp for e in initial.enemies) - sum(e.hp for e in s.enemies)
         future_strength = s.strength_delta - s.temporary_strength
         score = (damage * self.policy.damage_weight + blocked * self.policy.block_weight

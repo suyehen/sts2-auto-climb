@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:autoslay:independent-resource-snapshot:1",
+  "title": "Own resource/relic checkpoint; not a full game observation or execution authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rules_sha256", "parameters_sha256", "total_floor", "room", "history_status", "history", "creatures", "players", "combat", "run_hook_order", "trace"],
+  "properties": {
+    "schema_version": {"const": "autoslay-independent-resource-snapshot/1"},
+    "rules_sha256": {"$ref": "#/$defs/hash"},
+    "parameters_sha256": {"anyOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+    "total_floor": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+    "room": {"anyOf": [{"$ref": "#/$defs/room"}, {"type": "null"}]},
+    "history_status": {"enum": [0, 1, 2]},
+    "history": {"anyOf": [{"type": "array", "items": {"$ref": "#/$defs/history"}}, {"type": "null"}]},
+    "creatures": {"type": "array", "items": {"$ref": "#/$defs/creature"}},
+    "players": {"type": "array", "items": {"$ref": "#/$defs/player"}},
+    "combat": {"anyOf": [{"$ref": "#/$defs/combat"}, {"type": "null"}]},
+    "run_hook_order": {"$ref": "#/$defs/hook_order"},
+    "trace": {"type": "array", "items": {"$ref": "#/$defs/trace"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "id": {"type": "string", "pattern": "\\S"},
+    "int32": {"type": "integer", "minimum": -2147483648, "maximum": 2147483647},
+    "uint64": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "native_value": {"type": "number", "maximum": 999999999},
+    "hook_order": {"type": ["array", "null"], "items": {"$ref": "#/$defs/id"}},
+    "room": {
+      "type": "object", "additionalProperties": false, "required": ["instance_id", "type"],
+      "properties": {"instance_id": {"$ref": "#/$defs/id"}, "type": {"enum": [0, 1, 2, 3, 4, 5, 6, 7, 8]}}
+    },
+    "creature": {
+      "type": "object", "additionalProperties": false, "required": ["instance_id", "hp", "max_hp", "block"],
+      "properties": {
+        "instance_id": {"$ref": "#/$defs/id"}, "hp": {"type": "integer", "minimum": 0, "maximum": 999999999},
+        "max_hp": {"type": "integer", "minimum": 0, "maximum": 999999999},
+        "block": {"type": "integer", "minimum": 0, "maximum": 999999999}
+      }
+    },
+    "player": {
+      "type": "object", "additionalProperties": false, "required": ["net_id", "creature_id", "is_active_for_hooks", "relics"],
+      "properties": {
+        "net_id": {"$ref": "#/$defs/uint64"}, "creature_id": {"$ref": "#/$defs/id"}, "is_active_for_hooks": {"type": "boolean"},
+        "relics": {"type": "array", "items": {"$ref": "#/$defs/relic"}}
+      }
+    },
+    "relic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["instance_id", "model_id", "is_wax", "is_melted", "floor_added_to_deck", "stack_count", "status", "variables"],
+      "properties": {
+        "instance_id": {"$ref": "#/$defs/id"}, "model_id": {"type": "string", "pattern": "^[^.]+\\.[^.]+$"},
+        "is_wax": {"type": "boolean"}, "is_melted": {"type": "boolean"}, "floor_added_to_deck": {"$ref": "#/$defs/int32"},
+        "stack_count": {"type": "integer", "minimum": 1, "maximum": 2147483647}, "status": {"enum": [0, 1, 2]},
+        "variables": {"type": "array", "items": {"$ref": "#/$defs/variable"}}
+      }
+    },
+    "variable": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "type", "base_value", "enchanted_value", "preview_value", "was_just_upgraded", "props"],
+      "properties": {
+        "name": {"type": "string"}, "type": {"type": "string"},
+        "base_value": {"$ref": "#/$defs/native_value"}, "enchanted_value": {"$ref": "#/$defs/native_value"},
+        "preview_value": {"$ref": "#/$defs/native_value"}, "was_just_upgraded": {"type": "boolean"},
+        "props": {"type": ["integer", "null"]}
+      }
+    },
+    "history": {
+      "type": "object", "additionalProperties": false, "required": ["player_id", "hp_healed", "max_hp_gained", "max_hp_lost"],
+      "properties": {"player_id": {"$ref": "#/$defs/uint64"}, "hp_healed": {"$ref": "#/$defs/int32"}, "max_hp_gained": {"$ref": "#/$defs/int32"}, "max_hp_lost": {"$ref": "#/$defs/int32"}}
+    },
+    "combat": {
+      "type": "object", "additionalProperties": false, "required": ["instance_id", "phase", "creature_ids", "hook_order"],
+      "properties": {
+        "instance_id": {"$ref": "#/$defs/id"}, "phase": {"enum": [0, 1, 2, 3, 4]},
+        "creature_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "hook_order": {"$ref": "#/$defs/hook_order"}
+      }
+    },
+    "trace": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sequence", "operation", "source", "target", "requested", "hp_before", "hp_after", "max_hp_before", "max_hp_after", "block_before", "block_after"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1}, "operation": {"type": "string"}, "source": {"$ref": "#/$defs/id"}, "target": {"$ref": "#/$defs/id"}, "requested": {"type": "number"},
+        "hp_before": {"$ref": "#/$defs/int32"}, "hp_after": {"$ref": "#/$defs/int32"}, "max_hp_before": {"$ref": "#/$defs/int32"}, "max_hp_after": {"$ref": "#/$defs/int32"},
+        "block_before": {"$ref": "#/$defs/int32"}, "block_after": {"$ref": "#/$defs/int32"}
+      }
+    }
+  },
+  "$comment": "C# additionally checks compiled identities, aliases/membership, native numeric types, model/variable shape, observation consistency and contiguous traces. Private model state remains unsupported, never omitted as zero. No choice or random continuation is defined here."
+}

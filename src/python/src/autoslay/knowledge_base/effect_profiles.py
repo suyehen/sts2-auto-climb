@@ -1,8 +1,7 @@
-"""Catalog-wide semantic programs, distinct from verified simulation adapters.
+"""Catalog-wide description references, separate from declared game mechanics.
 
-No entity allowlist. Every variant and every clause is retained, including
-conditions, costs, unknown quantities and source-defined operations. Numeric
-proxies use only recognized terms; they never certify a simulation rule.
+Parsed terms and clauses are retained for display and auditing. They never
+supply executable effects, numeric utility or trigger opportunities.
 """
 from copy import deepcopy
 from functools import lru_cache
@@ -10,7 +9,7 @@ import json
 import re
 from autoslay.decision.cache import digest
 
-VERSION='1.0.0'
+VERSION='2.0.0'
 CATEGORIES=('card','potion','relic')
 NUMBER=r'\d+(?:\.\d+)?'
 POWER_NAMES={
@@ -132,7 +131,10 @@ def compile_clause(text,category):
         choice=bool(re.search(r'选择|任意|choose|select',text,re.I)))
 
 
-def compile_entry(entry,source=None,rule_status='unmodeled'):
+def compile_entry(entry,source=None,rule_status=None):
+    if rule_status is None:
+        from autoslay.rules.registry import mechanism_status
+        rule_status=mechanism_status(entry['entity_id'])
     category=entry['category']
     if category not in CATEGORIES:raise ValueError('Unsupported effect profile category')
     variants=entry.get('variants',[]) if category=='card' else [entry]
@@ -164,8 +166,8 @@ def compile_entry(entry,source=None,rule_status='unmodeled'):
         variants=programs,source=dict(model_type=entry.get('model_type'),
             source_sha256=source.get('source_sha256'),hooks=deepcopy(source.get('hooks') or []),
             commands=deepcopy(source.get('commands') or [])),
-        simulation_status=rule_status,simulation_adapter_enabled=rule_status=='compatible',
-        profile_scope='all catalog semantics; parsed terms plus retained source-defined clauses')
+        mechanism_status=rule_status,mechanism_defined=rule_status=='defined',
+        profile_scope='description reference only; parsing never defines executable effects or utility')
 
 
 @lru_cache(maxsize=4096)
@@ -200,7 +202,7 @@ def compile_catalog(entries,inventory=None,statuses=None):
     for entry in entries:
         identity=entry['entity_id']
         if identity in profiles:raise ValueError('Duplicate effect identity: '+identity)
-        profiles[identity]=compile_entry(entry,sources.get(identity),statuses.get(identity,'unmodeled'))
+        profiles[identity]=compile_entry(entry,sources.get(identity),statuses.get(identity))
     counts={}
     for category in CATEGORIES:
         rows=[p for p in profiles.values() if p['category']==category]
@@ -209,7 +211,7 @@ def compile_catalog(entries,inventory=None,statuses=None):
             description_present=sum(v['coverage']['description_present'] for v in variants),
             fully_parsed_variants=sum(v['coverage']['fully_parsed'] for v in variants),
             source_linked=sum(bool(p['source']['source_sha256']) for p in rows),
-            simulation_adapters=sum(p['simulation_adapter_enabled'] for p in rows),
+            mechanisms_defined=sum(p['mechanism_defined'] for p in rows),
             unresolved_clauses=sum(v['coverage']['unresolved_clauses'] for v in variants))
     return dict(schema_version='effect-profiles/1',module_version=VERSION,profiles=profiles,counts=counts,
                 entity_count=len(profiles),data_coverage_complete=True,full_simulation_support=False)

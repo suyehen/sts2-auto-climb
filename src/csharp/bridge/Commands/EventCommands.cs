@@ -92,7 +92,10 @@ public static partial class Bridge
                 var enabled = idle && EventButtonReady(button);
                 var tips = option.HoverTips.ToArray();
                 var actionId = "event_" + Id(room) + "_" + Id(button);
+                var callback = ReadUiField<Func<Task>?>(option, "<OnChosen>k__BackingField");
                 options.Add(new { option_id = Id(option), text_key = option.TextKey,
+                    source_model_id = model.Id.ToString(), callback_method = callback?.Method.Name,
+                    callback_declaring_type = callback?.Method.DeclaringType?.FullName,
                     title = option.Title.GetFormattedText(), description = option.Description.GetFormattedText(),
                     hover_tips = tips.Select(EventTip).ToArray(), hover_tips_complete = tips.All(t => t is HoverTip or CardHoverTip),
                     locked = option.IsLocked, proceed = option.IsProceed,
@@ -108,6 +111,7 @@ public static partial class Bridge
         return new(model.Id.ToString(), model.Title.GetFormattedText(), model.Description?.GetFormattedText(),
             Id(room), model.LayoutType.ToString(), layout != null, model.IsFinished, ready, options.ToArray(),
             model.DynamicVars.Select(kv => (object)new { name = kv.Key, kind = kv.Value.GetType().Name,
+                decimal_value = kv.Value.BaseValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 value = kv.Value is StringVar text ? (object)text.StringValue : kv.Value.BaseValue }).ToArray(),
             RuntimeFields.Read(model));
     }

@@ -6,8 +6,7 @@ from autoslay.decision.local_combat import select
 from autoslay.evaluation.combat import CombatEvaluator
 from autoslay.planning.search import SearchBudget, search
 from autoslay.simulation.engine import CombatSimulator
-from autoslay.rules.mechanism_scope import reviewed_pickup
-from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.rules.mechanism_scope import observed_pickup
 from test_deterministic import live
 from test_decision import card, state
 
@@ -17,26 +16,9 @@ def test_reviewed_pickup_uses_observed_resources_once(identity):
     snapshot=live();snapshot['state']['player']['relics']=[dict(entity_id=identity)]
     before=normalize(live());after=normalize(snapshot)
     assert before==after
-    assert identity in reviewed_pickup(snapshot,Rulebook())
-    snapshot['game_assembly_sha256']=None
-    assert 'UNMODELED_RELIC:'+identity in normalize(snapshot).warnings
-
-
-@pytest.mark.parametrize('mutation',['source','hook','reference'])
-def test_pickup_review_invalidates_when_evidence_changes(monkeypatch,mutation):
-    import autoslay.rules.mechanism_scope as scope
-    original=scope.read_json
-    def changed(path,*args,**kwargs):
-        data=original(path,*args,**kwargs)
-        if path.name=='source-inventory.json':
-            entry=next(e for e in data['entries'] if e['entity_id']=='RELIC.LARGE_CAPSULE')
-            if mutation=='source':entry['source_sha256']='changed'
-            if mutation=='hook':entry['hooks'].append('AfterDeath')
-        return data
-    monkeypatch.setattr(scope,'read_json',changed)
-    book=Rulebook()
-    if mutation=='reference':book.references['RELIC.LARGE_CAPSULE']['description']='Changed effect'
-    assert 'RELIC.LARGE_CAPSULE' not in scope.reviewed_pickup(live(),book)
+    assert identity in observed_pickup(snapshot)
+    snapshot['game_assembly_sha256']='changed'
+    with pytest.raises(ValueError,match='Game implementation changed'):normalize(snapshot)
 
 
 def test_capsule_does_not_exempt_granted_unknown_relic():
@@ -76,23 +58,19 @@ def test_local_gate_uses_candidate_pool_when_display_is_empty():
 
 @pytest.mark.parametrize('identity,hook',[
     ('MONSTER.KIN_FOLLOWER','SetupSkins'),('MONSTER.SHRINKER_BEETLE','ShouldShowMoveInBestiary')])
-def test_presentation_review_is_bound_to_body_and_entire_source(identity,hook):
+def test_presentation_scope_comes_from_native_code_and_new_hooks_remain_unknown(identity,hook):
     from copy import deepcopy
-    from autoslay.knowledge_base.behavior import load
-    from autoslay.rules.monsters import unmodeled_special_hooks
-    entry=next(e for e in load()['entries'] if e['entity_id']==identity)
+    from autoslay.rules.monsters import load,unmodeled_special_hooks
+    entry=deepcopy(next(e for e in load()['entries'] if e['entity_id']==identity))
     assert not unmodeled_special_hooks(entry)
-    changed=deepcopy(entry);changed['mechanics'][hook]+='\nUnknownCombatEffect();'
-    assert hook in unmodeled_special_hooks(changed)
     changed=deepcopy(entry);changed['provenance']['source_sha256']='changed'
-    assert hook in unmodeled_special_hooks(changed)
-    entry['mechanics']['AfterDeath']='UnknownCombatEffect();'
+    assert not unmodeled_special_hooks(changed)
+    entry['unmodeled_hooks'].append('AfterDeath')
     assert 'AfterDeath' in unmodeled_special_hooks(entry)
 
 
-def test_known_death_link_is_still_blocked_without_its_own_adapter():
-    from autoslay.knowledge_base.behavior import load
-    from autoslay.rules.monsters import unmodeled_special_hooks
+def test_known_death_link_is_still_blocked_without_its_mechanic_definition():
+    from autoslay.rules.monsters import load,unmodeled_special_hooks
     entry=next(e for e in load()['entries'] if e['entity_id']=='MONSTER.KIN_PRIEST')
     assert 'AfterDeath' in unmodeled_special_hooks(entry)
 

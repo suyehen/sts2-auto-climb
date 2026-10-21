@@ -112,15 +112,5 @@
       "MegaCrit.Sts2.Core.Models.Relics/BoomingConch.cs": "2c918532e9ef8ef9ef8039640d4caddc1820d040dadd9bfc6ef96b020e6f6adb"
     },
     "audit": "CardReward.OnSelect displays already populated options and waits for OptionSelected before obtaining a card or invoking an alternative. These relics do not modify reward alternatives. Only the final standard card reward of a combat is inspected; deck selection and skip remain AI decisions."
-  },
-  "local_combat_modifiers": {
-    "ENCHANTMENT.SHARP": {
-      "source_path": "MegaCrit.Sts2.Core.Models.Enchantments/Sharp.cs",
-      "source_sha256": "1de8537303cbb6860d4f55b117c0a8cd6179f3c455456b87393c0a7d135339c5",
-      "audit": "Only adds damage to powered attacks; the visible card damage already includes the additive enchantment.",
-      "card_ids": [
-        "CARD.BASH"
-      ]
-    }
   }
 }

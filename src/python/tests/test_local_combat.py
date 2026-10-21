@@ -12,7 +12,7 @@ from autoslay.evaluation.combat import CombatEvaluator
 from autoslay.agent.runtime import validation_issues
 from autoslay.agent.providers import ProviderError
 from test_deterministic import live
-from test_agent import make_agent
+from test_agent import make_agent,choice_payload
 
 
 def analyzed():
@@ -56,7 +56,8 @@ def test_mango_pickup_does_not_disable_all_combat_transitions():
 
 def test_visible_sharp_bash_damage_is_used_once():
     s,_=analyzed();s['state']['player']['hand'][0].update(entity_id='CARD.BASH',energy_cost=2,
-        description='Deal 10 damage. Apply 2 Vulnerable.',enchantment_id='ENCHANTMENT.SHARP')
+        description='Deal 10 damage. Apply 2 Vulnerable.',type='Attack',enchantment_id='ENCHANTMENT.SHARP',enchantment_amount=2,
+        dynamic_variables=[dict(name='Damage',base_value=8),dict(name='VulnerablePower',base_value=2)])
     initial=normalize(s);sim=CombatSimulator(initial)
     result=sim.apply(initial,next(a for a in sim.actions(initial) if a.action_id=='play_a'))
     assert result.state.enemies[0].hp==90
@@ -95,7 +96,7 @@ def test_malformed_model_reply_gets_one_fresh_bounded_correction(tmp_path,outcom
                 calls.append(packet)
                 if len(calls)==1 and outcome=='state_changed':s['state']['player']['energy']+=1
                 if len(calls)==1 or outcome=='invalid_again':return '{"private-response":"never log"}',{'total_tokens':10}
-                return json.dumps(dict(state_token=source(origin)['state_sha256'],reason='attack',steps=[dict(action_id='play_a',target_id='e')])),{'total_tokens':20}
+                return choice_payload(origin),{'total_tokens':20}
         if outcome=='invalid_again':
             with pytest.raises(ProviderError) as exc:
                 await agent.decide_plan(Provider(),{},origin,1,'id',{},agent.store.profiles['codex'])

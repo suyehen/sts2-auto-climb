@@ -87,12 +87,12 @@ def operations(actions):
 
 
 def _knowledge():
-    rules=read_json(dataset_path('rules'),default={})
+    from autoslay.rules.registry import ENTITY_MECHANICS
+    from autoslay.rules.model_store import load_models
     behavior=read_json(dataset_path('behavior'),default={})
     entities=read_json(dataset_path('catalog'),default={})
-    scope=read_json(dataset_path('mechanism_scope'),default={})
-    return dict(rules=rules,behavior={e['entity_id']:e for e in behavior.get('entries',[])},
-                catalog={e['entity_id']:e for e in entities.get('entries',[])},triggers=scope.get('entries',[]))
+    return dict(mechanics=ENTITY_MECHANICS,flows=load_models().flows,monsters=load_models().monsters,selections=load_models().selections,behavior={e['entity_id']:e for e in behavior.get('entries',[])},
+                catalog={e['entity_id']:e for e in entities.get('entries',[])})
 
 
 @scoped
@@ -100,7 +100,10 @@ def entity_capabilities(entity_id,*,_context=None):
     """Query potential commands and referenced effects, without claiming legality."""
     if not isinstance(entity_id,str) or '.' not in entity_id:raise ValueError('INVALID_ENTITY_ID')
     ctx=_context or _knowledge();kind=entity_id.split('.',1)[0].lower()
-    rule=(ctx['rules'].get('entries') or {}).get(entity_id)
+    rule=ctx['mechanics'].get(entity_id)
+    flow=ctx.get('flows',{}).get(entity_id)
+    monster=ctx.get('monsters',{}).get(entity_id)
+    selection=ctx.get('selections',{}).get(entity_id)
     behavior=ctx['behavior'].get(entity_id);entry=ctx['catalog'].get(entity_id)
     commands=[];contextual=[]
     for row in definitions().values():
@@ -108,19 +111,23 @@ def entity_capabilities(entity_id,*,_context=None):
             destination=commands if kind in row['source_kinds'] else contextual
             destination.append(dict(definition_id=row['definition_id'],type=row['type'],phases=row['phases'],source_kinds=row['source_kinds'],
                 preconditions_ref=row['preconditions_ref'],availability='conditional',
-                blocked_by_static_rule=bool(kind=='card' and row['type']=='play_card' and rule and rule.get('unplayable'))))
-    effects=dict(rule_ref='rules#/entries/'+entity_id if rule else None,
-                 declared_effects=deepcopy((rule or {}).get('effects',[])),
-                 periodic=deepcopy((rule or {}).get('periodic')),
-                 triggers=deepcopy([t for t in ctx['triggers'] if t['entity_id']==entity_id]),
-                 status='declared_rules' if rule else 'unknown',
-                 validation=(rule or {}).get('validation'),
-                 reference_sha256=(rule or {}).get('reference_sha256'),
-                 note='Declared rules and compatibility markers do not certify all triggers or interactions.')
+                blocked_by_static_rule=bool(kind=='card' and row['type']=='play_card' and rule and rule.unplayable)))
+    from dataclasses import asdict
+    effects=dict(implementation='autoslay.rules.model_store' if rule or flow or monster or selection else None,
+                 definition_ref=dict(dataset='models',entity_id=entity_id) if rule or flow or monster or selection else None,
+                 flow=deepcopy(flow) if flow else None,
+                 monster=deepcopy(monster) if monster else None,
+                 selection=deepcopy(selection) if selection else None,
+                 declared_effects=[asdict(e) for e in rule.effects('on_use' if kind=='potion' else 'on_play')] if rule else [],
+                 periodic=dict(zip(('period','draw','energy'),rule.periodic)) if rule and rule.periodic else None,
+                 passive=rule.passive if rule else None,
+                 triggers=[asdict(t) for t in rule.triggers] if rule else [],
+                 status='native_definition' if rule or flow or monster or selection else 'missing_mechanic',
+                 note='Native definitions share simulator mechanics; observation boundaries remain explicit.')
     # A monster move is an autonomous game transition, never an agent command.
     graph=(behavior or {}).get('state_graph')
     return dict(entity_id=entity_id,category=kind,
-        knowledge_status='recorded' if rule or behavior or entry else 'unknown',
+        knowledge_status='recorded' if rule or flow or monster or selection or behavior or entry else 'unknown',
         commands=commands,contextual_commands=contextual,effects=effects,
         behavior_ref='behavior#/entries/'+entity_id if behavior else None,
         state_graph=deepcopy(graph),moves=deepcopy((behavior or {}).get('moves',[])),
@@ -135,7 +142,7 @@ def entity_capabilities(entity_id,*,_context=None):
 def entities_for_action(kind):
     """Reverse lookup of known potential providers, not currently usable objects."""
     row=definition(kind);ctx=_knowledge()
-    identities=set(ctx['catalog'])|set(ctx['behavior'])|set(ctx['rules'].get('entries') or {})
+    identities=set(ctx['catalog'])|set(ctx['behavior'])|set(ctx['mechanics'])|set(ctx.get('flows',{}))|set(ctx.get('monsters',{}))
     return dict(definition_id=row['definition_id'],source_kinds=row['source_kinds'],
         entity_ids=sorted(i for i in identities if i.split('.',1)[0].lower() in row['source_entity_categories']),
         availability='conditional; use fresh legal_actions')

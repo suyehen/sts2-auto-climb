@@ -106,7 +106,7 @@ def evaluate_timing(state: CombatState, *, context: OpeningContext | None = None
         return dict(enabled=True, supported=False, reason="unknown_or_transient_counter; never assumed zero",
                     options=[], recommendation="observe_counter_again")
     if len({r.entity_id for r in state.periodic_relics}) != len(state.periodic_relics):
-        return dict(enabled=True, supported=False, reason="duplicate relic identities need an instance adapter", options=[])
+        return dict(enabled=True, supported=False, reason="duplicate relic identities need observed instance mechanics", options=[])
     if state.hand_limit != 10:
         return dict(enabled=True, supported=False, reason="unsupported_hand_capacity", options=[])
     cost_by_turn = {c.turns: c for c in costs}

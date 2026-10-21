@@ -21,6 +21,7 @@ def evidence():
     snapshot=json.loads((ROOT/'data/replays/boss_turn4.json').read_text(encoding='utf-8-sig'))
     snapshot['state']['phase']='card_reward_selection'; snapshot['state']['pending_combat_action']=None
     snapshot['state']['player']['deck']=[raw('STRIKE_IRONCLAD','s'),raw('DEFEND_IRONCLAD','d')]
+    snapshot['state']['player']['relics']=[]
     snapshot['state']['reward_screen']=dict(cards=[dict(card=raw('TWIN_STRIKE','offer'),available=True,action_id='pick')])
     snapshot['connected']=True
     return snapshot,analyze_decision(snapshot,use_cache=False)
@@ -68,7 +69,7 @@ def test_intrinsic_draw_kept_separate_from_disabled_effect():
 
 def test_marginal_components_sum_to_choice_delta():
     entries=index()[0]
-    result=cards_report([raw('FIGHT_ME'),raw('STRIKE_IRONCLAD')],[raw('TWIN_STRIKE')],RunContext(80,80,0),entries)
+    result=cards_report([raw('INFLAME'),raw('STRIKE_IRONCLAD')],[raw('TWIN_STRIKE')],RunContext(80,80,0),entries)
     candidate=next(c for c in result['candidates'] if c['kind']=='add')
     assert sum(candidate['component_deltas'].values())==pytest.approx(candidate['delta_utility'])
     assert candidate['intrinsic']['utility'] is not None
@@ -114,6 +115,26 @@ def test_review_pairs_not_own_choices_and_deduplicated(tmp_path):
     result=compare_profiles([label,label,dict(label,label_source='model_choice')],[dict(name='baseline')],RunPolicy(),'0.111.0',tmp_path)
     assert result['unique_pairs']==1 and len(result['skipped'])==1 and result['proposal'] is None
     assert result['profiles'][0][partition('trial-1')]['trials']==1
+
+
+def test_reviewed_labels_cannot_enable_unmodeled_owned_hooks(tmp_path):
+    snapshot,_=evidence()
+    snapshot['state']['player']['relics']=[dict(entity_id='RELIC.UNKNOWN')]
+    report=analyze_decision(snapshot,use_cache=False);store.archive(report,snapshot,tmp_path)
+    offers=report['choices']['candidates']
+    label=dict(analysis_id=report['analysis_id'],trial_id='trial-1',label_source='human_review',
+        preferred_index=next(i for i,c in enumerate(offers) if c['kind']=='add'),
+        other_index=next(i for i,c in enumerate(offers) if c['kind']=='skip'))
+    result=compare_profiles([label],[dict(name='baseline')],RunPolicy(),'0.111.0',tmp_path)
+    assert result['unique_pairs']==0 and result['proposal'] is None
+    assert any('Unmodeled card choice continuation' in row['reason'] for row in result['skipped'])
+
+
+def test_unmodeled_baseline_components_cannot_claim_complete_choice_value():
+    entries=index()[0]
+    report=cards_report([raw('FIGHT_ME'),raw('STRIKE_IRONCLAD')],[raw('TWIN_STRIKE')],RunContext(80,80,0),entries)
+    added=next(c for c in report['candidates'] if c['kind']=='add')
+    assert added['delta_utility'] is None and added['comparison']['mechanism_gaps']
 
 def test_run_outcomes_deduplicate_and_exclude_abandonments(tmp_path):
     snapshot,report=evidence(); store.archive(report,snapshot,tmp_path)

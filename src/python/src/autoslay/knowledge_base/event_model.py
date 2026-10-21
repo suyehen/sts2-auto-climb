@@ -431,3 +431,35 @@ def extract(text,entry,levels,catalog,identity):
     model['state_fields']=graph(text)['state_fields']
     model['state_aliases']={n:v for n,v in properties(text).items() if v in {f['name'] for f in model['state_fields']}}
     return model
+
+
+def terminal_resource_evidence(option,model,observed):
+    """Accept only unconditional terminal methods whose calls are accounted for."""
+    method=model['methods'].get(option.get('handler'))
+    if not method: raise ValueError('选项处理函数尚未绑定')
+    if any(method.get(k) for k in ('conditions','updates','local_calls','random','operations','options')):
+        raise ValueError('包含尚未实现的条件、状态修改或辅助函数')
+    transitions=method.get('transitions',[])
+    if len(transitions)!=1 or transitions[0]['kind']!='SetEventFinished':
+        raise ValueError('后续事件阶段尚未编译')
+    allowed={'CreatureCmd.Damage','CreatureCmd.Heal','CreatureCmd.LoseMaxHp',
+             'PlayerCmd.GainGold','PlayerCmd.LoseGold','SetEventFinished','L10NLookup',
+             'ThrowingPlayerChoiceContext'}
+    if any(c['name'] not in allowed for c in calls(method.get('evidence',''))):
+        raise ValueError('处理函数还有未建模调用')
+    result=[]
+    for effect in method.get('effects',[]):
+        if effect['kind'] not in {'lose_hp','heal','gain_gold','lose_gold','lose_max_hp'} or effect.get('conditions'):
+            raise ValueError('非资源效果尚未建模')
+        amount=effect['amount']; expression=amount.get('expression')
+        if expression in observed:
+            value=observed[expression]
+        elif expression in model['variables']:
+            var=model['variables'][expression]
+            if var['status']!='fixed': raise ValueError('当前动态数值未从游戏读到')
+            value=var['value']
+        else: value=amount.get('value') if amount.get('status')=='static' else None
+        if type(value) not in (int,float) or value<0 or int(value)!=value:
+            raise ValueError('效果数值未确定')
+        result.append(dict(kind=effect['kind'],amount=int(value)))
+    return result

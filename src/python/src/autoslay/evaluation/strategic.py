@@ -39,6 +39,11 @@ class RunResources:
     growth_proxy: float = 0.0
     dead: bool = False
     cleared: bool = False
+    deck: tuple[dict, ...] = ()
+    relics: tuple[dict, ...] = ()
+    potion_capacity: int | None = None
+    model_state: tuple[tuple[str, int | bool | str], ...] = ()
+    shop_stock: tuple[str, ...] | None = None
 
     def __post_init__(self):
         if any(type(v) is not int for v in (self.hp,self.max_hp,self.gold)):
@@ -48,6 +53,14 @@ class RunResources:
         if type(self.dead) is not bool or type(self.cleared) is not bool or self.dead!=(self.hp==0) or (self.dead and self.cleared):
             raise ValueError('Inconsistent absorbing outcome')
         if not isfinite(self.growth_proxy):raise ValueError('Finite growth proxy required')
+        if self.potion_capacity is not None and (type(self.potion_capacity) is not int or self.potion_capacity<0
+                or len(self.potions)>self.potion_capacity):raise ValueError('Invalid potion capacity')
+        from autoslay.knowledge_base.repository import freeze
+        for field in ('deck','relics'):
+            values=getattr(self,field)
+            if any(not isinstance(v,dict) or not isinstance(v.get('entity_id'),str) for v in values):
+                raise ValueError('Invalid run inventory: '+field)
+            object.__setattr__(self,field,tuple(freeze(v) for v in values))
 
 
 def resource_value(state, parameters, route, contract=None):
@@ -71,7 +84,8 @@ def strategic_context(snapshot):
     resources=RunResources(creature.get('hp',0),creature.get('max_hp',80),player.get('gold',0),
         tuple(p.get('instance_id') or p.get('entity_id','unknown') for p in player.get('potions') or []),
         tuple((r.get('entity_id','unknown'),r.get('counter')) for r in player.get('relics') or []),
-        dead=creature.get('hp',0)==0)
+        dead=creature.get('hp',0)==0,deck=tuple(player.get('deck') or []),
+        relics=tuple(player.get('relics') or []),potion_capacity=player.get('potion_slots'))
     return dict(schema_version='run-strategic/1',contract=asdict(ValueContract()),resources=asdict(resources),
         identity=dict(run_id=state.get('run_id') or state.get('command_context_id'),
                       act_index=view.get('act_index'),floor=state.get('floor'),

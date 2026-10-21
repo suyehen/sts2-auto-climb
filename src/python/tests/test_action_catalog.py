@@ -35,11 +35,11 @@ def test_entity_capabilities_preserve_effects_triggers_and_autonomous_moves():
     assert any(c['type']=='take_treasure_relic' for c in relic['contextual_commands'])
     assert 'RELIC.HAPPY_FLOWER' in actions.entities_for_action('take_treasure_relic')['entity_ids']
     mango=actions.entity_capabilities('RELIC.MANGO')
-    assert any(t['hook']=='AfterObtained' for t in mango['effects']['triggers'])
+    assert mango['effects']['passive']=='pickup'
     monster=actions.entity_capabilities('MONSTER.LEAF_SLIME_M')
     assert monster['commands']==[] and monster['state_graph'] and monster['moves']
     unknown=actions.entity_capabilities('CARD.NEW')
-    assert unknown['knowledge_status']=='unknown' and unknown['effects']['status']=='unknown'
+    assert unknown['knowledge_status']=='unknown' and unknown['effects']['status']=='missing_mechanic'
     assert all(c['availability']=='conditional' for c in unknown['commands'])
     assert 'CARD.STRIKE_IRONCLAD' in actions.entities_for_action('play_card')['entity_ids']
 

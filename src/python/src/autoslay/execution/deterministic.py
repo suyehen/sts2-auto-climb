@@ -137,7 +137,7 @@ class DeterministicExecutor:
         from autoslay.decision.normalize import normalize
         from autoslay.decision.contracts import Operation
         from autoslay.simulation.engine import CombatSimulator
-        from autoslay.execution.sequence import projection
+        from autoslay.execution.sequence import projection,relic_projection
         from autoslay.telemetry.effects import observe
         identity=uuid4().hex;origin=source(before);initial=before
         report=dict(analysis_id=identity,source=origin,phase='combat',request_elapsed_ms=analysis_ms,
@@ -178,7 +178,7 @@ class DeterministicExecutor:
                 finish('unmodeled_effect_observation','failed')
                 raise CombatModelError('COMBAT_MODEL_UNKNOWN_EFFECT',analysis_id=identity,
                                        blockers=[str(exc)]) from exc
-            if transition.boundary not in {None,'draw_requires_observation','next_turn_requires_observation'}:
+            if transition.boundary not in {None,'draw_requires_observation','next_turn_requires_observation','generated_cards_requires_observation'}:
                 finish(transition.boundary,'failed')
                 raise CombatModelError('COMBAT_MODEL_UNKNOWN_EFFECT',analysis_id=identity,
                                        blockers=[transition.boundary])
@@ -206,7 +206,8 @@ class DeterministicExecutor:
                 comparison=compare_transition(transition,before)
                 matched=(projection(forecast_state(actual))==projection(transition.state) and actual.warnings==warnings
                     and comparison['numeric_fields_match'] and actual.periodic_relics==transition.state.periodic_relics
-                    and before['state']['player'].get('relics')==previous_relics
+                    and actual.triggered_relics==transition.state.triggered_relics
+                    and relic_projection(before['state']['player'].get('relics'),actual.triggered_relics)==relic_projection(previous_relics,actual.triggered_relics)
                     and tuple(e.runtime_fields for e in actual.enemies)==tuple(e.runtime_fields for e in transition.state.enemies))
                 entry['prediction_comparison']=comparison
             except (ValueError,KeyError,TypeError) as exc:

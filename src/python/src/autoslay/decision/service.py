@@ -6,7 +6,7 @@ import json
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from autoslay.decision import contracts, normalize as adapter
+from autoslay.decision import contracts, normalize
 from autoslay.evaluation import combat as combat_eval, deck as deck_eval
 from autoslay.planning import search as planner
 from autoslay.probability import draw
@@ -34,7 +34,7 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
             lookahead_settings: dict | None = None, scenarios: list | None = None) -> dict:
     clock = timing.Timing()
     with clock.stage("normalize"):
-        initial = adapter.normalize(snapshot)
+        initial = normalize.normalize(snapshot)
     with clock.stage("compile_rules"):
         simulator = engine.CombatSimulator(initial)
         evaluator = combat_eval.CombatEvaluator(policy)
@@ -76,15 +76,14 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
             first["target_id"] in catalog.get("allowed_target_ids", []) if first["target_id"] is not None
             else catalog.get("allows_no_target", False)))
         candidate["requires_fresh_validation"] = True
-    versions = dict(contract=contracts.CONTRACT_VERSION, decision=VERSION, adapter=adapter.VERSION,
+    versions = dict(contract=contracts.CONTRACT_VERSION, decision=VERSION, normalization=normalize.VERSION,
                     rules=simulator.rules.version, simulation=simulator.version, probability=draw.VERSION,
                     search=planner.VERSION, combat_evaluation=evaluator.version, deck_evaluation=deck_eval.VERSION,
                     telemetry=timing.VERSION, journal=journal.VERSION, policy=evaluator.policy.version)
     versions.update(card_flow=card_flow.VERSION, periodic_relic_rules=periodic_relics.VERSION,
                     relic_timing_planner=relic_timing.VERSION, relic_timing_policy=timing_policy.version if timing_policy else None)
     versions.update(versions_extra)
-    from autoslay.rules.mechanism_scope import reviewed_pickup, coverage_for_snapshot, VERSION as SCOPE_VERSION
-    from autoslay.knowledge_base.rulebook import Rulebook
+    from autoslay.rules.mechanism_scope import observed_pickup, coverage_for_snapshot, VERSION as SCOPE_VERSION
     versions['mechanism_scope'] = SCOPE_VERSION
     owned = {r['entity_id'] for r in snapshot['state']['player'].get('relics') or []}
     from autoslay.decision.deterministic import operations, ADMIN
@@ -101,13 +100,13 @@ def analyze(snapshot: dict, *, budget: planner.SearchBudget | None = None,
                   module_versions=versions, policy=asdict(evaluator.policy), budget=asdict(budget or planner.SearchBudget()),
                   timings_ms=clock.stages_ms, coverage=dict(unsupported_cards=simulator.unsupported,
                     mechanism_scope=[asdict(r) for r in coverage_for_snapshot(snapshot,initial.warnings)],
-                    reviewed_mechanisms=[row for identity,row in reviewed_pickup(snapshot, Rulebook()).items() if identity in owned],
+                    observed_mechanisms=[row for identity,row in observed_pickup(snapshot).items() if identity in owned],
                     unsupported_potions=list(simulator.unsupported_potions), interaction_warnings=list(initial.warnings)),
                   normalized_input=asdict(initial),execution_authorized=False, live_state_ready=bool(snapshot.get("ready") and not snapshot.get("busy")),
                   limitations=["read-only candidates; Codex chooses actions from a fresh legal catalog",
                                "search is bounded and does not prove optimal play",
                                "draw continuations are scenario estimates with explicit coverage" if lookahead_settings is not None else "draw prefixes have no estimated continuation value yet",
-                               "current-turn metrics cover visible attacks; lookahead separately executes supported local monster adapters and reports unknown branches",
+                               "current-turn metrics cover visible attacks; lookahead separately executes supported local monster mechanics and reports unknown branches",
                                "random exhaustion, upgrades, nonattack exhaustion and newly applied Weak stop at observation boundaries",
                                "remaining Beating Remnant allowance is hidden; self-HP loss stops at observation, attack forecast uses a conservative upper bound",
                                "Permafrost power-card trigger is unsupported; known non-power cards have no trigger",

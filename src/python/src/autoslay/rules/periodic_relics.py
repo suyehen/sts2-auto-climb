@@ -1,30 +1,18 @@
-"""Independently versioned, source-checked persistent player-turn relic counters."""
+"""Persistent player-turn counters defined in the native mechanic registry."""
 from dataclasses import replace
-from autoslay.knowledge_base.repository import read_json, dataset_path
 from autoslay.decision.contracts import PeriodicRelic
-from autoslay.knowledge_base.rulebook import Rulebook, RULEBOOK_PATH, validate_rulebook
+from autoslay.rules.registry import ENTITY_MECHANICS
 
-VERSION = "1.0.0"
+VERSION = '2.0.0'
 GAME_VERSION = "0.111.0"
-# Stable DisplayAmount equals TurnsSeen. Animation-only threshold display is rejected.
-def declared_rules():
-    # Importing services must work before the user's first encyclopedia export.
-    # This is only the declared ID/shape lookup; read_periodic still checks the
-    # current catalog fingerprint before using any rule for calculation.
-    data=read_json(dataset_path('rules'))
-    validate_rulebook(data)
-    return {identity: (rule['periodic']['period'],rule['periodic']['draw'],rule['periodic']['energy'])
-            for identity,rule in data['entries'].items() if rule.get('periodic')}
-
-
-RULES = declared_rules()
+# Definitions are read at the decision's revision; no import-time entity cache.
 
 
 def read_periodic(relic: dict) -> PeriodicRelic | None:
-    book=Rulebook(); identity=relic['entity_id']; entry=book.data['entries'].get(identity,{})
-    if not entry.get('periodic') or book.status(identity)!='compatible':
+    identity=relic['entity_id']; entry=ENTITY_MECHANICS.get(identity)
+    if entry is None or entry.periodic is None:
         return None
-    value=entry['periodic']; period,draw,energy=value['period'],value['draw'],value['energy']
+    period,draw,energy=entry.periodic
     counter = relic.get("counter")
     if type(counter) is not int or not 0 <= counter < period:
         counter = None

@@ -14,7 +14,7 @@ from autoslay.bridge.client import load_config
 from autoslay.telemetry import decisions
 from autoslay.telemetry import runs
 from autoslay.decision.unified import analyze_decision
-from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.rules.registry import audit as audit_rules
 from autoslay.archive.repository import for_legacy
 from autoslay.archive.views import live as live_view
 from autoslay.archive import transfer
@@ -74,9 +74,7 @@ def coverage_report():
     from autoslay.decision.mechanisms import inventory as mechanism_inventory
     from autoslay.knowledge_base.installation import version_status
     inventory=read_json(dataset_path('source_inventory'))
-    audit_path=dataset_path('source_audit')
-    source_audit=read_json(audit_path, default={}) or None
-    return dict(rules=Rulebook().audit(),mechanisms=mechanism_inventory(),source_inventory=inventory,source_audit=source_audit,installation=version_status())
+    return dict(rules=audit_rules(),mechanisms=mechanism_inventory(),source_inventory=inventory,installation=version_status())
 
 def make_server(port=PORT,directory=None):
     repository=for_legacy(directory)

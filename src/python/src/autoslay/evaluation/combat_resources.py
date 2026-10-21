@@ -1,8 +1,6 @@
 """Explicit whole-run HP opportunity proxies and overlapping deck capabilities."""
 from collections import deque
 from autoslay.evaluation.run import card_features
-from autoslay.rules.registry import clean
-import re
 
 VERSION='1.1.0'
 DEFAULTS=dict(hp_weight=2.0,hp_sensitivity=3.0,rest_opportunity=8.0,
@@ -16,19 +14,16 @@ def capabilities(snapshot,entries):
     n=max(1,len(features));attacks=sum(f.get('type')=='Attack' for f in features)
     healing=[];unknown=[]
     for raw,f in zip(cards,features):
-        text=clean(raw.get('description',''))
-        match=re.search(r'(?:回复|恢复|Heal\s+)(\d+)(?:点生命|\s+HP)',text,re.I)
-        if match:healing.append(dict(entity_id=raw['entity_id'],amount=int(match[1]),basis='visible text; trigger/availability evaluated per action'))
+        if f.get('healing_effects'):
+            healing.append(dict(entity_id=raw['entity_id'],effects=f['healing_effects'],
+                basis='declared activation effects; actual timing, target and eligibility require action evaluation'))
         if f.get('warnings'):unknown.append(raw['entity_id'])
-    from autoslay.knowledge_base.effect_profiles import profile_for
-    from autoslay.evaluation.entity_effects import apply_route_effects
+    from autoslay.rules.run_commands import RunCommands
     from autoslay.evaluation.strategic import RunResources
-    relic_profiles=[p for r in player.get('relics') or [] if (p:=profile_for(r,entries))]
     maximum=(player.get('creature') or {}).get('max_hp',80)
-    # Resource-only description scenario, shared with route evaluation. No
-    # conditional heal is promoted to an unconditional victory trigger.
-    hypothetical,_=apply_route_effects(RunResources(1,maximum,0),'combat_end',relic_profiles,effect_kinds={'heal'})
-    relic_heal=max(0,hypothetical.hp-1)
+    result=RunCommands(references=entries).dispatch(RunResources(1,maximum,0,
+        relics=tuple(player.get('relics') or [])),'after_combat_victory')
+    relic_heal=max(0,result.state.hp-1)
     return dict(cards=len(cards),attack_ratio=attacks/n,
         damage_per_draw=sum(f.get('damage',0) for f in features)/n,
         block_per_draw=sum(f.get('block',0) for f in features)/n,
@@ -38,7 +33,7 @@ def capabilities(snapshot,entries):
         attack_segments_per_draw=sum(f.get('hits',0) for f in features)/n,
         energy_demand_per_draw=sum(max(0,f.get('cost',0)) for f in features)/n,
         cheap_ratio=sum(0<=f.get('cost',-1)<=1 for f in features)/n,
-        healing_cards=healing,victory_heal= relic_heal,unknown_card_ids=sorted(set(unknown)),
+        healing_cards=healing,victory_heal=relic_heal,victory_heal_gaps=list(result.gaps),unknown_card_ids=sorted(set(unknown)),
         basis='overlapping capabilities, not a fixed archetype or guaranteed draw')
 
 

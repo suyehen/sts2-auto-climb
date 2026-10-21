@@ -3,7 +3,7 @@ from autoslay.knowledge_base.repository import read_view, dataset_path
 from autoslay.decision.contracts import Card
 from autoslay.decision.cache import digest
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 def index(path=None, expected_version="0.111.0"):
     path = path or dataset_path("catalog")
     def build(data):
@@ -19,7 +19,9 @@ def canonical(value, entries):
     if not entry or entry.get("category") != "card": raise ValueError("Card not in local encyclopedia")
     level = value.get("upgrade_level", 0)
     variant = next((v for v in entry["variants"] if v["upgrade_level"] == level), None)
-    if variant is None or variant.get("costs_x") or variant.get('costs_star_x'):
+    if variant is None:
         raise ValueError("Unsupported card variant/cost")
     return Card(value.get("instance_id", value["entity_id"]), value["entity_id"], variant["energy_cost"],
-                variant["target_type"], variant["description"], level, variant["type"],star_cost=variant.get('star_cost',-1)), variant
+                variant["target_type"], variant["description"], level, variant["type"],star_cost=variant.get('star_cost',-1),
+                keywords=tuple(variant.get('keywords',[])),
+                costs_x=bool(variant.get('costs_x')),costs_star_x=bool(variant.get('costs_star_x'))), variant

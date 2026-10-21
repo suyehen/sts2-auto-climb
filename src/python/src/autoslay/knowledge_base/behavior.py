@@ -57,7 +57,7 @@ def compact(entry,include_evidence=False,for_agent=False):
                 evidence=method.pop('evidence',None)
                 if evidence:method['control_flow']=' '.join(evidence.split())
             row['options']=[o for o in row.get('options',[]) if o.get('source_status')!='localization_only']
-            row['event_model']['runtime_priority']='Current formatted option values and actual card/relic/potion identities override defaults. Use symbolic rules only for future stages.'
+            row['event_model']['runtime_priority']='Source excerpts are audit references only. State predictions use the models dataset and common commands; missing declarations and unobserved future outcomes remain unknown. Public instance values take priority over canonical defaults.'
             row.pop('dynamic_variable_expressions',None)
         else:row['option_mechanics']=entry.get('method_evidence',{})
     if for_agent:

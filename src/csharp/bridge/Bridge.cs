@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Godot;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -69,6 +70,7 @@ public static partial class Bridge
         base_energy_cost = card.EnergyCost.GetWithModifiers(CostModifiers.None), has_local_cost_modifiers = card.EnergyCost.HasLocalModifiers,
         star_cost = card.GetStarCostWithModifiers(), costs_star_x = card.HasStarCostX,
         keywords = card.Keywords.Select(k => k.ToString()).ToArray(),
+        dynamic_variables = card.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray(),
         modifiers_complete = true,
         enchantment_id = card.Enchantment?.Id.ToString(), affliction_id = card.Affliction?.Id.ToString(),
         enchantment_amount = card.Enchantment?.Amount,
@@ -85,7 +87,8 @@ public static partial class Bridge
         current_move_id = creature.Monster?.NextMove?.StateId,
         hidden_power_ids = creature.Powers.Where(p => !p.IsVisible).Select(p => p.Id.ToString()).ToArray(),
         powers = creature.Powers.Where(p => p.IsVisible).Select(p => new { entity_id = p.Id.ToString(), amount = p.Amount,
-            name = p.Title.GetFormattedText(), hover_tips = p.HoverTips.Select(EventTip).ToArray() }).ToArray(),
+            name = p.Title.GetFormattedText(), skip_next_duration_tick = p.SkipNextDurationTick,
+            hover_tips = p.HoverTips.Select(EventTip).ToArray() }).ToArray(),
         intents = creature.Monster?.NextMove == null || combat == null ? Array.Empty<object>() : creature.Monster.NextMove.Intents.Select(i => (object)new {
             type = i.IntentType.ToString(), label = i.GetIntentLabel(combat.PlayerCreatures, creature).GetFormattedText(),
             hover_tip = i.HasIntentTip ? EventTip(i.GetHoverTip(combat.PlayerCreatures, creature)) : null,
@@ -93,6 +96,24 @@ public static partial class Bridge
             attack_repeats = i is MegaCrit.Sts2.Core.MonsterMoves.Intents.AttackIntent repeated ? (int?)repeated.Repeats : null
         }).ToArray()
     };
+
+    private static object? CombatCounters(ICombatState? combat, Player? player)
+    {
+        if (combat == null || player == null) return null;
+        var history = CombatManager.Instance.History;
+        var plays = history.CardPlaysFinished.Where(e => e.CardPlay.Player == player).ToArray();
+        var turnPlays = plays.Where(e => e.HappenedThisTurn(combat)).ToArray();
+        var exhausted = history.Entries.OfType<CardExhaustedEntry>().Where(e => e.Actor == player.Creature).ToArray();
+        return new {
+            cards_played = turnPlays.Length,
+            attacks_played = turnPlays.Count(e => e.CardPlay.Card.Type == CardType.Attack),
+            skills_played = turnPlays.Count(e => e.CardPlay.Card.Type == CardType.Skill),
+            combat_cards_played = plays.Length,
+            cards_exhausted = exhausted.Length,
+            turn_cards_exhausted = exhausted.Count(e => e.HappenedThisTurn(combat)),
+            turn_cards_drawn = history.Entries.OfType<CardDrawnEntry>().Count(e => e.Actor == player.Creature && e.HappenedThisTurn(combat) && !e.FromHandDraw)
+        };
+    }
 
     // Runs only on Godot's main thread. The HTTP thread serves immutable JSON.
     private static void Capture()
@@ -151,10 +172,14 @@ public static partial class Bridge
                 player = player == null ? null : new {
                     character = player.Character.Id.ToString(), creature = Creature(player.Creature, null), gold = player.Gold,
                     energy = pcs?.Energy, stars = pcs?.Stars, turn = pcs?.TurnNumber, turn_phase = pcs?.Phase.ToString(),
+                    combat_counters = CombatCounters(combat, player),
+                    pets = pcs?.Pets.Select(c => Creature(c, combat)).ToArray(),
                     hand_limit = CardPile.MaxCardsInHand,
                     deck = player.Deck.Cards.Select(Card).ToArray(), relics = player.Relics.Select(r => new { entity_id = r.Id.ToString(),
                         name = r.Title.GetFormattedText(), description = r.DynamicDescription.GetFormattedText(),
                         status = r.Status.ToString(), counter = r.ShowCounter ? (int?)r.DisplayAmount : null,
+                        runtime_state = RuntimeFields.ReadRelicCounters(r),
+                        dynamic_variables = r.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray(),
                         hover_tips = r.HoverTipsExcludingRelic.Select(EventTip).ToArray() }).ToArray(),
                     potions = potionView, potion_slots = player.MaxPotionCount, hand = pcs?.Hand.Cards.Select(Card).ToArray(),
                     discard = pcs?.DiscardPile.Cards.Select(Card).ToArray(), exhaust = pcs?.ExhaustPile.Cards.Select(Card).ToArray(),

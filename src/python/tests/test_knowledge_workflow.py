@@ -8,13 +8,12 @@ import pytest
 from autoslay.paths import ROOT
 from autoslay.knowledge_base.catalog import save_catalog
 from autoslay.knowledge_base.updates import compare,rollback,CatalogSynchronizer
-from autoslay.knowledge_base.rulebook import Rulebook,validate_rulebook,entry_fingerprint
-from autoslay.knowledge_base.source_audit import recognize_card,recognize_potion
-from autoslay.rules.registry import IroncladRules
+from autoslay.rules.registry import KnowledgeRules, ENTITY_MECHANICS, audit as audit_rules
 from autoslay.decision.contracts import Card,CombatState,UnsupportedEffect
 from autoslay.evaluation.event_sequences import evaluate_event_sequence
 from autoslay.evaluation.run import RunContext,RunPolicy
 from autoslay.knowledge_base.templates import index
+from autoslay.knowledge_base.repository import read_json,dataset_path
 from autoslay.telemetry import decisions
 from autoslay.dashboard.server import make_server
 from dataclasses import replace
@@ -22,8 +21,8 @@ from autoslay.simulation.engine import CombatSimulator
 from autoslay.decision.contracts import Enemy,Operation,Potion
 from autoslay.knowledge_base.templates import canonical
 
-@pytest.mark.parametrize('identity',[i for i,r in Rulebook().data['entries'].items() if r.get('review_evidence') and r['category']=='card'])
-def test_source_reviewed_rules_have_readable_base_and_upgrade_and_valid_flow(identity):
+@pytest.mark.parametrize('identity',[i for i,r in ENTITY_MECHANICS.items() if r.category=='card'])
+def test_native_cards_have_readable_base_and_upgrade_and_valid_flow(identity):
     entries=index()[0]; entry=entries[identity]
     for variant in entry['variants']:
         raw=dict(entity_id=identity,instance_id='source-fixture',upgrade_level=variant['upgrade_level'])
@@ -33,19 +32,26 @@ def test_source_reviewed_rules_have_readable_base_and_upgrade_and_valid_flow(ide
         simulator=CombatSimulator(initial)
         assert not simulator.unsupported
         target='e' if card.target_type=='AnyEnemy' else None
+        if not simulator.compiled[card.instance_id].playable:
+            assert Operation('play_source-fixture',target) not in simulator.actions(initial)
+            from autoslay.simulation.card_flow import flush_hand
+            after=flush_hand(initial,simulator.rules)
+            assert bool(after.hand)==('Retain' in (card.keywords or ()) and 'Ethereal' not in (card.keywords or ()))
+            continue
         result=simulator.apply(initial,Operation('play_source-fixture',target))
         # Resource-generating cards may increase the inventory after payment.
         assert result.state.energy>=0 and result.state.stars>=10-max(0,card.star_cost)
         assert all(c.instance_id!='source-fixture' for c in result.state.hand)
         if not result.boundary:
-            destination=result.state.exhausted_composition if simulator.compiled[card.instance_id].exhaust else result.state.discard_composition
+            destination=(result.state.removed_composition if card.card_type=='Power' else
+                         result.state.exhausted_composition if simulator.compiled[card.instance_id].exhaust else result.state.discard_composition)
             assert dict(destination)[identity]==1
 
 
-@pytest.mark.parametrize('identity',[i for i,r in Rulebook().data['entries'].items() if r.get('review_evidence') and r['category']=='potion'])
-def test_source_reviewed_potions_parse_actual_reference_and_consume_once(identity):
-    book=Rulebook(); rule=book.require(identity,'potion'); entry=book.references[identity]
-    target='enemy' if rule['target_type']=='AnyEnemy' else 'player' if rule['target_type']=='AnyPlayer' else None
+@pytest.mark.parametrize('identity',[i for i,r in ENTITY_MECHANICS.items() if r.category=='potion'])
+def test_native_potions_parse_actual_reference_and_consume_once(identity):
+    rule=ENTITY_MECHANICS[identity]; entry=index()[0][identity]
+    target='enemy' if rule.target_type=='AnyEnemy' else 'player' if rule.target_type=='AnyPlayer' else None
     potion=Potion('p',identity,entry['description'],'use_p',(() if target is None else (target,)))
     state=CombatState(50,80,8,3,(),(Enemy('enemy','MONSTER.TEST',100,0,0,None,()),),
                       (('CARD.STRIKE_IRONCLAD',7),),potions=(potion,),discard_known=True)
@@ -81,6 +87,7 @@ def test_potion_block_keeps_legion_for_next_card_and_fortifier_adds_twice_curren
 
 def test_compound_potion_pays_energy_before_draw_and_keeps_full_hand_when_draw_blocked():
     state=potion_state('POTION.CURE_ALL','Gain 2 Energy. Draw 2 cards.')
+    state=replace(state,potions=(replace(state.potions[0],dynamic_variables=(('Energy',2),('Cards',2))),))
     result=CombatSimulator(state).apply(state,Operation('use_p','player'))
     assert result.state.energy==5 and result.draw_count==2 and result.boundary=='draw_requires_observation'
     blocked=replace(state,effect_draw_blocked=True)
@@ -95,7 +102,7 @@ def test_compound_potion_pays_energy_before_draw_and_keeps_full_hand_when_draw_b
 def test_compound_draw_resume_preserves_order_play_pile_and_single_final_discard():
     from autoslay.rules.registry import CardRule,Effect
     from autoslay.planning.lookahead import draw_branches
-    class CompoundRules(IroncladRules):
+    class CompoundRules(KnowledgeRules):
         def card(self,card,state):
             if card.instance_id=='compound':
                 return CardRule((Effect('draw',1),Effect('energy',2),Effect('draw',1),Effect('damage',6)))
@@ -126,13 +133,6 @@ def test_strength_potion_changes_following_attack_not_unpowered_damage():
     assert buff.state.strength_delta==2 and result.state.enemies[0].hp==93 # 8*1.5 - 5 block
 
 
-def test_potion_recognizer_refuses_unknown_command_and_changed_target():
-    from autoslay.knowledge_base.source_audit import SOURCE
-    source=(SOURCE/'MegaCrit.Sts2.Core.Models.Potions/StrengthPotion.cs').read_text(encoding='utf-8-sig')
-    assert recognize_potion(source)[0]
-    assert recognize_potion(source.replace('TargetType.AnyPlayer','TargetType.AnyEnemy'))[0] is None
-    assert recognize_potion(source.replace('await PowerCmd.Apply','await UnknownCmd.Apply'))[0] is None
-
 def test_star_cost_is_checked_paid_and_preserved_in_projection():
     from autoslay.execution.sequence import projection
     entries=index()[0]; card=canonical(dict(entity_id='CARD.CLOAK_OF_STARS',instance_id='star'),entries)[0]
@@ -142,50 +142,6 @@ def test_star_cost_is_checked_paid_and_preserved_in_projection():
     initial=replace(initial,stars=2); result=simulator.apply(initial,Operation('play_star'))
     assert result.state.stars==1 and result.state.block==7 and projection(result.state)['stars']==1
 
-def database(tmp_path):
-    data=json.loads((ROOT/'data/knowledge/catalog/encyclopedia.json').read_text(encoding='utf-8-sig'))
-    rules=json.loads((ROOT/'data/knowledge/rules/rulebook.json').read_text(encoding='utf-8-sig'))
-    catalog=tmp_path/'catalog.json'; rule_path=tmp_path/'rules.json'
-    save_catalog(data,catalog); rule_path.write_text(json.dumps(rules),encoding='utf-8')
-    return data,rules,catalog,rule_path
-
-def test_semantic_update_invalidates_only_affected_rule_and_keeps_backup(tmp_path):
-    data,rules,catalog,path=database(tmp_path)
-    before=catalog.read_bytes()
-    entry=next(e for e in data['entries'] if e['entity_id']=='CARD.STRIKE_IRONCLAD')
-    entry['variants'][0]['energy_cost']=2
-    result=save_catalog(data,catalog)
-    assert result['update_report']['changes'][0]['rules_require_review']
-    book=Rulebook(path,catalog)
-    assert book.status('CARD.STRIKE_IRONCLAD')=='reference_changed'
-    assert book.status('CARD.DEFEND_IRONCLAD')=='compatible'
-    with pytest.raises(UnsupportedEffect):
-        IroncladRules(book).card(Card('s','CARD.STRIKE_IRONCLAD',1,'AnyEnemy','Deal 6 damage.'),CombatState(20,80,0,3,(),(),()))
-    assert next((tmp_path/'history').glob('*.json')).read_bytes()==before
-
-def test_version_change_and_same_version_fingerprint_detection(tmp_path):
-    data,rules,catalog,path=database(tmp_path)
-    assert not save_catalog(data,catalog)['changed']
-    data['game_version']='0.112.0'; save_catalog(data,catalog)
-    assert Rulebook(path,catalog).status('CARD.DEFEND_IRONCLAD')=='rule_version_mismatch'
-
-def test_cosmetic_rename_keeps_rule_and_rollback_checks_filename(tmp_path):
-    data,rules,catalog,path=database(tmp_path)
-    entry=next(e for e in data['entries'] if e['entity_id']=='CARD.STRIKE_IRONCLAD'); entry['name']='renamed'
-    result=save_catalog(data,catalog)
-    assert result['update_report']['changes'][0]['kind']=='cosmetic_changed'
-    assert Rulebook(path,catalog).status(entry['entity_id'])=='compatible'
-    with pytest.raises(ValueError): rollback('../catalog.json',catalog)
-    result=rollback(next((tmp_path/'history').glob('*.json')).name,catalog)
-    assert result['changed']
-
-def test_rule_format_rejects_code_and_unknown_mechanisms():
-    data=deepcopy(Rulebook().data)
-    rule=data['entries']['CARD.STRIKE_IRONCLAD']
-    rule['effects'][0]['amount']={'python':'import os'}
-    with pytest.raises(ValueError): validate_rulebook(data)
-    rule['effects'][0]=dict(operation='invented_operation',amount=1)
-    with pytest.raises(ValueError): validate_rulebook(data)
 
 def test_auto_refresh_is_menu_only_and_checks_live_version(tmp_path,monkeypatch):
     from autoslay.knowledge_base import catalog
@@ -204,31 +160,30 @@ def test_auto_refresh_is_menu_only_and_checks_live_version(tmp_path,monkeypatch)
 
 def test_continuous_event_accounts_for_max_hp_heal_and_growing_damage():
     entries=index()[0]; deck=[dict(entity_id='CARD.STRIKE_IRONCLAD',instance_id='s',upgrade_level=0)]
-    event=dict(entity_id='EVENT.ABYSSAL_BATHS',options=[dict(text_key='ABYSSAL_BATHS.pages.INITIAL.options.IMMERSE',action_id='continue'),dict(text_key='ABYSSAL_BATHS.pages.INITIAL.options.ABSTAIN',action_id='exit')])
+    event=dict(entity_id='EVENT.ABYSSAL_BATHS',game_assembly_sha256='0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9',options=[dict(text_key='ABYSSAL_BATHS.pages.INITIAL.options.IMMERSE',action_id='continue'),dict(text_key='ABYSSAL_BATHS.pages.INITIAL.options.ABSTAIN',action_id='exit')])
     result=evaluate_event_sequence(event,deck,RunContext(40,80,0),entries,RunPolicy(),'0.111.0',max_steps=3)
-    rows={r['repeats']:r for r in result['candidates']}
-    assert rows[0]['final_context']['hp']==50 and rows[0]['first_action_id']=='exit'
-    assert rows[1]['final_context']['max_hp']==82 and rows[1]['final_context']['hp']==39
-    assert rows[2]['final_context']['max_hp']==84 and rows[2]['final_context']['hp']==37
-    assert rows[3]['final_context']['hp']==34
+    rows={r['option_id']:r for r in result['candidates']}
+    assert rows['Abstain']['branches'][0]['immediate']['hp_after']==50 and rows['Abstain']['first_action_id']=='exit'
+    first=rows['Immerse']['branches'][0]
+    assert first['immediate']['max_hp_after']==82 and first['immediate']['hp_after']==39
+    second=next(c for c in first['continuation']['candidates'] if c['option_id']=='Linger')['branches'][0]
+    assert second['immediate']['max_hp_after']==84 and second['immediate']['hp_after']==37
+    third=next(c for c in second['continuation']['candidates'] if c['option_id']=='Linger')['branches'][0]
+    assert third['immediate']['hp_after']==34
+    assert result['search_truncated'] and not result['comparison_complete']
     assert not result['execution_authorized']
     event['options']=[dict(text_key='ABYSSAL_BATHS.pages.ALL.options.LINGER')]
     assert not evaluate_event_sequence(event,deck,RunContext(40,80,0),entries,RunPolicy(),'0.111.0')['supported']
 
 def test_event_excludes_lethal_continuation_and_unmodeled_hooks():
     entries=index()[0]; deck=[dict(entity_id='CARD.STRIKE_IRONCLAD')]
-    event=dict(entity_id='EVENT.ABYSSAL_BATHS',dynamic_variables=[dict(name='Damage',value=9)],options=[dict(text_key='X.LINGER'),dict(text_key='X.EXIT_BATHS')])
+    event=dict(entity_id='EVENT.ABYSSAL_BATHS',game_assembly_sha256='0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9',dynamic_variables=[dict(name='Damage',value=9)],options=[dict(text_key='ABYSSAL_BATHS.pages.ALL.options.LINGER'),dict(text_key='ABYSSAL_BATHS.pages.ALL.options.EXIT_BATHS')])
     result=evaluate_event_sequence(event,deck,RunContext(3,80,0),entries,RunPolicy(),'0.111.0')
-    assert result['avoided_lethal_continuation'] and len(result['candidates'])==1
+    assert next(r for r in result['candidates'] if r['option_id']=='Linger')['fatal_probability']==1
+    assert result['best']['option_id']=='ExitBaths'
     event['interaction_warnings']=['damage_hook']
     assert not evaluate_event_sequence(event,deck,RunContext(30,80,0),entries,RunPolicy(),'0.111.0')['supported']
 
-def test_straight_line_recognizer_rejects_conditions_and_trigger_hooks():
-    text='protected override async Task OnPlay(PlayerChoiceContext c, CardPlay cardPlay) { await CreatureCmd.GainBlock(base.Owner.Creature, base.DynamicVars.Block, cardPlay); }'
-    assert recognize_card(text)[0]['effects'][0]['operation']=='block'
-    assert recognize_card(text.replace('await CreatureCmd','if (x) await CreatureCmd'))[0] is None
-    assert recognize_card(text+' public override Task AfterCardPlayed() {}')[0] is None
-    assert recognize_card(text+' protected override bool IsPlayable => false;')[0] is None
 
 def test_general_event_graph_repeats_with_explicit_costs_and_keeps_probability():
     from autoslay.evaluation.event_sequences import evaluate_graph
@@ -255,9 +210,9 @@ def test_normal_decision_only_contains_relevant_knowledge():
     from autoslay.decision.unified import analyze_decision
     data=json.loads((ROOT/'data/replays/boss_turn4.json').read_text(encoding='utf-8-sig'))
     report=analyze_decision(data,use_cache=False)
-    assert report['knowledge_compatibility']['entry_scope']=='current_decision_entities_only'
-    assert len(report['knowledge_compatibility']['entries'])<100
-    assert len(Rulebook().audit()['entries'])>900
+    assert report['mechanism_coverage']['entry_scope']=='current_decision_entities_only'
+    assert len(report['mechanism_coverage']['entries'])<100
+    assert len(audit_rules()['entries'])>900
 
 def test_decision_archive_whitelists_public_state_and_separates_replays(tmp_path):
     report=dict(analysis_id='fixture',source=dict(state_version=1),phase='combat')
@@ -287,29 +242,9 @@ def test_encyclopedia_tool_response_keeps_diff_local():
     assert compact['update_report']['full_diff']['json_pointer']=='/update_report'
     assert len(result['update_report']['changes'])==1
 
-def test_same_version_implementation_hash_change_invalidates_rules(tmp_path):
-    data,rules,catalog,path=database(tmp_path)
-    data['game_assembly_sha256']='different-implementation';save_catalog(data,catalog)
-    assert Rulebook(path,catalog).status('CARD.DEFEND_IRONCLAD')=='game_implementation_changed'
-
-
-def test_export_metadata_rebind_preserves_validation_and_rejects_effect_or_binary_changes():
-    from autoslay.knowledge_base.updates import rebind_added_export_metadata
-    book=Rulebook(); old=deepcopy(book.catalog); new=deepcopy(old)
-    entry=next(e for e in new['entries'] if e['entity_id']=='CARD.STRIKE_IRONCLAD')
-    entry['dynamic_variables']=[dict(name='Damage',base_value=6)]
-    result,report=rebind_added_export_metadata(book.data,old,new)
-    assert 'CARD.STRIKE_IRONCLAD' in report['rebound'] and result['entries']['CARD.STRIKE_IRONCLAD']['validation']=='verified_adapter'
-    entry['variants'][0]['energy_cost']=99
-    result,report=rebind_added_export_metadata(book.data,old,new)
-    assert 'CARD.STRIKE_IRONCLAD' in report['rejected']
-    assert result['entries']['CARD.STRIKE_IRONCLAD']['reference_sha256']==book.data['entries']['CARD.STRIKE_IRONCLAD']['reference_sha256']
-    new['game_assembly_sha256']='changed'
-    with pytest.raises(ValueError): rebind_added_export_metadata(book.data,old,new)
-
 
 def test_catalog_rejects_stale_generation_but_explicit_rollback_can_restore(tmp_path):
-    data=deepcopy(Rulebook().catalog); data.update(session_epoch='same',generation=5)
+    data=deepcopy(read_json(dataset_path('catalog'))); data.update(session_epoch='same',generation=5)
     path=tmp_path/'catalog.json'; save_catalog(data,path); before=path.read_bytes()
     data['generation']=4; data['entries'][0]['name']='older export'
     with pytest.raises(ValueError): save_catalog(data,path)
@@ -319,7 +254,7 @@ def test_catalog_rejects_stale_generation_but_explicit_rollback_can_restore(tmp_
 
 def test_catalog_cross_process_busy_preserves_file(tmp_path):
     from autoslay.execution.lock import dispatch_lock
-    data=deepcopy(Rulebook().catalog); path=tmp_path/'catalog.json';save_catalog(data,path)
+    data=deepcopy(read_json(dataset_path('catalog'))); path=tmp_path/'catalog.json';save_catalog(data,path)
     before=path.read_bytes(); data['entries'][0]['name']='update'
     with dispatch_lock(tmp_path/'.catalog-lock') as acquired:
         assert acquired

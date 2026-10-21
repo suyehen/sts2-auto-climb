@@ -96,7 +96,7 @@ def packet(report):
     knowledge = current_snapshot()
     return dict(source=report['source'],phase=report['phase'],units='heuristic scores and conditional forecasts; not win probability',
                 knowledge_revision=report.get('knowledge_revision') or (knowledge.revision if knowledge else None),
-                candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','relic','rest','route') if k in report},
+                candidates={k:event_sequence_packet(report[k]) if k=='event_sequence' else selection_packet(report[k]) if k=='choices' else strip_details(report[k]) for k in ('shortlist','observations','choices','shop','event','event_sequence','relic','rest','route') if k in report},
                 coverage=(report.get('combat') or {}).get('coverage'),combat_forecast=forecast_packet((report.get('combat') or {}).get('lookahead')),
                 autonomy=report.get('autonomy'),mechanism_audit=report.get('mechanism_audit'),
                 action_space={k:(report.get('action_space') or {}).get(k) for k in ('catalog_version','catalog_sha256','issues')},
@@ -105,7 +105,7 @@ def packet(report):
                 combat_diagnostics=report.get('combat_diagnostics'),
                 strategic_context={k:v for k,v in (report.get('strategic_context') or {}).items() if k not in {'deck','map','relics'}},
                 entity_models=entity_models_packet(report.get('entity_models')),
-                limitations=report.get('limitations'),knowledge=report.get('knowledge_compatibility'))
+                limitations=report.get('limitations'),knowledge=report.get('mechanism_coverage'))
 
 
 def forecast_packet(value):
@@ -126,8 +126,8 @@ def entity_models_packet(value):
     from autoslay.decision.cache import digest
     rows=result.get('entities',[])
     for row in rows:
-        # Full programs remain local. The formatted description, numerical
-        # components and explicit gaps retain all decision-relevant semantics.
+        # Parsed clauses remain local. Retain the formatted reference and gaps;
+        # description components have no utility or executable effect authority.
         clauses=row.pop('clauses',[])
         row['effect_topics']=sorted({topic for clause in clauses for topic in clause['topics']})
         row['full_program_available_locally']=bool(clauses)
@@ -151,9 +151,18 @@ def event_sequence_packet(value):
                 branch['continuation']['full_tree_available_locally']=True
     return result
 
+
+def selection_packet(value):
+    result=strip_details(value)
+    if isinstance(result,dict) and 'combinations' in result:
+        rows=result['combinations'];result['combination_count']=len(rows)
+        result['combinations']=rows[:12]
+        result['additional_combinations_local']=max(0,len(rows)-12)
+    return result
+
 def strip_details(value):
     if isinstance(value,dict):
-        return {k:strip_details(v) for k,v in value.items() if k not in {'state_trace','normalized_input','before','after','deck_after','joint_outcomes','resource_trace','sampling_events'}}
+        return {k:strip_details(v) for k,v in value.items() if k not in {'state_trace','normalized_input','before','after','after_resources','deck_after','joint_outcomes','resource_trace','sampling_events'}}
     if isinstance(value,list): return [strip_details(v) for v in value]
     return value
 

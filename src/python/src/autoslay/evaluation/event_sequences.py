@@ -1,69 +1,85 @@
-"""Bounded explicit event state transitions with re-evaluation after every change."""
-from dataclasses import asdict,replace
-from autoslay.knowledge_base.events import rules
-from autoslay.evaluation.run import deck_value
+"""Bounded valuation of declared event state machines and supplied graphs."""
+from dataclasses import replace,asdict
+from decimal import Decimal
+from autoslay.rules.flows import FlowMachine
+from autoslay.evaluation.strategic import RunResources
+from autoslay.evaluation.events import transition_value
+from autoslay.decision.contracts import UnsupportedEffect
 
-VERSION='1.1.0'
+VERSION='3.0.0'
 
-def evaluate_event_sequence(event,deck,context,entries,policy,game_version,*,max_steps=12,max_hp_weight=None):
-    if type(max_steps) is not int or not 1<=max_steps<=30: raise ValueError('Event depth 1..30 required')
-    data=rules(); rule=data['entries'].get(event.get('entity_id'))
-    if not rule:
-        from autoslay.evaluation.event_adapters import evaluate_source_event
-        return evaluate_source_event(event,deck,context,entries,policy,game_version,max_steps=max_steps)
-    if game_version!=data['game_version']: return dict(supported=False,reason='event_rule_version_mismatch',candidates=[])
-    if event.get('interaction_warnings'): return dict(supported=False,reason='event_resource_hooks_unmodeled',
-                                                    warnings=event['interaction_warnings'],candidates=[])
-    if rule['model']=='explicit_graph':
-        observed={o.get('text_key') for o in event.get('options',[]) if o.get('available',True)}
-        matched=[s['state'] for s in rule['stage_selectors'] if set(s['text_keys'])<=observed]
-        if len(matched)!=1: return dict(supported=False,reason='ambiguous_or_unknown_event_stage',candidates=[])
-        return evaluate_graph(rule['states'],matched[0],deck,context,entries,policy,max_depth=max_steps)
-    if rule['model']!='repeat_max_hp_then_damage': raise ValueError('Unknown event model')
-    if max_hp_weight is None: max_hp_weight=policy.max_hp_weight
-    # Relic heal/damage/maxHP hooks can change both survival and utility.
-    options=[o for o in event.get('options',[]) if o.get('available',True) and not o.get('locked')]
-    keys=[o.get('text_key','') for o in options]
-    initial=any(k.endswith('.IMMERSE') for k in keys)
-    later=any(k.endswith('.LINGER') for k in keys)
-    if not initial and not later: return dict(supported=False,reason='unrecognized_event_stage',candidates=[])
-    variables={v['name']:v.get('value',v.get('base_value')) for v in event.get('dynamic_variables') or []}
-    damage=variables.get('Damage',rule['initial_damage'] if initial else None)
-    if type(damage) not in {int,float} or damage<0: return dict(supported=False,reason='next_damage_not_observed',candidates=[])
-    gain=variables.get('MaxHp',rule['gain_max_hp']); heal=variables.get('Heal',rule['initial_exit_heal'])
-    if any(type(v) not in {int,float} or v<0 for v in (gain,heal)): raise ValueError('Invalid event variables')
-    gain,heal,damage=int(gain),int(heal),int(damage)
-    start=context; base=deck_value(deck,start,entries,policy)['utility_points']; rows=[]; traces=[]
-    current=start; resource_utility=0.; fatal_seen=False
-    for count in range(max_steps+1):
-        exit_heal=heal if initial and count==0 else rule['later_exit_heal']
-        actual=min(exit_heal,current.max_hp-current.hp)
-        final=replace(current,hp=current.hp+actual)
-        deck_delta=deck_value(deck,final,entries,policy)['utility_points']-base
-        utility=resource_utility+actual*policy.hp_weight*current.urgency+deck_delta
-        first_key='.IMMERSE' if initial and count else '.LINGER' if count else '.ABSTAIN' if initial else '.EXIT_BATHS'
-        action=next((o.get('action_id') for o in options if o.get('text_key','').endswith(first_key)),None)
-        rows.append(dict(repeats=count,utility=utility,fatal=False,first_action_id=action,
-                         final_context=asdict(final),trace=list(traces)+[dict(operation='exit',heal=actual)],
-                         max_hp_gain=final.max_hp-start.max_hp,hp_change=final.hp-start.hp,
-                         components=dict(resource_utility=resource_utility,exit_heal_utility=actual*policy.hp_weight*current.urgency,deck_environment_delta=deck_delta)))
-        if count==max_steps: break
-        next_max=current.max_hp+gain
-        gained_hp=gain if rule['gain_max_hp_also_heals'] else 0
-        next_hp=min(next_max,current.hp+gained_hp)-damage
-        if next_hp<=0:
-            fatal_seen=True; break
-        step_utility=gain*max_hp_weight+(gained_hp-damage)*policy.hp_weight*current.urgency
-        resource_utility+=step_utility
-        traces.append(dict(operation='gain_max_hp_then_damage',gain_max_hp=gain,heal_from_max_hp=gained_hp,
-                           damage=damage,hp_before=current.hp,hp_after=next_hp,max_hp_after=next_max,utility=step_utility))
-        current=replace(current,hp=next_hp,max_hp=next_max); damage+=rule['damage_increment']
-    rows.sort(key=lambda r:r['utility'],reverse=True)
-    return dict(module_version=VERSION,supported=True,source=rule['source'],validation=rule['validation'],
-                candidates=rows,search_truncated=not fatal_seen and len(traces)==max_steps,
-                avoided_lethal_continuation=fatal_seen,execution_authorized=False,
-                assumptions=dict(max_hp_weight=max_hp_weight,units='heuristic points; not calibrated lifetime HP value'),
-                limitations=rule['limitations']+['only first current action is bound; reobserve after each event choice'])
+
+def evaluate_event_sequence(event,deck,context,entries,policy,game_version,*,max_steps=12,max_nodes=500,max_hp_weight=None):
+    if type(max_steps) is not int or not 1<=max_steps<=30 or type(max_nodes) is not int or not 1<=max_nodes<=10000:
+        raise ValueError('Invalid event state-machine budget')
+    base=dict(module_version=VERSION,supported=False,candidates=[],execution_authorized=False)
+    if event.get('interaction_warnings'):
+        return dict(base,reason='event_resource_hooks_unmodeled',warnings=event['interaction_warnings'])
+    machine=FlowMachine(references=entries)
+    from autoslay.rules.registry import IMPLEMENTATION_SHA256
+    if game_version!=machine.models.game_version or event.get('game_assembly_sha256')!=IMPLEMENTATION_SHA256:
+        return dict(base,reason='event_rule_version_or_hash_mismatch')
+    if max_hp_weight is not None:policy=replace(policy,max_hp_weight=max_hp_weight)
+    initial_resources=RunResources(context.hp,context.max_hp,context.gold,dead=context.hp==0,
+        deck=tuple(deck),relics=tuple(event.get('owned_relics') or []))
+    try:initial,bindings=machine.bind(event,initial_resources)
+    except (ValueError,KeyError,TypeError) as exc:return dict(base,reason=str(exc))
+    nodes=0;truncated=False
+    def solve(state,depth):
+        nonlocal nodes,truncated
+        if depth>=max_steps or nodes>=max_nodes:
+            truncated=True
+            return dict(known=False,comparison_complete=False,best_known=None,best=None,candidates=[],reason='flow_search_budget')
+        nodes+=1;rows=[]
+        for option in machine.options(state):
+            if depth==0 and option['id'] not in bindings:continue
+            outcomes=machine.apply(state,option['id']);branches=[];complete=True
+            for outcome in outcomes:
+                resources=outcome.state.resources;gaps=list(outcome.gaps)
+                immediate=dict(hp_after=resources.hp,max_hp_after=resources.max_hp,gold_after=resources.gold,
+                    deck_after=list(resources.deck),fatal=resources.dead,command_trace=list(outcome.trace),utility=None)
+                if not gaps:
+                    try:immediate.update(transition_value(state.resources,resources,context,entries,policy))
+                    except ValueError as exc:gaps.append(str(exc))
+                continuation=None;value=immediate['utility'];fatal=float(resources.dead)
+                if not gaps and not outcome.boundary and not resources.dead and outcome.state.page is not None:
+                    continuation=solve(outcome.state,depth+1)
+                    if continuation['known']:
+                        value+=continuation['best']['expected_utility'];fatal=continuation['best']['fatal_probability']
+                    else:gaps.append('continuation_not_fully_modeled')
+                if gaps or outcome.boundary:complete=False
+                branches.append(dict(probability=outcome.weight,immediate=immediate,continuation=continuation,
+                    total_utility=None if outcome.boundary else value,fatal=fatal,known=not gaps and not outcome.boundary,
+                    mechanism_gaps=gaps,observation_boundary=outcome.boundary,
+                    flow_state=dict(page=outcome.state.page,variables={k:str(v) if type(v) is Decimal else v for k,v in outcome.state.variables.items()})))
+            row=dict(option_id=option['id'],utility=None,known=complete,branches=branches,
+                callback=option['callback'],expected_utility=None,fatal_probability=None,
+                known_fatal=any(o.weight>0 and o.state.resources.dead for o in outcomes))
+            if depth==0:
+                observed=bindings[option['id']]
+                row.update(action_id=observed.get('action_id'),title=observed.get('title'),
+                    first_action_id=observed.get('action_id'))
+            if complete:
+                expected=sum(b['probability']*b['total_utility'] for b in branches)
+                downside=sum(b['probability']*max(0,-b['total_utility']) for b in branches)
+                row.update(expected_utility=expected,utility=expected-policy.risk_weight*downside,
+                    fatal_probability=sum(b['probability']*b['fatal'] for b in branches),
+                    expected_hp_change=sum(b['probability']*(b['immediate']['hp_after']-state.resources.hp) for b in branches),
+                    expected_max_hp_change=sum(b['probability']*(b['immediate']['max_hp_after']-state.resources.max_hp) for b in branches),
+                    expected_gold_change=sum(b['probability']*(b['immediate']['gold_after']-state.resources.gold) for b in branches))
+            rows.append(row)
+        known=sorted((r for r in rows if r['known']),key=lambda r:(r['fatal_probability'],-r['utility']))
+        best={k:v for k,v in known[0].items() if k!='branches'} if known else None
+        rows.sort(key=lambda r:(not r['known'],r['fatal_probability'] if r['known'] else 0,-r['utility'] if r['known'] else 0))
+        complete=bool(rows) and all(r['known'] for r in rows)
+        return dict(known=complete,comparison_complete=complete,best=best,best_known=best,candidates=rows)
+    result=solve(initial,0)
+    return dict(base,**result,supported=True,nodes=nodes,search_truncated=truncated,
+        rule_fingerprint=machine.models.fingerprint,source=machine.models.flows[initial.model_id]['provenance'],
+        validation='source_reviewed_declaration; live_transition_pending',
+        limitations=['only current option actions are bound; reobserve at every page',
+            'resource/deck valuation is a proxy; declared commands define state changes',
+            'unknown mechanics and search cutoffs prevent a complete comparison'])
 
 
 def evaluate_graph(graph,start_state,deck,context,entries,policy,*,max_depth=8,max_nodes=500):

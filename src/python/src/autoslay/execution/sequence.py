@@ -14,7 +14,7 @@ from autoslay.paths import ROOT
 from autoslay.execution.lock import dispatch_lock
 from autoslay.actions import operation_error, validate_catalog_identity
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 class Step(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -30,14 +30,25 @@ class Plan(BaseModel):
     steps: list[Step] = Field(min_length=1, max_length=12)
 
 def projection(state):
-    return dict(hp=state.hp, block=state.block, energy=state.energy,stars=state.stars,
+    return dict(hp=state.hp,max_hp=state.max_hp, block=state.block, energy=state.energy,stars=state.stars,
                 hand=sorted((c.instance_id, c.entity_id, c.cost, c.target_type, c.upgrade_level,c.star_cost) for c in state.hand),
                 strength=state.base_strength + state.strength_delta, colossus=state.colossus,
+                dexterity=state.base_dexterity+state.dexterity_delta,regeneration=state.regeneration,plating=state.plating,
                 weak=state.player_weak, frail=state.player_frail, turn=state.turn,
                 draw=state.draw_composition, discard=state.discard_composition, exhaust=state.exhausted_composition,
-                potions=sorted(p.instance_id for p in state.potions),
-                enemies=sorted((e.instance_id, e.hp, e.block, e.vulnerable, e.attacks, e.strength, e.weak, e.minion)
+                potions=sorted(p.instance_id for p in state.potions),power_stacks=state.power_stacks,
+                osty=asdict(state.osty) if state.osty and state.osty.hp>0 else None,
+                weak_skip_next_tick=state.weak_skip_next_tick,frail_skip_next_tick=state.frail_skip_next_tick,
+                history=(state.cards_played,state.attacks_played,state.skills_played,state.combat_cards_played,
+                         state.cards_exhausted,state.turn_cards_exhausted,state.turn_cards_drawn) if state.history_known else None,
+                enemies=sorted((e.instance_id, e.hp, e.block, e.vulnerable, e.attacks, e.strength, e.weak, e.minion,e.poison,e.power_stacks)
                                for e in state.enemies if e.hp > 0))
+
+
+def relic_projection(relics,modeled_counters=()):
+    tracked={r.entity_id for r in modeled_counters}
+    return [{k:v for k,v in r.items() if r.get('entity_id') not in tracked or k not in {'counter','status','runtime_state'}}
+            for r in relics or []]
 
 def save(path, record):
     path.parent.mkdir(parents=True, exist_ok=True)

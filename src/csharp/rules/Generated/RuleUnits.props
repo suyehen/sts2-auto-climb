@@ -1,0 +1,47 @@
+<Project>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Combat/CombatSide.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardEnergyCost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardKeyword.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardPlay.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardRarity.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardUpgradePreviewType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CardUpgradePreviewTypeExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/CostModifiers.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/KeywordSources.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostModifier.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostModifierExpiration.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/PileType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/ResourceInfo.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/TargetType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/TemporaryCardCost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Cards/UnplayableReason.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Creatures/DamageResult.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Multiplayer/PlayerChoiceOptions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Powers/PowerInstanceType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Powers/PowerStackType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Entities.Powers/PowerType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Cards/Dazed.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Cards/Injury.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Powers/ArtifactPower.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Powers/MinionPower.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Powers/NoEnergyGainPower.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Powers/StrengthPower.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Relics/LeesWaffle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Relics/Mango.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Relics/Pear.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models.Relics/Strawberry.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models/ITemporaryPower.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Models/SingletonModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Nodes.CommonUi/CardPreviewStyle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.Rooms/RoomType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Code/MegaCrit.Sts2.Core.ValueProps/ValuePropExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CompiledUnitIdentity.cs" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)rule-parameters.json">
+      <LogicalName>AutoSlay.Rules.Parameters.Default</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

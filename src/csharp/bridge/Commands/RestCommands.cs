@@ -38,11 +38,18 @@ public static partial class Bridge
         foreach (var button in container.GetChildren().OfType<NRestSiteButton>().Where(b => b.IsNodeReady() && !b.IsQueuedForDeletion()))
         {
             var option = button.Option;
-            var supported = option is HealRestSiteOption or SmithRestSiteOption;
+            // Every option uses the same game-owned SelectOption callback.
+            var supported = option is HealRestSiteOption or SmithRestSiteOption
+                or LiftRestSiteOption or DigRestSiteOption or KindleRestSiteOption
+                or HatchRestSiteOption or CookRestSiteOption or CloneRestSiteOption or MendRestSiteOption;
             var enabled = idle && supported && RestButtonReady(button);
             var id = "rest_" + Id(room) + "_" + Id(button);
             options.Add(new { option_id = option.OptionId, title = option.Title.GetFormattedText(),
-                description = option.Description.GetFormattedText(), supported, available = enabled, action_id = enabled ? id : null });
+                description = option.Description.GetFormattedText(), model_type = option.GetType().FullName,
+                heal_amount = option is HealRestSiteOption && player != null ? (decimal?)HealRestSiteOption.GetHealAmount(player) : null,
+                smith_count = option is SmithRestSiteOption smith ? (int?)smith.SmithCount : null,
+                selection_purpose = option is SmithRestSiteOption ? "upgrade" : null,
+                supported, available = enabled, action_id = enabled ? id : null });
             if (enabled)
             {
                 ready = true;
@@ -80,7 +87,7 @@ public static partial class Bridge
         if (current is NCardGridSelectionScreen child && SelectionIdle(run, player, child))
         {
             pendingSelectionEffects = restTask == null ? [] : [restTask];
-            FinishRest("completed", message: "Rest option opened a card selector; confirm the selected upgrade separately."); return;
+            FinishRest("completed", message: "Rest option opened a card selector; resolve its selection separately."); return;
         }
         var nextReady = binding.Button == null
             ? current is NMapScreen map && IsActive(map) && map.IsTravelEnabled

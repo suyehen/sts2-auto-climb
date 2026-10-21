@@ -66,9 +66,14 @@ def test_conditional_graph_keeps_both_rules_and_rechecks_live_hp():
     branch['branches']=[dict(target='moveState2',priority=0,condition_expression='base.Creature.CurrentHp <= base.Creature.MaxHp / 2'),
                         dict(target='moveState',priority=1,condition_expression='true')]
     s=snapshot();enemy=s['state']['enemies'][0];enemy.update(max_hp=30,current_move_id='TACKLE_MOVE',hp=20)
-    row=project(s,data)[0];assert row['next_moves']==[dict(id='moveState',probability=1)]
+    from autoslay.rules.monsters import load as declarations
+    models=deepcopy(declarations());declared=next(e for e in models['entries'] if e['entity_id']==entry['entity_id'])
+    node=declared['state_graph']['nodes'][2];node['kind']='ConditionalBranchState'
+    from test_monster_simulation import branch as declared_branch
+    node['branches']=[declared_branch('moveState2',condition={'less_equal':[{'field':'hp'},{'divide':[{'field':'max_hp'},2]}]}),declared_branch('moveState')]
+    row=project(s,data,models)[0];assert row['next_moves']==[dict(id='moveState',probability=1)]
     assert any('生命 <= 最大生命' in edge['label'] for edge in row['edges'])
-    enemy['hp']=10;row=project(s,data)[0]
+    enemy['hp']=10;row=project(s,data,models)[0]
     assert row['next_moves']==[dict(id='moveState2',probability=1)]
     assert len(row['edges'])==4
 
@@ -79,6 +84,9 @@ def test_unmodeled_field_mutation_does_not_reuse_the_pre_action_condition():
     branch=entry['state_graph']['nodes'][2];branch['kind']='ConditionalBranchState'
     branch['branches']=[dict(target='moveState2',priority=0,condition_expression='charged'),dict(target='moveState',priority=1,condition_expression='!charged')]
     s=snapshot();s['state']['enemies'][0].update(current_move_id='TACKLE_MOVE',runtime_state={'fields':{'charged':False}})
-    row=project(s,data)[0]
+    from autoslay.rules.monsters import load as declarations
+    models=deepcopy(declarations());declared=next(e for e in models['entries'] if e['entity_id']==entry['entity_id'])
+    declared['moves'][0]['gaps']=['unmodeled_field_mutation']
+    row=project(s,data,models)[0]
     assert {m['id'] for m in row['next_moves']}=={'moveState','moveState2'}
     assert all(m['probability'] is None for m in row['next_moves'])

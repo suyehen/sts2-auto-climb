@@ -9,14 +9,16 @@ from autoslay.decision.contracts import Operation, Transition, UnsupportedEffect
 from autoslay.decision.cache import digest
 from autoslay.evaluation.combat_value import ValuePolicy, evaluate_outcome, aggregate
 from autoslay.evaluation.potion_value import reserve_cost, compare_pairs
-from autoslay.planning.lookahead import ScenarioRules, templates_for, draw_branches
+from autoslay.rules.registry import KnowledgeRules
+from autoslay.planning.lookahead import  templates_for, draw_branches
 from autoslay.rules.monsters import MonsterRules
+from autoslay.rules.statuses import preserve_block,hand_draw_bonus,next_turn_energy
 from autoslay.rules.periodic_relics import advance
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.simulation.card_flow import add_to_composition
 from autoslay.calibration.combat import apply as calibrate, state_class
 
-VERSION='1.0.0'
+VERSION='1.1.0'
 
 
 def analyze(snapshot, initial, entries, combat_policy, settings, budget,
@@ -33,7 +35,7 @@ def analyze(snapshot, initial, entries, combat_policy, settings, budget,
     active_depth=1
     prepared=model.prepare(initial)
     problems.update(model.notes)
-    rules=ScenarioRules()
+    rules=KnowledgeRules()
     templates=templates_for(snapshot,entries)
     for identity in model.generated_ids:
         if identity not in templates:
@@ -94,33 +96,36 @@ def analyze(snapshot, initial, entries, combat_policy, settings, budget,
     def enemy_turn(state,ply):
         # Unsupported end-of-turn hooks cannot disappear into a discard operation.
         sim=CombatSimulator(state,rules)
-        if any(c.instance_id in sim.unsupported and c.entity_id!='CARD.ASCENDERS_BANE' for c in state.hand):
+        if any(c.instance_id in sim.unsupported for c in state.hand):
             raise UnsupportedEffect('unsupported_remaining_card_end_turn_hooks')
-        discarded=[c.variant_key or c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE']
-        exhausted=[c.variant_key or c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE']
-        state=replace(state,hand=(),discard_composition=add_to_composition(state.discard_composition,discarded),
-                      exhausted_composition=add_to_composition(state.exhausted_composition,exhausted))
+        from autoslay.rules.scheduled_relics import apply_phase,before_hand_draw,after_hand_draw
+        state=apply_phase(state,'side_turn_end')
+        if state.combat_won:return leaf(state)
+        from autoslay.simulation.card_flow import flush_hand,refresh_retained
+        state=flush_hand(state,rules)
         outcomes=[]
         for probability,after,_ in model.step(state,limit,select_next=ply<horizon):
             if after.hp<=0 or after.combat_won or ply>=horizon:
                 next_values=leaf(after)
             else:
-                if after.effect_draw_blocked:raise UnsupportedEffect('future_draw_prevention_duration_unknown')
                 relics=after.periodic_relics;draw_bonus=energy_bonus=0
                 if relics:
                     if any(r.counter is None for r in relics):raise UnsupportedEffect('unknown_periodic_counter')
                     relics,draw_bonus,energy_bonus=advance(relics)
-                after=replace(after,hand=(),block=0,energy=future_energy+energy_bonus,
+                after=refresh_retained(after,templates)
+                after=replace(after,block=after.block if preserve_block(after) else 0,energy=next_turn_energy(after,future_energy)+energy_bonus,
                               base_strength=after.base_strength+after.strength_delta-after.temporary_strength,
-                              strength_delta=0,temporary_strength=0,colossus=False,legion_ready=False,
+                              strength_delta=0,temporary_strength=0,cards_played=0,attacks_played=0,skills_played=0,turn_cards_exhausted=0,turn_cards_drawn=0,colossus=False,legion_ready=False,
                               periodic_relics=relics,turn=(after.turn or 0)+1,
                               player_weak=after.weak_turns>0,player_frail=after.frail_turns>0,
                               enemies=tuple(replace(e,vulnerable=max(0,e.vulnerable-1)) for e in after.enemies))
-                meta={};branches,_=draw_branches(after,future_draw+draw_bonus,templates,limit,seed+ply,meta)
+                after=before_hand_draw(after)
+                meta={};branches,_=draw_branches(after,future_draw+draw_bonus+hand_draw_bonus(after),templates,limit,seed+ply,meta,
+                                               rules=rules,from_hand_draw=True)
                 if meta:draw_metadata.append(meta)
                 next_values=[]
                 for weight,drawn in branches:
-                    values=visit(Transition(drawn),ply+1,0) if drawn is not None else [(1.0,None)]
+                    values=visit(Transition(after_hand_draw(drawn)),ply+1,0) if drawn is not None else [(1.0,None)]
                     next_values.extend(weighted(values,weight,meta.get('method','exact')))
                 if not branches:next_values=[(1.0,None)]
             outcomes.extend((probability*p,v) for p,v in next_values)
@@ -134,7 +139,9 @@ def analyze(snapshot, initial, entries, combat_policy, settings, budget,
         if expired():return [(1.0,None)]
         nodes+=1
         try:
-            if transition.boundary=='draw_requires_observation':
+            if transition.boundary=='generated_cards_requires_observation':
+                result=visit(CombatSimulator(state,rules).resume_generated(transition),ply,depth)
+            elif transition.boundary=='draw_requires_observation':
                 meta={};branches,_=draw_branches(state,transition.draw_count,templates,limit,seed+ply,meta)
                 if meta:draw_metadata.append(meta)
                 values=[];sim=CombatSimulator(state,rules)
@@ -218,18 +225,17 @@ def analyze(snapshot, initial, entries, combat_policy, settings, budget,
         closed=closed and needed<=templates.keys() and all(v['known'] for v in costs.values())
         try:
             from autoslay.rules.monsters import unmodeled_special_hooks
-            from autoslay.rules.mechanism_scope import reviewed_move_scope
+            from autoslay.rules.monsters import move_state_fields
             if not model.compatible:closed=False
             for enemy in prepared.enemies:
                 entry=model.entry(enemy)
                 if unmodeled_special_hooks(entry):closed=False
                 for move in entry.get('moves',[]):
                     model.ordered_effects(enemy,entry,move)
-                    reviewed=reviewed_move_scope(entry,move) or {}
+                    reviewed=move_state_fields(entry,move)
                     writes=set(reviewed.get('ignored_state_updates',[])+reviewed.get('initialized_fields',[]))
-                    if any(u['variable'] not in writes for u in move.get('state_updates',[])):closed=False
+                    if any(c['field'] not in writes for c in move.get('commands',[]) if c['operation']=='set_field'):closed=False
             for card in templates.values():
-                if card.entity_id=='CARD.ASCENDERS_BANE':continue
                 effects=rules.card(card,initial).effects
                 if any(e.kind not in {'damage','unpowered_damage','block','unpowered_block','multiply_block',
                                      'vulnerable','double_vulnerable','enemy_strength','strength','temporary_strength',

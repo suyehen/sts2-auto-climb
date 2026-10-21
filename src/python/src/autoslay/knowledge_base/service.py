@@ -258,11 +258,12 @@ class KnowledgeService:
                     game_version=data.get('game_version'), knowledge_revision=snapshot.revision)
 
     def get_rule_view(self, *, snapshot=None):
-        from autoslay.knowledge_base.rulebook import Rulebook
+        from autoslay.rules.registry import KnowledgeRules
+        from autoslay.knowledge_base.templates import index
         from autoslay.knowledge_base.repository import knowledge_scope
         snapshot = snapshot or self.acquire_snapshot()
         with knowledge_scope(snapshot):
-            return Rulebook(snapshot.datasets['rules'], snapshot.datasets['catalog'])
+            return KnowledgeRules(references=index(snapshot.datasets['catalog'])[0])
 
     def get_monster(self, identity, *, ascension, game_version, assembly_hash, snapshot=None):
         if type(ascension) is not int or ascension < 0:

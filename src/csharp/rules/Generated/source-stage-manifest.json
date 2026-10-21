@@ -1,0 +1,232 @@
+{
+  "schema_version": "independent-rule-source-stage/1",
+  "tool_version": "1.6.0",
+  "scope": "selected_compilation_units_pending_build_and_behavior_verification",
+  "files": [
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Combat/CombatSide.cs",
+      "source_sha256": "eb472eab0fcc6b89e02d62ae4f2d7da14aab1df0ba428303f3e69e5012ec67e0",
+      "generated_sha256": "cb1930ac5e23c31beee2e8809278ce892eca4abec712ceac61fa8d76c19b5f11"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardEnergyCost.cs",
+      "source_sha256": "cc688e386f258d41fac9ae9461bc830c09e67bc6e65477c4aa1461f64ce2bfc2",
+      "generated_sha256": "ed2640403ba115216e62bbab1cf0447783e84c1a578e524038fbcb5746d07d48"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardKeyword.cs",
+      "source_sha256": "7357b1219cb898959e50208cda0a6ec881ea6218a45300e7a1cc92eb83a653b3",
+      "generated_sha256": "51fb3e29259b1de94064c2fd6fb604ea035bfc580e75f2c9688fe26f18bc3990"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardPlay.cs",
+      "source_sha256": "76ecff214f61f058ed2b34b39fe65002975a881ce9013fe76bbdfe1b0d3aa6a1",
+      "generated_sha256": "6fd1c2393545573cc9be2df8c2a1690854e83907b3331582e9e2249ba3fce51d"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardRarity.cs",
+      "source_sha256": "4069bc5c1df4e39cdd3970867f9f9f4dfd97a7d2b78d6e8432bacde74185ec34",
+      "generated_sha256": "d0d926191a00f4ea15a3ea9c11f3fd81d9070a733bc5872de13c2560960b5939"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardType.cs",
+      "source_sha256": "1af645ea67309dcc6007a2d9875f51100043aca8704ffc4baa063b5015c66c60",
+      "generated_sha256": "4220c70ccdf73da85aae2cc4cfcb7176e3e73ba3fd3adee164c7278d1652a9c2"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardUpgradePreviewType.cs",
+      "source_sha256": "de5c218d1cb13fa315bc1eda8b538a112dac2b40f8a44c6904cc6bcf6a7149dc",
+      "generated_sha256": "8f538b5e8474d30e0b20a8336e366d113a7d3ccfc6006cb8617374bede0e2c6b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CardUpgradePreviewTypeExtensions.cs",
+      "source_sha256": "90701bad2dc8519225b9d61d1b60ce224424879b75a7746ec7ee0817b9e4e8dd",
+      "generated_sha256": "a4e5cee72dd0b8c42b62910517ab9242c9aed737d2a3c1e893804e04cc1f270b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/CostModifiers.cs",
+      "source_sha256": "a1c6b2af36384c7b9a14ad004c7c7300b1e8e72d56c13e52b22b30e7fb2ccfb1",
+      "generated_sha256": "0b1dfc85dbc815adfca48b3af07ca9d1c7e55d91a6c05504d0a6f31935a29391"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/KeywordSources.cs",
+      "source_sha256": "8815b6b7e2028d2f5423cd5f3fd52cef34e0055ee9f4c7188864c45148cce75a",
+      "generated_sha256": "0b0787261749b315f25bf662b93caf8d7c37fd98fd7dc9884db4b7f6b99e8d84"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostModifier.cs",
+      "source_sha256": "5d26ca785faf9c91076ac292e5f013c7ec08286ddbf3a93f814d66ce0a474b1c",
+      "generated_sha256": "253a200504366ba2be9320cd70b3f7e16572a142117d7d836f705a51d8c94cd7"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostModifierExpiration.cs",
+      "source_sha256": "d2d4ca381c16435a521deca116fae0ab8bc1cc5a11b0d4bbafec700916420c19",
+      "generated_sha256": "1a2feef0c6a470ecf73a9c75824beb6cf8a8c3c9ef9c043fc10000ffcc03e0db"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/LocalCostType.cs",
+      "source_sha256": "51096ef592dcb7d35ec664b0d6cc42ab24f34afb11a9343c6e585eae3efcfbad",
+      "generated_sha256": "171016ca2f0b97d14d20098280f0887a19921b5443f711a4d259db54f6c8cf80"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/PileType.cs",
+      "source_sha256": "86dc3ffed094f4ec1954bb34e8d312fccad56dcfc51805f3311728cd5c0e4396",
+      "generated_sha256": "ed368633de4423b20dbcbb7faa3422c3e601538ed3d6f9715853e9b724c7e15b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/ResourceInfo.cs",
+      "source_sha256": "834e6babc61576f4d9ed9235f6c48cda48fd95891d686a18521f8dadb316b425",
+      "generated_sha256": "cd733a1f38da27e3f125b382a202c5d74b9ca001db7034b63ff83aae6faf7f54"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/TargetType.cs",
+      "source_sha256": "e54838a668a5f0e428cf8f08ddae67183883b5a18b0dd94c36955d3757082207",
+      "generated_sha256": "7d2cb81fa2dca1c4c4135548375486cfeddd7dbd2cc6799fde91edc14710b208"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/TemporaryCardCost.cs",
+      "source_sha256": "867b328353c394b5f6a347d18912c56fde89a2c94d4ed950b9d6397c1d196793",
+      "generated_sha256": "6f7eb0da688f1eb43396f011580c57d64b3a687a3c30f171d6e3bd72d33eb19e"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Cards/UnplayableReason.cs",
+      "source_sha256": "8599de8b722d69cab2fea28fee88efae1d1b0742ec25dafb5d2aac823ef523d0",
+      "generated_sha256": "c62246e20ae575fad4bf6e29defac9f05b39d71a5f15de7b61cf5577cdb81db8"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Creatures/DamageResult.cs",
+      "source_sha256": "c9a14306fcb32388532d5864a8aa8a38f78748b2d9b2fff6a31684dee3beb3ce",
+      "generated_sha256": "b44d74171ee1c0b1300b5d4cefa76df0f7a0b8febbd9cf0efc4b3d745b80782a"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Multiplayer/PlayerChoiceOptions.cs",
+      "source_sha256": "bdcd18c7caf92db095baf920590dcf87a6dd568c90e60339b9b8f9175dfa9d84",
+      "generated_sha256": "074bfcb90a57a6fe428219a0f1e4e1c808554217fcc3b0b27c0809710a497812"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Powers/PowerInstanceType.cs",
+      "source_sha256": "f3a3ad0eff122d43a6af0696960d0bebc6e99d1133fe55cd7694c703e68bac07",
+      "generated_sha256": "e09ddb80b91b115d9a69e1b719ae1e8e9eada5132a0abd7f404917536d8d027f"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Powers/PowerStackType.cs",
+      "source_sha256": "989795c6b3c1cf63de371d329a919421d810fea328e6f006ea184a07146c903d",
+      "generated_sha256": "3158a175a8f716c072fc3e5503d393d557dee12f245dc82d1f8d2b8ac3f27622"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Entities.Powers/PowerType.cs",
+      "source_sha256": "84c73b71dff88b6554ea37aa6c5296e2bfb877a2d80f0e2b9f3df43be0487c50",
+      "generated_sha256": "e34d583b0b16040b27ecc383828d5846894b5270bbc65c2d2f5c2cb118e61d1b"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Cards/Dazed.cs",
+      "source_sha256": "41ef3c48ad9459d39d364f2f38863bbd15827e01fe2b48a243b40444cec0a28b",
+      "generated_sha256": "20351e908f3fbe3bda3b7b01c343f62bedd58ff3475eae318a839bffd06fdf17"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs",
+      "source_sha256": "0728fb65a7941754fc7d71dcdd221f25e770ccae922a6531df434ae4e8538d5d",
+      "generated_sha256": "234e3b07f1173500099bdd36d8bf2599ae7ce4459936bea582021d117a8b73e1"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Cards/Injury.cs",
+      "source_sha256": "1ee52eb32a79f085cca2178f438ed0936bbd68df50604206111edf0b97c8b87b",
+      "generated_sha256": "a84466c1c1c06c40495aa57f312e332603fa1b5e71d9828dc4e65a3a75954560"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/ArtifactPower.cs",
+      "source_sha256": "d2b7f2c1bfc36466e5ab0bd4e4581697c8299ce579c6f978a4fe7a1535c9eb3a",
+      "generated_sha256": "28871473ac643b05b3816c32432c563be9d0548915106841cfac2a854564fb84"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/MinionPower.cs",
+      "source_sha256": "8acbaf43969b256e0777bed2371830f7399e8c32fc45c8c35a3de7cde8b8c392",
+      "generated_sha256": "2391860279e9a7e918e31bc3ab8435d61682d2833e5881a5c3de4ebd6067e757"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/NoEnergyGainPower.cs",
+      "source_sha256": "951b1f4d7d5565f52c99adf2fe8501aa5e1871849ffff2ada894723cbe7a5d5a",
+      "generated_sha256": "37f79170a87db9123b92a672a21d4aadf9a393f79a8cf22b4cd3f50643c59498"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Powers/StrengthPower.cs",
+      "source_sha256": "70eb670ee85e6d4c92c68f9e20f869035de8f299880e1c49a97ce45a52437a69",
+      "generated_sha256": "127824810f8285a3383c3864f33c35b65ca5f4b16ac152fa65fece60cb75a14c"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/LeesWaffle.cs",
+      "source_sha256": "f196ef79d95b68155195e8171448c098fdc2342a3935f4c88de3a66a9521a019",
+      "generated_sha256": "6f23d95cd1d310bb33b3427f05864f662348be1d21746213fa7fe755bce1c37f"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/Mango.cs",
+      "source_sha256": "e76c97e377e887229e3492d9bcf3cda05fec8c476335b5a59e240af050857e2a",
+      "generated_sha256": "e74d62dd3a36994d1a468fe266516ea54be3b9de2b4c78c8fa30e999afc64a83"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/Pear.cs",
+      "source_sha256": "87c39f523195105ffad7f240251af0873ea3dc88bc8e113db3790f764ff8e19f",
+      "generated_sha256": "77dc9b8f06bad29e610f61ee87130092b6a17545e9f6b9a740540118613769f2"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models.Relics/Strawberry.cs",
+      "source_sha256": "2dcaa250e85d9bf5aceade5a472003aceb7a0a9976b3975ea89cce8eb4fbc1cd",
+      "generated_sha256": "4ad100790180ebf6c21891922fb26a4f569312c357ca78aad01c99f54f7e65a4"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models/ITemporaryPower.cs",
+      "source_sha256": "987eb43e763186ee6421151825071816f3c8b7ee397fecdd407265f6fcb50f06",
+      "generated_sha256": "2639e6be948defcd0edafbfa15d35596e6bc509c84214fc4192a0060c7f5e37e"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Models/SingletonModel.cs",
+      "source_sha256": "2781593cd4c2c4da6582ecf84fcb7fb4d36b977e31995d650ab27ae0bc7e5126",
+      "generated_sha256": "cbf4ef2547b10e47d653819a20fa5248f0c191b76d0d2a808c0658800ff709a9"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Nodes.CommonUi/CardPreviewStyle.cs",
+      "source_sha256": "43803343ef6153f6fc1733b240d1c43e32b5a44b80225072f915fa1ca97dc777",
+      "generated_sha256": "1b17e4695037924b20f737c5af344dc2fc5bc85f8c995eb5923a82a0300165f1"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.Rooms/RoomType.cs",
+      "source_sha256": "1ab2c2f4df5979138c0c30e9c5ed2773bcbd2c6f35cf06b25eae7b0e2e8e4d7e",
+      "generated_sha256": "093838d8e5c92cee794c6ec02c5b909586259299ab5fa3b28cb6ba5e0709897e"
+    },
+    {
+      "path": "Code/MegaCrit.Sts2.Core.ValueProps/ValuePropExtensions.cs",
+      "source_sha256": "369c8cdfa3d7e60d43f78823a7dfae28dc737d0bc1d1a2686dcce0c66bfc47c3",
+      "generated_sha256": "4af5457c824a1c3a655a3cf4c93b1414f0d129e739af5896298ee81c382e8e83"
+    },
+    {
+      "path": "CompiledUnitIdentity.cs",
+      "source_sha256": "e1dd83fe9339679547f1e0936036b3e65bf7e2c95f9ea2fd2dd35091d249d48d",
+      "generated_sha256": "96b390495e7a0fd3ffd47a93b8a42897edfb84cbc0fe4d991a29444c1f807bc9"
+    },
+    {
+      "path": "RuleUnits.props",
+      "source_sha256": "e1dd83fe9339679547f1e0936036b3e65bf7e2c95f9ea2fd2dd35091d249d48d",
+      "generated_sha256": "bef66b962c5089c39eae6ce6e0fac60537a8494193dc4f1999e3b152d9a9b24c"
+    },
+    {
+      "path": "rule-parameters.json",
+      "source_sha256": "e1dd83fe9339679547f1e0936036b3e65bf7e2c95f9ea2fd2dd35091d249d48d",
+      "generated_sha256": "2b0435ef261aaf695c80a5938bed20c13d3074a6c00872ed9e98dc93d1cee567"
+    },
+    {
+      "path": "parameter-scope.json",
+      "source_sha256": "e1dd83fe9339679547f1e0936036b3e65bf7e2c95f9ea2fd2dd35091d249d48d",
+      "generated_sha256": "03bdbb96a4ba4bdc5e259a2fa093e25c328636a299bd713d0873ae3e4907eee4"
+    }
+  ],
+  "obsolete_files": [],
+  "retained_obsolete_files": [],
+  "transformations": [
+    "AST-qualified-name replacement MegaCrit.Sts2.Core -\u003E AutoSlay.Rules.Native",
+    "Direct numeric Var/UpgradeValueBy, EnergyCost.UpgradeBy and UpgradeStarCostBy arguments bound to immutable parameters; all control flow and calls retained",
+    "Eligible direct CardModel energy and canonical star-cost literals bound through explicit immutable RuleParameters constructor context before constructor body execution; constructor bodies and expressions retained",
+    "CanonicalVars DynamicVar singleton and CanonicalKeywords CardKeyword singleton/array compiler helpers replaced by equivalent immediate arrays"
+  ],
+  "source_runtime_calls_allowed": false,
+  "full_support": false
+}

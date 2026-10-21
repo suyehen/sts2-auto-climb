@@ -1,0 +1,64 @@
+{
+  "schema_version": "autoslay-rule-parameters/1",
+  "source_fingerprint": "e1dd83fe9339679547f1e0936036b3e65bf7e2c95f9ea2fd2dd35091d249d48d",
+  "behavior_sha256": "a4d6f6476c0eca6561cfc47d05d0e18a37ec7f3605e7d04d0c1a4a512ed029e7",
+  "contract_sha256": "b17909ea5d5427dd89771d50078cd1891c2b79ac7ece30423ea68fcef7a18a39",
+  "entries": [
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Cards/Dazed.cs::Dazed.ctor.CanonicalEnergyCost::0",
+      "kind": "int32",
+      "value": -1,
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Dazed.cs",
+      "source_sha256": "41ef3c48ad9459d39d364f2f38863bbd15827e01fe2b48a243b40444cec0a28b",
+      "line": 17
+    },
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs::Enlightenment.ctor.CanonicalEnergyCost::0",
+      "kind": "int32",
+      "value": 0,
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Enlightenment.cs",
+      "source_sha256": "0728fb65a7941754fc7d71dcdd221f25e770ccae922a6531df434ae4e8538d5d",
+      "line": 13
+    },
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Cards/Injury.cs::Injury.ctor.CanonicalEnergyCost::0",
+      "kind": "int32",
+      "value": -1,
+      "source_path": "MegaCrit.Sts2.Core.Models.Cards/Injury.cs",
+      "source_sha256": "1ee52eb32a79f085cca2178f438ed0936bbd68df50604206111edf0b97c8b87b",
+      "line": 13
+    },
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Relics/LeesWaffle.cs::LeesWaffle.CanonicalVars::0",
+      "kind": "decimal",
+      "value": 7,
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics/LeesWaffle.cs",
+      "source_sha256": "f196ef79d95b68155195e8171448c098fdc2342a3935f4c88de3a66a9521a019",
+      "line": 16
+    },
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Relics/Mango.cs::Mango.CanonicalVars::0",
+      "kind": "decimal",
+      "value": 14,
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics/Mango.cs",
+      "source_sha256": "e76c97e377e887229e3492d9bcf3cda05fec8c476335b5a59e240af050857e2a",
+      "line": 15
+    },
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Relics/Pear.cs::Pear.CanonicalVars::0",
+      "kind": "decimal",
+      "value": 10,
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics/Pear.cs",
+      "source_sha256": "87c39f523195105ffad7f240251af0873ea3dc88bc8e113db3790f764ff8e19f",
+      "line": 15
+    },
+    {
+      "key": "MegaCrit.Sts2.Core.Models.Relics/Strawberry.cs::Strawberry.CanonicalVars::0",
+      "kind": "decimal",
+      "value": 7,
+      "source_path": "MegaCrit.Sts2.Core.Models.Relics/Strawberry.cs",
+      "source_sha256": "2dcaa250e85d9bf5aceade5a472003aceb7a0a9976b3975ea89cce8eb4fbc1cd",
+      "line": 15
+    }
+  ]
+}

@@ -85,12 +85,14 @@ def test_draw_batch_stops_at_draw_but_scores_real_possible_continuations():
     assert all('scenario-' not in x['action_id'] for r in b['top_batches'] for x in r['steps'])
 
 
-def test_budget_and_unknown_card_still_produce_local_batch():
+def test_budget_keeps_known_batches_but_unknown_card_requires_model_choice():
     s=combat();s['state']['player']['hand'][0].update(entity_id='CARD.NEW',description='Deal 9 damage.')
     b=plan(s,max_depth=1)
     assert b['selected_batch']
     report=dict(source=source(s),combat=dict(batches=b))
-    assert assess(report,s)['decision_basis']=='local_combat_batch'
+    decision=assess(report,s)
+    assert not decision['eligible'] and decision['primary_reason']=='combat_batch_unmodeled_actions'
+    assert decision['mode']=='ai_required'
 
 
 def test_blood_heal_does_not_make_six_damage_free_and_hp_has_rest_opportunity():
@@ -123,14 +125,18 @@ def test_buff_at_horizon_keeps_its_followup_attack_pressure():
     assert b['selected_batch']['utility_components']['estimated_future_hp_cost']<0
 
 
-def test_unknown_healing_estimate_caps_at_missing_hp():
-    from autoslay.planning.combat_batches import visible_action_score
-    from autoslay.decision.contracts import Operation
-    s=combat();card=s['state']['player']['hand'][0];card['description']='Heal 30 HP.'
-    wounded=visible_action_score(s,Operation('play_s0'),{},DEFAULTS)
+def test_descriptions_cannot_supply_unknown_action_scores():
+    s=combat();card=s['state']['player']['hand'][0];card.update(entity_id='CARD.UNKNOWN',description='Heal 999 HP. Deal 999 damage.')
+    report=plan(s)
+    unknown=next(r for r in report['top_batches'] if r['steps'][0]['action_id']=='play_s0')
+    assert unknown['score'] is None and report['unpriced_actions']
     s['state']['player']['creature']['hp']=80
-    full=visible_action_score(s,Operation('play_s0'),{},DEFAULTS)
-    assert wounded>full and full==-1
+    card['description']='This localization has no numbers.'
+    report=plan(s)
+    assert next(r for r in report['top_batches'] if r['steps'][0]['action_id']=='play_s0')['score'] is None
+    decision=assess(dict(source=source(s),combat={'batches':report}),s)
+    assert not decision['eligible'] and decision['mode']=='ai_required'
+    assert decision['primary_reason']=='combat_batch_unmodeled_actions'
 
 
 def test_score_components_sum_to_batch_score():
@@ -213,6 +219,7 @@ def test_missing_draw_model_still_charges_visible_attack(monkeypatch,branches):
 def test_nested_combat_selection_is_local():
     s=combat();s['state'].update(phase='card_selection',pending_combat_action=dict(request_id='parent'))
     s['state']['card_selection']=dict(decision_ready=True,prompt='Choose a card',min_select=1,max_select=1,
+        semantics=dict(schema_version='observed-selection/1',operation='discard'),
         cards=[dict(action_id='choose_a',available=True,selected=False,card=s['state']['player']['hand'][0])])
     s['state']['legal_actions']=[dict(action_id='choose_a',type='select_combat_card',allows_no_target=True,allowed_target_ids=[])]
     r=assess({},s)
@@ -223,6 +230,7 @@ def test_nested_combat_selection_is_local():
 def test_nested_combat_selection_confirms_selected_pile_card(minimum):
     s=combat();s['state'].update(phase='card_selection',pending_combat_action=dict(request_id='parent'))
     s['state']['card_selection']=dict(decision_ready=True,prompt='选择至多2张牌放入你的手牌。',
+        semantics=dict(schema_version='observed-selection/1',operation='add'),
         min_select=minimum,max_select=2,cards=[dict(action_id='choose_a',available=True,selected=True,
             card=s['state']['player']['hand'][0])])
     s['state']['legal_actions']=[
@@ -278,6 +286,7 @@ def test_pending_parent_allows_only_its_bound_child_choice(tmp_path):
     from autoslay.execution import deterministic
     s=combat();s['state'].update(phase='card_selection',pending_combat_action=dict(request_id='parent'))
     s['state']['card_selection']=dict(decision_ready=True,prompt='Choose',min_select=1,max_select=1,
+        semantics=dict(schema_version='observed-selection/1',operation='discard'),
         cards=[dict(action_id='choose',available=True,selected=False,card=s['state']['player']['hand'][0])])
     s['state']['legal_actions']=[dict(action_id='choose',type='select_combat_card',allows_no_target=True,allowed_target_ids=[])]
     directory=tmp_path/'executor';directory.mkdir();(directory/'parent.json').write_text(json.dumps(dict(status='awaiting_choice',request=dict(request_id='parent'))))

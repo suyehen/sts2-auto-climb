@@ -33,7 +33,8 @@ def refresh(game):
     levels=thresholds((folder/'MegaCrit.Sts2.Core.Entities.Ascension/AscensionLevel.cs').read_text(encoding='utf-8-sig'))
     powers=json.loads(pack.read('localization/zhs/powers.json'))
     enchantments=json.loads(pack.read('localization/zhs/enchantments.json'))
-    rules=read_json(dataset_path('event_rules'), fresh=True)
+    from autoslay.knowledge_base.events import rules as event_rules
+    rules=event_rules()
     for category,table_name,directory in [('event','events','MegaCrit.Sts2.Core.Models.Events'),('monster','monsters','MegaCrit.Sts2.Core.Models.Monsters'),('intent','intents','MegaCrit.Sts2.Core.MonsterMoves.Intents')]:
         resource=f'localization/zhs/{table_name}.json';localization=json.loads(pack.read(resource))
         if category=='intent':

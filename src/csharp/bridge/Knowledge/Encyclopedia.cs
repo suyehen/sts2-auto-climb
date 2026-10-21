@@ -40,9 +40,7 @@ public static partial class Bridge
         energy_cost = card.EnergyCost.GetWithModifiers(CostModifiers.All), costs_x = card.EnergyCost.CostsX,
         star_cost = card.BaseStarCost, costs_star_x = card.HasStarCostX, type = card.Type.ToString(), target_type = card.TargetType.ToString(),
         keywords = card.Keywords.Select(k => k.ToString()).ToArray(),
-        dynamic_variables = card.DynamicVars.Select(kv => new {
-            name = kv.Key, kind = kv.Value.GetType().Name, base_value = kv.Value.BaseValue
-        }).ToArray(),
+        dynamic_variables = card.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray(),
         hover_tips = card.HoverTips.Select(EventTip).ToArray()
     };
 
@@ -68,7 +66,7 @@ public static partial class Bridge
             return new { entity_id = potion.Id.ToString(), category = "potion", name = potion.Title.GetFormattedText(),
                 model_type = potion.GetType().FullName,
                 description = potion.DynamicDescription.GetFormattedText(), rarity = potion.Rarity.ToString(),
-                dynamic_variables = potion.DynamicVars.Select(kv => new { name = kv.Key, kind = kv.Value.GetType().Name, base_value = kv.Value.BaseValue }).ToArray(),
+                dynamic_variables = potion.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray(),
                 pool = potion.Pool.Id.ToString(), usage = potion.Usage.ToString(), target_type = potion.TargetType.ToString(),
                 hover_tips = potion.HoverTips.Select(EventTip).ToArray() };
         if (model is RelicModel relic)
@@ -77,7 +75,7 @@ public static partial class Bridge
                 description = relic.DynamicDescription.GetFormattedText(), rarity = relic.Rarity.ToString(),
                 pool = ModelDb.AllRelicPools.FirstOrDefault(p => p.AllRelicIds.Contains(relic.Id))?.Id.ToString(),
                 pools = ModelDb.AllRelicPools.Where(p => p.AllRelicIds.Contains(relic.Id)).Select(p => p.Id.ToString()).ToArray(),
-                dynamic_variables = relic.DynamicVars.Select(kv => new { name = kv.Key, kind = kv.Value.GetType().Name, base_value = kv.Value.BaseValue }).ToArray(),
+                dynamic_variables = relic.DynamicVars.Select(kv => ReferenceVariable(kv.Key, kv.Value)).ToArray(),
                 hover_tips = relic.HoverTipsExcludingRelic.Select(EventTip).ToArray() };
         throw new InvalidOperationException("Unsupported reference model");
     }
@@ -119,11 +117,16 @@ public static partial class Bridge
             }
             if (encyclopediaQueue.Count == 0)
                 Volatile.Write(ref encyclopedia, JsonSerializer.Serialize(new {
-                    schema_version = "1.0", catalog_version = "2.0.0", bridge_version = "0.29.0",
+                    schema_version = "1.0", catalog_version = "3.0.0", bridge_version = "0.29.0",
                     game_version = "0.111.0", language = encyclopediaLanguage, exported_at = DateTimeOffset.UtcNow,
                     game_assembly_sha256 = gameAssemblySha256,
                     status = "complete", generation = encyclopediaExportGeneration, scope = "all_modeldb_reference_models_including_locked_and_tokens", session_epoch = Epoch,
                     entries = encyclopediaEntries, errors = encyclopediaErrors,
+                    model_inventory = ModelDb.AllAbstractModelSubtypes.Where(t => !t.IsAbstract && !t.ContainsGenericParameters)
+                        .OrderBy(t => t.FullName).Select(t => new {
+                            entity_id = ModelDb.GetId(t).ToString(), model_type = t.FullName,
+                            category = ModelDb.GetCategory(t), base_type = t.BaseType?.FullName
+                        }).ToArray(),
                     limitations = new[] { "reference descriptions are not executable simulation rules", "base and first upgrade preview; repeated/dynamic upgrades require executable rules", "includes locked/deprecated reference models; not a reward eligibility list", "refresh in main menu" }
                 }));
         }

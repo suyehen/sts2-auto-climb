@@ -1,16 +1,11 @@
-"""Bridge-specific adapter. No hidden draw order or RNG enters the model."""
+"""Normalize observed bridge state. No hidden draw order or RNG enters the model."""
 from autoslay.knowledge_base.repository import scoped
-from autoslay.decision.contracts import Card, CombatState, Enemy, Potion
-from autoslay.rules.periodic_relics import read_periodic, RULES
+from autoslay.decision.contracts import Card, CombatState, Enemy, Potion,OstyState
+from autoslay.rules.periodic_relics import read_periodic
+from autoslay.rules.registry import KnowledgeRules, ENTITY_MECHANICS, IMPLEMENTATION_SHA256, STACK_POWERS,TEMPORARY_ENEMY_STRENGTH,TEMPORARY_PLAYER_STATS
 from collections import Counter
 
-VERSION = "1.7.0"
-KNOWN_RELICS = {"RELIC.BURNING_BLOOD", "RELIC.BOOMING_CONCH", "RELIC.FRESNEL_LENS",
-                "RELIC.VENERABLE_TEA_SET", "RELIC.CHANDELIER", "RELIC.LUCKY_FYSH",
-                "RELIC.PAELS_LEGION", "RELIC.LANTERN", "RELIC.FIDDLE", "RELIC.TUNGSTEN_ROD",
-                "RELIC.BEATING_REMNANT", "RELIC.PERMAFROST", "RELIC.SMALL_CAPSULE", "RELIC.REGAL_PILLOW",
-                } | set(RULES)
-KNOWN_ENEMY_POWERS = {"POWER.VULNERABLE_POWER", "POWER.STRENGTH_POWER", "POWER.HARD_TO_KILL_POWER", "POWER.MINION_POWER", "POWER.WEAK_POWER"}
+VERSION = '2.1.0'
 
 
 def card_view(value: dict) -> Card:
@@ -20,19 +15,17 @@ def card_view(value: dict) -> Card:
                 costs_star_x=bool(value.get('costs_star_x')),variant_key=value.get('variant_key',''),
                 enchantment_id=value.get('enchantment_id'),enchantment_amount=value.get('enchantment_amount'),
                 affliction_id=value.get('affliction_id'),
-                dynamic_variables=tuple((v.get('name'),v.get('base_value')) for v in value.get('dynamic_variables') or []))
+                dynamic_variables=tuple((v.get('name'),v.get('base_value')) for v in value.get('dynamic_variables') or []),
+                keywords=tuple(value['keywords']) if 'keywords' in value else None)
 
 
 @scoped
 def normalize(snapshot: dict) -> CombatState:
     if snapshot.get("schema_version") != "1.0" or snapshot.get("game_version") != "0.111.0":
         raise ValueError("Unsupported snapshot or game version")
-    from autoslay.knowledge_base.rulebook import Rulebook
-    book=Rulebook()
-    from autoslay.rules.mechanism_scope import reviewed_pickup
-    pickup = reviewed_pickup(snapshot, book)
-    if snapshot.get('game_assembly_sha256') and snapshot['game_assembly_sha256']!=book.data.get('game_assembly_sha256'):
-        raise ValueError('Game implementation changed; executable rules require review')
+    rules=KnowledgeRules()
+    if snapshot.get('game_assembly_sha256') and snapshot['game_assembly_sha256']!=IMPLEMENTATION_SHA256:
+        raise ValueError('Game implementation changed; native mechanics require updating')
     s = snapshot["state"]
     if s.get("phase") != "combat" or s.get("pending_combat_action") or s.get("pending_event_action"):
         raise ValueError("Only stable combat states are modeled; nested choices require a fresh decision")
@@ -42,33 +35,54 @@ def normalize(snapshot: dict) -> CombatState:
     if type(p.get("hand_limit", 10)) is not int or p.get("hand_limit", 10) != 10 or len(p.get("hand") or []) > 10:
         raise ValueError("Unsupported hand capacity/state")
     creature = p["creature"]
+    counter_fields=('cards_played','attacks_played','skills_played','combat_cards_played',
+                    'cards_exhausted','turn_cards_exhausted','turn_cards_drawn')
+    counters=p.get('combat_counters') or {}
+    history_known=all(type(counters.get(k)) is int and counters[k]>=0 for k in counter_fields)
     warnings = []
+    from autoslay.rules.statuses import PET_POWER_IDS
+    osty=None
+    for pet in p.get('pets') or []:
+        if pet['entity_id']!='MONSTER.OSTY' or osty is not None:
+            warnings.append('UNMODELED_PET:'+pet['entity_id']);continue
+        for power in pet.get('powers') or []:
+            if power['entity_id'] not in PET_POWER_IDS:warnings.append('UNMODELED_PET_POWER:'+power['entity_id'])
+        osty=OstyState(pet['hp'],pet['max_hp'])
+    if 'pets' not in p and p.get('character')=='CHARACTER.NECROBINDER':warnings.append('UNOBSERVED_PET_STATE')
+    from autoslay.rules.statuses import PLAYER_POWER_IDS, ENEMY_POWER_IDS
     for power in creature.get("powers", []):
-        if power["entity_id"] not in {"POWER.STRENGTH_POWER", "POWER.COLOSSUS_POWER", "POWER.NO_DRAW_POWER", "POWER.WEAK_POWER", "POWER.FRAIL_POWER",'POWER.DEXTERITY_POWER','POWER.SPEED_POTION_POWER'}:
+        if power["entity_id"] not in PLAYER_POWER_IDS:
             warnings.append("UNMODELED_PLAYER_POWER:" + power["entity_id"])
     legion = False
     periodic = []
     scheduled=[]
+    triggered=[]
+    relic_state={}
     for relic in p.get("relics", []):
         rid = relic["entity_id"]
-        compatibility=book.status(rid,snapshot['game_version'])
-        if rid in KNOWN_RELICS and compatibility!='compatible':
-            warnings.append('STALE_RELIC_RULE:'+rid+':'+compatibility)
+        mechanic=ENTITY_MECHANICS.get(rid)
+        if mechanic:
+            for field,value in mechanic.state_fields:
+                if field=='turn_hp_loss_cap':relic_state[field]=min(relic_state.get(field,value),value)
+                elif type(value) is bool:relic_state[field]=relic_state.get(field,False) or value
+                else:relic_state[field]=relic_state.get(field,0)+value
         tracked = read_periodic(relic)
         if tracked:
             periodic.append(tracked)
         from autoslay.rules.scheduled_relics import read_scheduled
-        try:scheduled.extend(read_scheduled(relic,p.get('turn'),book))
+        try:scheduled.extend(read_scheduled(relic,p.get('turn'),rules))
         except ValueError as exc:warnings.append(str(exc))
-        timed=bool(book.data['entries'].get(rid,{}).get('scheduled')) and compatibility=='compatible'
-        if rid not in KNOWN_RELICS and rid not in pickup and not timed:
+        from autoslay.rules.triggered_relics import read_triggered
+        try:triggered.extend(read_triggered(relic,p.get('turn'),rules))
+        except ValueError as exc:warnings.append(str(exc))
+        if rid not in ENTITY_MECHANICS:
             warnings.append("UNMODELED_RELIC:" + rid)
-        if rid == "RELIC.PAELS_LEGION":
+        if mechanic and mechanic.passive=='next_card_block_multiplier':
             legion = relic.get("status") == "Active"
             if relic.get("counter") is None and not legion:
                 warnings.append("UNKNOWN_LEGION_READINESS")
     enemies = []
-    from autoslay.knowledge_base.behavior import load as load_behavior
+    from autoslay.rules.monsters import load as load_behavior
     from autoslay.rules.monsters import unmodeled_special_hooks
     behavior=load_behavior()
     monster_entries={e['entity_id']:e for e in behavior.get('entries',[]) if e['category']=='monster'} if behavior.get('game_assembly_sha256')==snapshot.get('game_assembly_sha256') else {}
@@ -77,7 +91,7 @@ def normalize(snapshot: dict) -> CombatState:
         if hooks:
             warnings.append('UNMODELED_MONSTER_SPECIAL_HOOKS:'+e['entity_id']+':'+','.join(sorted(hooks)))
         powers = {x["entity_id"]: x["amount"] for x in e.get("powers", [])}
-        for power in powers.keys() - KNOWN_ENEMY_POWERS:
+        for power in powers.keys() - ENEMY_POWER_IDS:
             warnings.append("UNMODELED_ENEMY_POWER:" + e["instance_id"] + ":" + power)
         attacks = []
         uncertain = []
@@ -96,7 +110,10 @@ def normalize(snapshot: dict) -> CombatState:
                              max_hp=e.get('max_hp',0),weak_turns=powers.get('POWER.WEAK_POWER',0),
                              move_state=e.get('current_move_id'),
                              runtime_fields=tuple(sorted((k,v) for k,v in (e.get('runtime_state') or {}).get('fields',{}).items()
-                                                        if type(v) in {int,bool,str}))))
+                                                        if type(v) in {int,bool,str})),
+                             poison=powers.get('POWER.POISON_POWER',0),
+                             temporary_strength_loss=sum(powers.get(STACK_POWERS[k],0) for k in TEMPORARY_ENEMY_STRENGTH),
+                             power_stacks=tuple(sorted((k,v) for k,v in powers.items() if k in STACK_POWERS.values()))))
     actions = {a["action_id"]: a for a in s.get("legal_actions", [])}
     potions = []
     for potion in p.get("potions", []):
@@ -114,23 +131,39 @@ def normalize(snapshot: dict) -> CombatState:
                        colossus=any(p["entity_id"] == "POWER.COLOSSUS_POWER" for p in creature.get("powers", [])),
                        warnings=tuple(sorted(set(warnings))), hand_limit=p.get("hand_limit", 10),
                        effect_draw_blocked=any(x["entity_id"] == "POWER.NO_DRAW_POWER" for x in creature.get("powers", []))
-                           or any(x["entity_id"] == "RELIC.FIDDLE" for x in p.get("relics", [])),
+                           or bool(relic_state.get('permanent_draw_blocked')),
                        discard_composition=tuple(sorted(Counter(c.get('variant_key') or c["entity_id"] for c in p.get("discard") or []).items())),
                        discard_known="discard" in p,
                        exhausted_composition=tuple(sorted(Counter(c.get('variant_key') or c["entity_id"] for c in p.get("exhaust") or []).items())),
                        periodic_relics=tuple(periodic), turn=p.get("turn"),
-                       hp_loss_reduction=1 if any(r["entity_id"] == "RELIC.TUNGSTEN_ROD" for r in p.get("relics", [])) else 0,
-                       turn_hp_loss_cap=20 if any(r["entity_id"] == "RELIC.BEATING_REMNANT" for r in p.get("relics", [])) else None,
-                       permafrost=any(r["entity_id"] == "RELIC.PERMAFROST" for r in p.get("relics", [])),
+                       hp_loss_reduction=relic_state.get('hp_loss_reduction',0),
+                       turn_hp_loss_cap=relic_state.get('turn_hp_loss_cap'),
                        base_strength=next((r["amount"] for r in creature.get("powers", []) if r["entity_id"] == "POWER.STRENGTH_POWER"), 0),
+                       temporary_strength=sum(r['amount'] for r in creature.get('powers',[]) if r['entity_id'] in {STACK_POWERS[k] for k,v in TEMPORARY_PLAYER_STATS.items() if v=='strength'}),
                        player_frail=any(r["entity_id"] == "POWER.FRAIL_POWER" and r["amount"] > 0 for r in creature.get("powers", [])),
                        weak_turns=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.WEAK_POWER'),0),
                        frail_turns=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.FRAIL_POWER'),0),
+                       weak_skip_next_tick=any(r.get('skip_next_duration_tick',False) for r in creature.get('powers',[]) if r['entity_id']=='POWER.WEAK_POWER'),
+                       frail_skip_next_tick=any(r.get('skip_next_duration_tick',False) for r in creature.get('powers',[]) if r['entity_id']=='POWER.FRAIL_POWER'),
                        stars=p.get('stars') or 0,
                        base_dexterity=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.DEXTERITY_POWER'),0),
-                       temporary_dexterity=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.SPEED_POTION_POWER'),0),
+                       temporary_dexterity=sum(r['amount'] for r in creature.get('powers',[]) if r['entity_id'] in {STACK_POWERS[k] for k,v in TEMPORARY_PLAYER_STATS.items() if v=='dexterity'}),
                        temporary_draw_blocked=any(r['entity_id']=='POWER.NO_DRAW_POWER' for r in creature.get('powers',[])),
-                       permanent_draw_blocked=any(r['entity_id']=='RELIC.FIDDLE' for r in p.get('relics',[])),
+                       permanent_draw_blocked=bool(relic_state.get('permanent_draw_blocked')),
                        scheduled_relics=tuple(scheduled),
+                       triggered_relics=tuple(triggered),
+                       next_turn_block=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.BLOCK_NEXT_TURN_POWER'),0),
+                       next_turn_energy=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.ENERGY_NEXT_TURN_POWER'),0),
+                       next_turn_stars=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.STAR_NEXT_TURN_POWER'),0),
+                       next_turn_draw=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.DRAW_CARDS_NEXT_TURN_POWER'),0),
+                       ritual=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.RITUAL_POWER'),0),
+                       power_stacks=tuple((r['entity_id'],r['amount']) for r in creature.get('powers',[])
+                           if r['entity_id'] in STACK_POWERS.values()),
                        mechanism_scope=tuple(r for r in coverage_for_snapshot(snapshot,warnings) if r.warning),
+                       regeneration=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.REGEN_POWER'),0),
+                       plating=next((r['amount'] for r in creature.get('powers',[]) if r['entity_id']=='POWER.PLATING_POWER'),0),
+                       history_known=history_known,**{k:counters[k] for k in counter_fields if history_known},
+                       **{k:v for k,v in relic_state.items() if k in {'retain_hand_relic','retain_energy',
+                           'extra_hand_draw','discard_block','exhaust_damage','shuffle_block','osty_attack_block'}},
+                       osty=osty,pets_known='pets' in p,
                        player_weak=any(r["entity_id"] == "POWER.WEAK_POWER" and r["amount"] > 0 for r in creature.get("powers", [])))

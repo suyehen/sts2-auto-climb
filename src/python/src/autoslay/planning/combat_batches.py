@@ -11,16 +11,16 @@ from autoslay.decision.cache import digest
 from autoslay.decision.normalize import normalize
 from autoslay.evaluation.combat_resources import DEFAULTS,capabilities,route_context,resources_value,future_pressure_value,hp_value
 from autoslay.evaluation.potion_value import reserve_cost
-from autoslay.planning.lookahead import ScenarioRules,templates_for,draw_branches
+from autoslay.rules.registry import KnowledgeRules
+from autoslay.planning.lookahead import templates_for,draw_branches
 from autoslay.rules.monsters import MonsterRules
 from autoslay.simulation.engine import CombatSimulator
 from autoslay.simulation.card_flow import add_to_composition
+from autoslay.rules.statuses import preserve_block,hand_draw_bonus,next_turn_energy
 from autoslay.rules.periodic_relics import advance
-from autoslay.rules.registry import clean
 from autoslay.evaluation.strategic import ValueContract, RunResources, resource_value, summarize_outcomes
-import re
 
-VERSION='1.4.0'
+VERSION='1.5.0'
 
 
 def endpoint_key(transition):
@@ -67,7 +67,7 @@ def analyze(snapshot,entries,policy,settings,budget):
                         assumptions.add('inferred_first_move_from_turn_one:'+enemy.entity_id)
             except (UnsupportedEffect,KeyError):pass
         inferred.append(enemy)
-    initial=replace(prepared,enemies=tuple(inferred));rules=ScenarioRules();templates=templates_for(snapshot,entries)
+    initial=replace(prepared,enemies=tuple(inferred));rules=KnowledgeRules();templates=templates_for(snapshot,entries)
     for identity in model.generated_ids:
         if identity not in templates:
             from autoslay.knowledge_base.templates import canonical
@@ -156,26 +156,22 @@ def analyze(snapshot,entries,policy,settings,budget):
             future_pressure={'basis':'capability proxy; actual future intents and draws may differ'})
     def end_turn(state,ply):
         compiled=CombatSimulator(state,rules)
-        unknown_end=any(c.instance_id in compiled.unsupported and c.entity_id!='CARD.ASCENDERS_BANE' for c in state.hand)
+        unknown_end=any(c.instance_id in compiled.unsupported for c in state.hand)
         if unknown_end:assumptions.add('unmodeled_held_card_end_turn_hooks')
         from autoslay.rules.scheduled_relics import apply_phase,before_hand_draw,after_hand_draw
         state=apply_phase(state,'side_turn_end')
         if state.hp<=0 or state.combat_won:return terminal(state,int(unknown_end))
-        discarded=[c.variant_key or c.entity_id for c in state.hand if c.entity_id!='CARD.ASCENDERS_BANE']
-        exhausted=[c.variant_key or c.entity_id for c in state.hand if c.entity_id=='CARD.ASCENDERS_BANE']
-        state=replace(state,hand=(),discard_composition=add_to_composition(state.discard_composition,discarded),
-                      exhausted_composition=add_to_composition(state.exhausted_composition,exhausted))
+        from autoslay.simulation.card_flow import flush_hand,refresh_retained
+        try:state=flush_hand(state,rules)
+        except UnsupportedEffect as exc:
+            assumptions.add(str(exc));return terminal(state,1)
         try:branches=model.step(state,settings.get('branches',32),select_next=True)
         except (UnsupportedEffect,ValueError,KeyError,SyntaxError) as exc:
-            assumptions.add(str(exc));loss=0;block=state.block
-            for enemy in state.enemies:
-                if enemy.hp<=0:continue
-                for hit in enemy.attacks:
-                    hit=hit//2 if state.colossus and enemy.vulnerable else hit
-                    absorbed=min(block,hit);block-=absorbed;loss+=max(0,hit-absorbed-state.hp_loss_reduction)
+            assumptions.add(str(exc))
             # Visible damage is a fallback scenario, not a prediction that all
             # unknown nonattack mechanics have no effect.
-            state=replace(state,hp=max(0,state.hp-loss),enemy_hp_loss=state.enemy_hp_loss+min(state.hp,loss))
+            from autoslay.simulation.atomic_effects import visible_enemy_attacks
+            state=visible_enemy_attacks(state)
             return terminal(state,1+int(unknown_end))
         values=[]
         for p,after,_ in branches:
@@ -184,15 +180,19 @@ def analyze(snapshot,entries,policy,settings,budget):
             if relics:
                 if any(r.counter is None for r in relics):values.append((p,terminal(after,1)));continue
                 relics,draw_bonus,energy_bonus=advance(relics)
-            if after.effect_draw_blocked:values.append((p,terminal(after,1)));continue
-            after=replace(after,hand=(),block=0,energy=settings.get('energy',3)+energy_bonus,
+            try:after=refresh_retained(after,templates)
+            except UnsupportedEffect as exc:
+                assumptions.add(str(exc));values.append((p,terminal(after,1)));continue
+            after=replace(after,block=after.block if preserve_block(after) else 0,energy=next_turn_energy(after,settings.get('energy',3))+energy_bonus,
                 base_strength=after.base_strength+after.strength_delta-after.temporary_strength,
-                strength_delta=0,temporary_strength=0,colossus=False,legion_ready=False,
+                strength_delta=0,temporary_strength=0,cards_played=0,attacks_played=0,skills_played=0,turn_cards_exhausted=0,turn_cards_drawn=0,colossus=False,legion_ready=False,
                 periodic_relics=relics,turn=(after.turn or 0)+1,player_weak=after.weak_turns>0,player_frail=after.frail_turns>0,
                 enemies=tuple(replace(e,vulnerable=max(0,e.vulnerable-1)) for e in after.enemies))
             after=before_hand_draw(after)
-            meta={};drawn,_=draw_branches(after,settings.get('draws',5)+draw_bonus,templates,settings.get('branches',32),settings.get('seed',42)+ply,meta)
-            sampling_events.append(dict(meta,ply=ply,draw_count=settings.get('draws',5)+draw_bonus))
+            meta={};draw_count=settings.get('draws',5)+draw_bonus+hand_draw_bonus(after)
+            drawn,_=draw_branches(after,draw_count,templates,settings.get('branches',32),settings.get('seed',42)+ply,meta,
+                                 rules=rules,from_hand_draw=True)
+            sampling_events.append(dict(meta,ply=ply,draw_count=draw_count))
             values.append((p,combine([(w,visit(Transition(after_hand_draw(s)),ply+1,0) if s is not None else terminal(after,1)) for w,s in drawn],meta.get('method','exact'),fallback=after)))
         result=combine(values,fallback=state)
         if unknown_end:
@@ -208,13 +208,8 @@ def analyze(snapshot,entries,policy,settings,budget):
             result=combine([(p,terminal(after,1)) for p,after,_ in model.step(state,settings.get('branches',32),select_next=True)],fallback=state)
         except (UnsupportedEffect,ValueError,KeyError,SyntaxError) as exc:
             assumptions.add(str(exc))
-            block=state.block;loss=0
-            for enemy in state.enemies:
-                if enemy.hp<=0:continue
-                for hit in enemy.attacks:
-                    hit=hit//2 if state.colossus and enemy.vulnerable else hit
-                    absorbed=min(block,hit);block-=absorbed;loss+=max(0,hit-absorbed-state.hp_loss_reduction)
-            result=terminal(replace(state,hp=max(0,state.hp-loss),enemy_hp_loss=state.enemy_hp_loss+min(state.hp,loss)),1)
+            from autoslay.simulation.atomic_effects import visible_enemy_attacks
+            result=terminal(visible_enemy_attacks(state),1)
         quick_cache[state]=result;return result
     def visit(transition,ply,depth):
         nonlocal nodes,cache_hits
@@ -223,7 +218,10 @@ def analyze(snapshot,entries,policy,settings,budget):
         if state.hp<=0 or state.combat_won or all(e.hp<=0 for e in state.enemies):return terminal(state)
         if expired():return quick(state)
         nodes+=1
-        if transition.boundary=='draw_requires_observation':
+        if transition.boundary=='generated_cards_requires_observation':
+            try:result=visit(CombatSimulator(state,rules).resume_generated(transition),ply,depth)
+            except (UnsupportedEffect,ValueError,KeyError):result=quick(state)
+        elif transition.boundary=='draw_requires_observation':
             meta={};drawn,_=draw_branches(state,transition.draw_count,templates,settings.get('branches',32),settings.get('seed',42)+ply,meta)
             sampling_events.append(dict(meta,ply=ply,draw_count=transition.draw_count))
             sim=CombatSimulator(state,rules);values=[]
@@ -298,8 +296,8 @@ def analyze(snapshot,entries,policy,settings,budget):
             # Use the observed state's enemy-turn scenario, without inventing
             # damage, block or healing from the unsupported action's text.
             value=quick(initial);value=dict(value,parts=dict(value['parts']))
-            estimate=visible_action_score(snapshot,steps[0],profile,parameters)
-            value['score']+=estimate;value['parts']['visible_action_estimate']=estimate
+            value['score']=None;value['parts']={}
+            value['unknown']+=1
         else:value=visit(transition,1,len(steps))
         row=dict(batch_id=digest([asdict(s) for s in steps])[:16],steps=[asdict(s) for s in steps],
             stop_reason=boundary,score=value['score'],utility_components=value['parts'],
@@ -316,10 +314,11 @@ def analyze(snapshot,entries,policy,settings,budget):
             endpoint=dict(hp=transition.state.hp,energy=transition.state.energy,block=transition.state.block,
                           enemy_hp=sum(e.hp for e in transition.state.enemies)) if transition else None)
         candidates[row['batch_id']]=row
-    ordered=sorted(candidates.values(),key=lambda r:(r['estimated_death_probability'], -r['score'],r['approximation_count'], -len(r['steps']),r['batch_id']))
-    safe=ordered[0]['estimated_death_probability'] if ordered else 1
-    best=ordered[0]['score'] if ordered else 0
-    close=[r for r in ordered[:budget.top_k] if r['estimated_death_probability']==safe and best-r['score']<=parameters['tie_margin']]
+    ordered=sorted(candidates.values(),key=lambda r:(r['score'] is None,r['estimated_death_probability'], -r['score'] if r['score'] is not None else 0,r['approximation_count'], -len(r['steps']),r['batch_id']))
+    priced=[r for r in ordered if r['score'] is not None]
+    safe=priced[0]['estimated_death_probability'] if priced else 1
+    best=priced[0]['score'] if priced else 0
+    close=[r for r in priced[:budget.top_k] if r['estimated_death_probability']==safe and best-r['score']<=parameters['tie_margin']]
     selected=min(close,key=lambda r:(r['expected_potions_used'],r['worst_potions_used'],r['estimated_worst_hp_loss'],r['approximation_count'],-len(r['steps']),r['batch_id']),default=None)
     for row in ordered[:budget.top_k]:
         reporting_started=perf_counter();outcomes=[]
@@ -327,7 +326,7 @@ def analyze(snapshot,entries,policy,settings,budget):
             heal=min(profile['victory_heal'],state.max_hp-state.hp) if won and state.hp>0 else 0
             joint=RunResources(state.hp+heal,state.max_hp,player.get('gold',0),
                 tuple(p.instance_id for p in state.potions),
-                tuple((dict(owned_counters)|{r.entity_id:r.counter for r in state.periodic_relics}).items()),dead=state.hp<=0)
+                tuple((dict(owned_counters)|{r.entity_id:r.counter for r in state.periodic_relics}|{r.entity_id:r.counter for r in state.triggered_relics}).items()),dead=state.hp<=0)
             outcomes.append(dict(weight=weight,resources=asdict(joint),
                 potions_used=len(initial.potions)-len(state.potions),contract=asdict(contract),
                 boundary='post_victory_heal_pre_rewards' if won and state.hp>0 else 'dead' if state.hp<=0 else 'combat_cutoff',
@@ -348,6 +347,7 @@ def analyze(snapshot,entries,policy,settings,budget):
         row['state_trace']=trace
     return dict(module_version=VERSION,mode='local',decision_unit='operation_batch',top_batches=ordered[:budget.top_k],
         selected_batch=selected,candidate_count=len(ordered),nodes=nodes,elapsed_ms=(perf_counter()-started)*1000,
+        unpriced_actions=[r['steps'][0] for r in ordered if r['score'] is None],
         limits=sorted(limits),assumptions=sorted(assumptions),
         execution_blockers=sorted(a for a in assumptions if not a.startswith('inferred_first_move_from_turn_one:')),
         deck_capabilities=profile,run_resources=route,
@@ -357,41 +357,16 @@ def analyze(snapshot,entries,policy,settings,budget):
         sampling_events=sampling_events,
         budget_allocation='equal_remaining_share' if settings.get('fair_candidate_budget',False) else 'legacy_shared_budget',
         limitations=['Heuristic scores permit mistakes; no calibrated safety or optimality claim.',
-                     'Unknown effects use explicit approximations; execute only real operations to a decision boundary.'])
-
-
-def visible_action_score(snapshot,action,profile,parameters):
-    """One observed legal action when rule simulation is unavailable; text is a proxy."""
-    player=snapshot['state'].get('player') or {};cards=player.get('hand') or []
-    raw=next((c for c in cards if action.action_id=='play_'+c['instance_id']),None)
-    potion=False
-    if raw is None:
-        raw=next((p for p in player.get('potions') or [] if p.get('use_action_id')==action.action_id),None)
-        if raw is None:return 0
-        potion=True
-    text=clean(raw.get('description',''));score=-20 if potion else -max(0,raw.get('energy_cost',0))
-    patterns=[(r'(?:造成|Deal\s+)(\d+)(?:点伤害|\s+damage)',1),
-              (r'(?:获得|Gain\s+)(\d+)(?:点格挡|\s+Block)',1.5),
-              (r'(?:抽|Draw\s+)(\d+)(?:张牌|\s+cards?)',3),
-              (r'(?:获得|Gain\s+)(\d+)(?:点力量|\s+Strength)',3)]
-    for pattern,weight in patterns:
-        match=re.search(pattern,text,re.I)
-        if match:score+=int(match[1])*weight
-    creature=player.get('creature') or {};hp=creature.get('hp',0);maximum=creature.get('max_hp',80)
-    route=route_context(snapshot,parameters)
-    heal=re.search(r'(?:回复|恢复|Heal\s+)(\d+)(?:点生命|\s+HP)',text,re.I)
-    if heal:score+=hp_value(min(maximum,hp+int(heal[1])),maximum,parameters,route)-hp_value(hp,maximum,parameters,route)
-    loss=re.search(r'(?:失去|Lose\s+)(\d+)(?:点生命|\s+HP)',text,re.I)
-    if loss:score+=hp_value(max(0,hp-int(loss[1])),maximum,parameters,route)-hp_value(hp,maximum,parameters,route)
-    return score
+                     'Unmodeled action effects remain unpriced; baseline forecasts do not predict their outcomes.'])
 
 
 def fallback_report(snapshot,legal,parameters,profile,route,reason):
     rows=[dict(batch_id=digest(asdict(a))[:16],steps=[asdict(a)],stop_reason='unmodeled_effect_observation',
-        score=visible_action_score(snapshot,a,profile,parameters),approximation_count=1,
+        score=None,approximation_count=1,
         estimated_death_probability=None,estimated_worst_hp_loss=None,consumed_potions=[],
         utility_components={},endpoint=None,bound_kind='uncalibrated_estimate') for a in legal]
-    rows.sort(key=lambda r:(-r['score'],r['batch_id']))
-    return dict(module_version=VERSION,mode='local',decision_unit='operation_batch',selected_batch=rows[0] if rows else None,
+    rows.sort(key=lambda r:r['batch_id'])
+    return dict(module_version=VERSION,mode='local',decision_unit='operation_batch',selected_batch=None,
         top_batches=rows[:5],candidate_count=len(rows),nodes=0,limits=['mechanics_boundary'],assumptions=[reason],execution_blockers=[reason],
+        unpriced_actions=[r['steps'][0] for r in rows],
         deck_capabilities=profile,run_resources=route,execution_authorized=False)

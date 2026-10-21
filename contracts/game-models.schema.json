@@ -1,0 +1,1909 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "game-models/1"
+    },
+    "game_version": {
+      "const": "0.111.0"
+    },
+    "game_assembly_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rules_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/model"
+      },
+      "minItems": 1
+    },
+    "model_references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/model_id"
+      },
+      "uniqueItems": true
+    },
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "rest_heal_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flow"
+      }
+    },
+    "monsters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/monster"
+      }
+    },
+    "selections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/selection"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "game_version",
+    "game_assembly_sha256",
+    "rules_version",
+    "models"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:autoslay:game-models:1",
+  "$defs": {
+    "expression": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        {
+          "type": "object",
+          "properties": {
+            "variable": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          },
+          "required": [
+            "variable"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "attacks_played",
+                "block",
+                "cards_exhausted",
+                "cards_played",
+                "combat_cards_played",
+                "discard_count",
+                "draw_count",
+                "enemy_count",
+                "energy",
+                "exhaust_count",
+                "hand_count",
+                "hp",
+                "last_discard_count",
+                "last_exhaust_count",
+                "max_hp",
+                "osty_hp",
+                "osty_max_hp",
+                "skill_hand_count",
+                "skills_played",
+                "star_x_value",
+                "stars",
+                "strength",
+                "turn",
+                "turn_cards_drawn",
+                "turn_cards_exhausted",
+                "x_value"
+              ]
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "add": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "add"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "at_least": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "at_least"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "floor_divide": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "floor_divide"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "less_than": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "less_than"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "max": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "max"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "min"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "multiply": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "multiply"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subtract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "subtract"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "enum": [
+            "accelerant",
+            "accuracy",
+            "afterimage",
+            "anticipate",
+            "artifact",
+            "barricade",
+            "block",
+            "block_and_next_turn",
+            "blur",
+            "buffer",
+            "calcify",
+            "clarity",
+            "colossus",
+            "cruelty",
+            "crush_under",
+            "damage",
+            "dark_shackles",
+            "demise",
+            "demon_form",
+            "devour_life",
+            "dexterity",
+            "discard_hand",
+            "dismantle",
+            "doom",
+            "double_vulnerable",
+            "draw",
+            "draw_discarded",
+            "dying_star",
+            "enemy_hp_loss",
+            "enemy_strength",
+            "enemy_strength_loss",
+            "energy",
+            "enfeebling_touch",
+            "envenom",
+            "exhaust_hand",
+            "exhaust_nonattacks",
+            "fan_of_knives",
+            "feeding_frenzy",
+            "feel_no_pain",
+            "flame_barrier",
+            "flex_potion",
+            "gain_max_hp",
+            "generate_card",
+            "gigantification",
+            "heal",
+            "heal_osty",
+            "heal_percent",
+            "intangible",
+            "lose_energy",
+            "lose_hp",
+            "lose_max_hp",
+            "multiply_block",
+            "multiply_energy",
+            "next_turn_block",
+            "next_turn_draw",
+            "next_turn_energy",
+            "next_turn_stars",
+            "no_draw",
+            "osty_damage",
+            "piercing_wail",
+            "plating",
+            "player_damage",
+            "player_frail",
+            "player_weak",
+            "poison",
+            "pyre",
+            "radiance",
+            "rage",
+            "random_exhaust_boundary",
+            "regeneration",
+            "remove_enemy_artifact",
+            "remove_enemy_block",
+            "resolve_doom",
+            "retain_hand",
+            "ritual",
+            "setup_strike",
+            "shackling_potion",
+            "shuffle_hand_and_discard",
+            "speed_potion",
+            "spirit_of_ash",
+            "stars",
+            "strength",
+            "summon",
+            "temporary_dexterity",
+            "temporary_enemy_strength_loss",
+            "temporary_strength",
+            "the_sealed_throne",
+            "thorns",
+            "unpowered_block",
+            "unpowered_damage",
+            "upgrade_boundary",
+            "vigor",
+            "vulnerable",
+            "weak",
+            "weak_boundary",
+            "well_laid_plans"
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/expression"
+        },
+        "repeats": {
+          "$ref": "#/$defs/expression"
+        },
+        "generation": {
+          "anyOf": [
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/model_id"
+                },
+                {
+                  "enum": [
+                    "hand",
+                    "draw",
+                    "discard"
+                  ]
+                },
+                {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10
+                    },
+                    {
+                      "const": "source"
+                    }
+                  ]
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effect_model": {
+          "$ref": "#/$defs/model_id"
+        }
+      },
+      "required": [
+        "operation",
+        "amount"
+      ],
+      "additionalProperties": false
+    },
+    "counter": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "$ref": "#/$defs/expression"
+        },
+        "card_type": {
+          "enum": [
+            "Attack",
+            "Skill",
+            "Power"
+          ]
+        },
+        "reset": {
+          "enum": [
+            "turn",
+            "combat",
+            "never"
+          ]
+        },
+        "field": {
+          "type": "string"
+        },
+        "once_field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "period",
+        "card_type",
+        "reset"
+      ],
+      "additionalProperties": false
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "enum": [
+            "after_block_cleared",
+            "after_card_played",
+            "after_energy_reset_late",
+            "after_hand_draw",
+            "on_discard",
+            "on_draw",
+            "on_exhaust",
+            "on_play",
+            "on_use",
+            "side_turn_end",
+            "side_turn_start",
+            "turn_end_in_hand"
+          ]
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        },
+        "turn": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/counter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "event",
+        "effects"
+      ],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "model_type": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "source_path",
+        "source_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "run_hook": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "enum": [
+            "after_combat_victory",
+            "after_hp_loss",
+            "after_item_purchased",
+            "after_obtained",
+            "after_rest_heal",
+            "after_rest_smith",
+            "before_card_removed",
+            "combat_reward",
+            "combat_start",
+            "enter_rest",
+            "enter_shop",
+            "modify_hp_loss",
+            "modify_merchant_price",
+            "modify_rest_heal",
+            "after_card_changed_piles"
+          ]
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "enum": [
+                  "damage",
+                  "gain_gold",
+                  "gain_max_hp",
+                  "heal",
+                  "heal_percent",
+                  "increase_potion_capacity",
+                  "kill",
+                  "lose_hp",
+                  "lose_max_hp",
+                  "pay_gold",
+                  "price_percent",
+                  "reduce_hp_loss"
+                ]
+              },
+              "amount": {
+                "$ref": "#/$defs/expression"
+              }
+            },
+            "required": [
+              "operation",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "event",
+        "effects"
+      ],
+      "additionalProperties": false
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "$ref": "#/$defs/model_id"
+        },
+        "category": {
+          "enum": [
+            "card",
+            "relic",
+            "potion"
+          ]
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trigger"
+          }
+        },
+        "exhaust": {
+          "type": "boolean"
+        },
+        "unplayable": {
+          "type": "boolean"
+        },
+        "target_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "Self",
+                "AnyPlayer",
+                "AnyEnemy",
+                "AllEnemies"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "periodic": {
+          "anyOf": [
+            {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000000
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "passive": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state_fields": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": [
+                  "integer",
+                  "boolean"
+                ]
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "x_resource": {
+          "anyOf": [
+            {
+              "enum": [
+                "energy",
+                "stars"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "verification": {
+          "enum": [
+            "migrated_requires_semantic_review",
+            "source_reviewed",
+            "interaction_verified"
+          ]
+        },
+        "run_hooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/run_hook"
+          }
+        }
+      },
+      "required": [
+        "entity_id",
+        "category",
+        "provenance",
+        "verification"
+      ],
+      "additionalProperties": false
+    },
+    "model_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*[.][A-Z0-9_]+$"
+    },
+    "flow_command": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "enum": [
+                "damage",
+                "gain_gold",
+                "gain_max_hp",
+                "heal",
+                "heal_percent",
+                "increase_potion_capacity",
+                "kill",
+                "lose_hp",
+                "lose_max_hp",
+                "pay_gold"
+              ]
+            },
+            "amount": {
+              "$ref": "#/$defs/expression"
+            }
+          },
+          "required": [
+            "operation",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "set_variable"
+            },
+            "name": {
+              "type": "string"
+            },
+            "amount": {
+              "$ref": "#/$defs/expression"
+            }
+          },
+          "required": [
+            "operation",
+            "name",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "branch"
+            },
+            "condition": {
+              "$ref": "#/$defs/expression"
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/flow_command"
+              }
+            },
+            "else": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/flow_command"
+              }
+            }
+          },
+          "required": [
+            "operation",
+            "condition",
+            "then",
+            "else"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "upgrade_deck"
+            },
+            "mode": {
+              "enum": [
+                "random",
+                "all"
+              ]
+            }
+          },
+          "required": [
+            "operation",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "obtain_relic"
+            },
+            "entity_id": {
+              "$ref": "#/$defs/model_id"
+            }
+          },
+          "required": [
+            "operation",
+            "entity_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "rest_heal"
+            },
+            "amount": {
+              "$ref": "#/$defs/expression"
+            },
+            "is_mimicked": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation",
+            "amount",
+            "is_mimicked"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "enter_combat"
+            },
+            "encounter_id": {
+              "$ref": "#/$defs/model_id"
+            },
+            "extra_rewards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/flow_reward"
+              }
+            },
+            "resume_after_combat": {
+              "const": false
+            }
+          },
+          "required": [
+            "operation",
+            "encounter_id",
+            "extra_rewards",
+            "resume_after_combat"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "flow_variable": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "observed_variable": {
+          "type": "string"
+        },
+        "observed_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "required_in": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "numeric_type": {
+          "enum": [
+            "integer",
+            "decimal"
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "flow_option": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "callback": {
+          "type": "string"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flow_command"
+          }
+        },
+        "next": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "callback",
+        "keys",
+        "commands",
+        "next"
+      ],
+      "additionalProperties": false
+    },
+    "flow": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "$ref": "#/$defs/model_id"
+        },
+        "category": {
+          "const": "event"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "verification": {
+          "enum": [
+            "source_reviewed",
+            "interaction_verified"
+          ]
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/flow_variable"
+          }
+        },
+        "selectors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string"
+              },
+              "option_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                }
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "states": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "options": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/flow_option"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "options"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "entity_id",
+        "category",
+        "provenance",
+        "verification",
+        "variables",
+        "selectors",
+        "states"
+      ],
+      "additionalProperties": false
+    },
+    "flow_reward": {
+      "type": "object",
+      "properties": {
+        "reward_type": {
+          "const": "special_card"
+        },
+        "card_id": {
+          "$ref": "#/$defs/model_id"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "reward_type",
+        "card_id",
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    "monster_expression": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "minimum": -1000000000,
+          "maximum": 1000000000
+        },
+        {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          },
+          "required": [
+            "field"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ascension": {
+              "const": true
+            }
+          },
+          "required": [
+            "ascension"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decimal": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "decimal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "unknown": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "unknown"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "add": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "add"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subtract": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "subtract"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "multiply": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "multiply"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "divide": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "divide"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "equal": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "equal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "not_equal": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "not_equal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "less": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "less"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "less_equal": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "less_equal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "greater": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "greater"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "greater_equal": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "greater_equal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "not": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 1,
+              "maxItems": 1
+            }
+          },
+          "required": [
+            "not"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "negate": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 1,
+              "maxItems": 1
+            }
+          },
+          "required": [
+            "negate"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "if": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "if"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "and": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "and"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "or": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_expression"
+              },
+              "minItems": 2,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "or"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "monster_command": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "strength"
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            }
+          },
+          "required": [
+            "operation",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "block"
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            }
+          },
+          "required": [
+            "operation",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "weak"
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            }
+          },
+          "required": [
+            "operation",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "frail"
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            }
+          },
+          "required": [
+            "operation",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "attack"
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            },
+            "repeats": {
+              "$ref": "#/$defs/monster_expression"
+            }
+          },
+          "required": [
+            "operation",
+            "amount",
+            "repeats"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "enum": [
+                "draw",
+                "discard"
+              ]
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            },
+            "card_id": {
+              "$ref": "#/$defs/model_id"
+            }
+          },
+          "required": [
+            "operation",
+            "amount",
+            "card_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "set_field"
+            },
+            "field": {
+              "type": "string"
+            },
+            "amount": {
+              "$ref": "#/$defs/monster_expression"
+            }
+          },
+          "required": [
+            "operation",
+            "field",
+            "amount"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "monster_attack": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/monster_expression"
+        },
+        "repeats": {
+          "$ref": "#/$defs/monster_expression"
+        }
+      },
+      "required": [
+        "amount",
+        "repeats"
+      ],
+      "additionalProperties": false
+    },
+    "monster_branch": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "condition": {
+          "$ref": "#/$defs/monster_expression"
+        },
+        "weight": {
+          "$ref": "#/$defs/monster_expression"
+        },
+        "repeat_type": {
+          "enum": [
+            "CannotRepeat",
+            "CanRepeatForever",
+            "UseOnlyOnce",
+            "CanRepeatXTimes"
+          ]
+        },
+        "cooldown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_consecutive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "target",
+        "condition",
+        "weight",
+        "repeat_type",
+        "cooldown",
+        "max_consecutive",
+        "gaps"
+      ],
+      "additionalProperties": false
+    },
+    "monster_node": {
+      "type": "object",
+      "properties": {
+        "variable": {
+          "type": "string"
+        },
+        "state_id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "MoveState",
+            "ConditionalBranchState",
+            "RandomBranchState"
+          ]
+        },
+        "branches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/monster_branch"
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "variable",
+        "state_id",
+        "kind",
+        "branches",
+        "gaps"
+      ],
+      "additionalProperties": false
+    },
+    "monster_move": {
+      "type": "object",
+      "properties": {
+        "variable": {
+          "type": "string"
+        },
+        "state_id": {
+          "type": "string"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/monster_command"
+          }
+        },
+        "announced_attacks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/monster_attack"
+          }
+        },
+        "intent_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "variable",
+        "state_id",
+        "commands",
+        "announced_attacks",
+        "intent_types",
+        "gaps"
+      ],
+      "additionalProperties": false
+    },
+    "monster": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "$ref": "#/$defs/model_id"
+        },
+        "category": {
+          "const": "monster"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "verification": {
+          "enum": [
+            "migrated_requires_semantic_review",
+            "source_reviewed",
+            "interaction_verified"
+          ]
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unmodeled_hooks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "presentation_hooks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moves": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/monster_move"
+          }
+        },
+        "state_graph": {
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/monster_node"
+              }
+            },
+            "edges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "nodes",
+            "edges"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "entity_id",
+        "category",
+        "provenance",
+        "verification",
+        "gaps",
+        "unmodeled_hooks",
+        "presentation_hooks",
+        "moves",
+        "state_graph"
+      ],
+      "additionalProperties": false
+    },
+    "selection_source": {
+      "type": "object",
+      "properties": {
+        "model_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/model_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "callback": {
+          "type": "string",
+          "minLength": 1
+        },
+        "option_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "model_id",
+        "model_type",
+        "callback",
+        "option_key"
+      ],
+      "additionalProperties": false
+    },
+    "selection_variable": {
+      "type": "object",
+      "properties": {
+        "observed_variable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value_kind": {
+          "const": "int_value"
+        }
+      },
+      "required": [
+        "observed_variable",
+        "value_kind"
+      ],
+      "additionalProperties": false
+    },
+    "selection": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "$ref": "#/$defs/model_id"
+        },
+        "category": {
+          "const": "selection"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "verification": {
+          "enum": [
+            "source_reviewed",
+            "interaction_verified"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/selection_source"
+        },
+        "selection_api": {
+          "enum": [
+            "CardSelectCmd.FromDeckForUpgrade",
+            "CardSelectCmd.FromDeckForRemoval",
+            "EventModel.SelectCardsToAddToDeckFromGrid"
+          ]
+        },
+        "selected_operation": {
+          "enum": [
+            "upgrade_card",
+            "remove_card",
+            "add_to_deck"
+          ]
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/selection_variable"
+          }
+        },
+        "after_commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "enum": [
+                  "damage",
+                  "gain_gold",
+                  "gain_max_hp",
+                  "heal",
+                  "heal_percent",
+                  "increase_potion_capacity",
+                  "kill",
+                  "lose_hp",
+                  "lose_max_hp",
+                  "pay_gold"
+                ]
+              },
+              "amount": {
+                "$ref": "#/$defs/expression"
+              }
+            },
+            "required": [
+              "operation",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "after_hooks": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "after_rest_smith",
+              "after_rest_heal",
+              "after_card_changed_piles"
+            ]
+          }
+        },
+        "empty_behavior": {
+          "enum": [
+            "skip_continuation",
+            "continue"
+          ]
+        }
+      },
+      "required": [
+        "entity_id",
+        "category",
+        "provenance",
+        "verification",
+        "source",
+        "selection_api",
+        "selected_operation",
+        "variables",
+        "after_commands",
+        "after_hooks",
+        "empty_behavior"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

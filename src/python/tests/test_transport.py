@@ -14,7 +14,7 @@ def test_real_stdio_roundtrip():
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 tools = await session.list_tools()
-                assert {t.name for t in tools.tools} == {"get_state", "get_installation_info", "act", "get_action_status", "set_control_mode", "start_new_run", "analyze_combat", "analyze_decision", "evaluate_run_choices", "record_decision_choice", "observe_decision_result", "draw_odds", "search_knowledge", "knowledge_status", "query_encyclopedia", "query_behavior_log", "refresh_encyclopedia", "query_game_mechanics", "execute_plan", "audit_knowledge_rules", "rollback_encyclopedia", "get_decision_record"}
+                assert {t.name for t in tools.tools} == {"get_action_catalog", "get_action_space", "get_entity_capabilities", "get_state", "get_installation_info", "act", "get_action_status", "set_control_mode", "start_new_run", "analyze_combat", "analyze_decision", "evaluate_run_choices", "record_decision_choice", "observe_decision_result", "draw_odds", "search_knowledge", "knowledge_status", "query_encyclopedia", "query_behavior_log", "refresh_encyclopedia", "query_game_mechanics", "execute_plan", "audit_knowledge_rules", "rollback_encyclopedia", "get_decision_record"}
                 result = await session.call_tool("get_state", {})
                 assert not result.isError
                 data = json.loads(result.content[0].text)

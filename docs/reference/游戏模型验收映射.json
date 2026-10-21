@@ -1,0 +1,634 @@
+{
+  "schema_version": "model-acceptance-map/1",
+  "date": "2026-10-19",
+  "route": [
+    {
+      "id": "T01",
+      "scenario": "满血，有/无关键升级的篝火",
+      "requirement": "价值随实际升级机会变化，不是固定加分",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T02",
+      "scenario": "连续两个篝火",
+      "requirement": "首次回血/升级改变第二个篝火的边际价值",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_route_resources_are_sequential_and_order_matters"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T03",
+      "scenario": "消费后到达第二个商店",
+      "requirement": "金币与购买能力按真实分支更新",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T04",
+      "scenario": "精英→篝火与篝火→精英",
+      "requirement": "相同房间数量可因顺序产生不同风险和收益",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_route_resources_are_sequential_and_order_matters"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T05",
+      "scenario": "相同 HP，不同牌组和药水",
+      "requirement": "战力摘要及风险情景能够体现差异",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T06",
+      "scenario": "多个当前入口，搜索预算紧",
+      "requirement": "每个入口有结果或明确未评估标记，不能无声丢失",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_route_entry_coverage_and_budget_do_not_depend_on_node_enumeration"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T07",
+      "scenario": "重排地图输入节点和子节点顺序",
+      "requirement": "固定模型和预算下结果稳定，不受偶然遍历顺序影响",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_route_entry_coverage_and_budget_do_not_depend_on_node_enumeration"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T08",
+      "scenario": "同遗物在早期/末期取得",
+      "requirement": "收益期限影响估值；未知跨幕机会明确标注",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T09",
+      "scenario": "能量遗物配合高需求/低需求牌组",
+      "requirement": "区分能否实际利用额外能量",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T10",
+      "scenario": "抽牌收益遇到禁止抽牌或满手限制",
+      "requirement": "限制进入效果与收益计算",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T11",
+      "scenario": "回血遗物遇到满血与持续损血路径",
+      "requirement": "处理溢出与触发次数，不重复计分",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_relic_healing_is_capped_once_per_survived_room"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T12",
+      "scenario": "扣血换遗物影响下一篝火选择",
+      "requirement": "体现资源代价与升级机会，且机会成本只计一次",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T13",
+      "scenario": "诅咒换遗物，有/无可达删牌机会",
+      "requirement": "体现删掉前的负担、金币和可达性",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T14",
+      "scenario": "扣血、获得遗物、回血等顺序变化",
+      "requirement": "按已核对规则处理获取效果、触发和致死边界",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T15",
+      "scenario": "已知效果但遗物估值未覆盖",
+      "requirement": "保留完整说明和未知项，不生成零价值结论",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T16",
+      "scenario": "同动作有即时与连续事件评估",
+      "requirement": "候选合并依据，保留覆盖差异，不直接叠加分数",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_same_action_merges_atomic_sequence_and_relic_evidence_without_adding_scores"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T17",
+      "scenario": "地图关闭、跨幕或重新生成",
+      "requirement": "正确复用或失效，旧动作 ID 不进入执行",
+      "status": "通过",
+      "tests": [
+        "C# CommandTests: map observation expires across acts/regeneration/runs"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T18",
+      "scenario": "路线/多阶段事件使用首步 ID",
+      "requirement": "正确绑定当前合法动作，未来分支只作分析",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_route_uses_only_current_legal_action_bindings"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T19",
+      "scenario": "核心遗物或牌组改变",
+      "requirement": "重新评估路线，计划解释变化来源",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T20",
+      "scenario": "所有情景排序相同或出现交叉",
+      "requirement": "区分稳健占优与风险偏好，没有概率时不算伪期望",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T21",
+      "scenario": "地图缓存、计划或模型参数更新",
+      "requirement": "分析缓存失效；旧记录仍可按原输入复现",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T22",
+      "scenario": "新增参数导入导出、非法值、旧配置",
+      "requirement": "兼容迁移、校验和默认值行为明确",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T23",
+      "scenario": "无群攻牌，但能在敌方危险行动前连续单体斩杀",
+      "requirement": "认可快速减员产生的持久减压，不额外扣“缺群攻”分",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T24",
+      "scenario": "历石与可持续高防御，等待代价低于其他路径",
+      "requirement": "展示等待触发的可行性；准确表达第 7 回合结束时点与必要收尾",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T25",
+      "scenario": "同样拥有历石，但敌人持续成长、召唤或塞牌",
+      "requirement": "重新计算等待代价，不能仅凭高平均防御认定低损可行",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T26",
+      "scenario": "爪牙在特定条件下复苏或再次被召唤",
+      "requirement": "击杀仅提供规则允许时长的减压；保留临时减压价值，不当作永久清场或完全无用",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T27",
+      "scenario": "击杀已验证主要目标即可结束，爪牙仍存活",
+      "requirement": "正确终局，不要求额外清理，也不把残余爪牙 HP 算成实际伤害",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T28",
+      "scenario": "独立敌群，所有敌人均需击杀",
+      "requirement": "不因优先目标死亡而提前判胜；逐次减员更新后续压力",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T29",
+      "scenario": "多主要目标、召唤源或复苏阶段混合",
+      "requirement": "终局按关系与待触发规则判断，不仅依据名称、爪牙标签或活敌数量",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T30",
+      "scenario": "搜索窗口早于历石等关键触发",
+      "requirement": "扩展、提供有条件情景或标记未覆盖；既不归零，也不提前兑现",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T31",
+      "scenario": "群体伤害命中过量目标、非必要目标或即将复苏目标",
+      "requirement": "按减压和终局进展估值，不能简单用伤害乘敌人数决定排名",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T32",
+      "scenario": "关键输出与防守依赖不同抽牌/资源分支",
+      "requirement": "只比较同一可达轨迹中的战术，不能拼接互不兼容的最佳结果",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T33",
+      "scenario": "敌群关系或延迟触发交互未适配",
+      "requirement": "保留公开说明、待核对时点与覆盖边界，不虚构精确胜率或战斗结束",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T34",
+      "scenario": "有依据证明指定范围内该困难零次出现",
+      "requirement": "该类型的专属收益归零，通用收益与负担保留，不扩大到未核实的后续范围",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T35",
+      "scenario": "低概率或低频暴露，现有药水或 HP 能以较低代价覆盖",
+      "requirement": "保留临时应对和不补牌候选；改变分布与资源后重算，不按固定次数分档",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T36",
+      "scenario": "低频但可能致死的遭遇",
+      "requirement": "同时报告发生机会与失败后果，比较保险成本，不能只用平均损血忽略风险",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T37",
+      "scenario": "同一困难的暴露频率提高，临时资源覆盖不足",
+      "requirement": "按实际消耗更新后续资源，永久改善的重复收益可被识别",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T38",
+      "scenario": "次数概率未知，只有合理的范围",
+      "requirement": "展示可行情景与敏感性，不编造概率、不将未知当作零次",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T39",
+      "scenario": "新选项解锁高成长路线，旧路线可绕开困难",
+      "requirement": "每个选项评估自己的可行路线和对应遭遇机会，计入绕行/成长代价",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T40",
+      "scenario": "同一药水可能在目标遭遇前被其他战斗消耗",
+      "requirement": "保持资源轨迹一致，不在多场战斗重复使用，也不保证补回",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T41",
+      "scenario": "已遇过某敌群，但重复规则不同或未知",
+      "requirement": "仅按已核对规则更新次数；不笼统认为打过就不会再遇到",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T42",
+      "scenario": "普通节点减少，但仍有事件战斗或公开必经首领",
+      "requirement": "不因普通房间数量少就断言零风险；缺少来源时说明模型范围",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T43",
+      "scenario": "计划等未来奖励或商店补强，库存尚未公开",
+      "requirement": "比较延后决定的机会与风险，不假定所需牌或药水必定出现",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T44",
+      "scenario": "当前阶段已过期，或一场战斗同时属于多个困难类型",
+      "requirement": "撤销过期目标；同一收益不因多标签重复计算，统计仍保留真实范围",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T45",
+      "scenario": "固定各分支效果与代价，改变遭遇概率权重",
+      "requirement": "期望分量随权重变化，不在“一次/两次”或预设概率门槛处产生人为跳变；最优离散选择可在实际价值交叉处改变",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T46",
+      "scenario": "预计遭遇次数接近，但出现概率、时序或尾部分布不同",
+      "requirement": "不只凭平均次数作相同判断；能反映集中暴露、补给时机与资源耗尽风险",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T47",
+      "scenario": "原始遭遇条件相同，仅牌组处理能力改变",
+      "requirement": "保持生成分布，改变条件战斗结果；不把困难标签变化重复算成概率收益",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T48",
+      "scenario": "高血耗药与低血留药的不同结果分支",
+      "requirement": "保留联合状态，不使用虚构平均库存计算下一房间",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T49",
+      "scenario": "死亡、未知和存活结果混合",
+      "requirement": "不删除死亡或未知质量后宣称完整安全；部分概率分布保留覆盖身份",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_joint_results_preserve_correlated_inventory_death_and_unknown_mass"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    },
+    {
+      "id": "T50",
+      "scenario": "同一战斗结果交给路线和战斗两层估值",
+      "requirement": "价值与风险版本一致；回血、奖励、用药和终局效果只结算一次",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T51",
+      "scenario": "未知敌群前购药，进入战斗后目标可见",
+      "requirement": "信息揭示前共用决定，揭示后允许分支；不使用逐情景预知最优作为可执行值",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T52",
+      "scenario": "防御与延迟遗物、能量与抽牌存在互补",
+      "requirement": "按整体状态识别策略可行性变化，不把独立基础分和协同收益重复累加",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T53",
+      "scenario": "候选跨不同预测截止点才兑现收益",
+      "requirement": "尾部统一目标与单位；不因机械时间折扣或未展开而虚假偏好快方案",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T54",
+      "scenario": "预算追加或随机分支专项采样",
+      "requirement": "候选公平粗评，正确恢复分支权重，不因仅保留有利结果而提高估值",
+      "status": "待实现",
+      "tests": [],
+      "scope": "尚未完成新模型下的逐场景验收，既有相近测试不自动视为通过"
+    },
+    {
+      "id": "T55",
+      "scenario": "代理价值、风险或状态协议版本不兼容",
+      "requirement": "明确拒绝混算或重评，不静默把不同单位的分数送入同一排名",
+      "status": "通过",
+      "tests": [
+        "test_strategic_model.py::test_joint_results_preserve_correlated_inventory_death_and_unknown_mass"
+      ],
+      "scope": "现有有界代理/接口回归；不代表完整战略或实机验收"
+    }
+  ],
+  "combat": [
+    {
+      "id": "C8.3-01",
+      "scenario": "两回合快杀 / 三回合低损结束",
+      "requirement": "截断与胜利奖励偏差",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-02",
+      "scenario": "低血量抽牌，存在坏手牌",
+      "requirement": "死亡尾部与样本不足",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-03",
+      "scenario": "3 能量、两张 2 费攻防牌",
+      "requirement": "能量竞争与不可实现的平均状态",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-04",
+      "scenario": "力量或抽牌引擎启动",
+      "requirement": "成长价值与剩余战斗长度",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-05",
+      "scenario": "同牌组、不同牌堆分布",
+      "requirement": "牌堆条件信息是否进入估值",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-06",
+      "scenario": "同总血量、不同敌人威胁",
+      "requirement": "目标选择与怪物阶段",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-07",
+      "scenario": "药水仅在少数分支使用",
+      "requirement": "概率成本与分支并集的差异",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-08",
+      "scenario": "战后回血接近满血",
+      "requirement": "封顶、共同基准与重复记账",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-09",
+      "scenario": "未建模能力会改变结果",
+      "requirement": "模型未知与游戏随机性的区分",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-10",
+      "scenario": "打乱动作 ID / 枚举顺序",
+      "requirement": "搜索顺序偏差",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-11",
+      "scenario": "互斥地图分支的休息点与精英",
+      "requirement": "路线条件一致性",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    },
+    {
+      "id": "C8.3-12",
+      "scenario": "防守至延迟遗物触发、单体减员、压制复苏爪牙或击杀主要目标",
+      "requirement": "策略可达性、真实胜利条件与关键事件之后的尾部，不预设群攻为必备项",
+      "status": "待实现",
+      "tests": [],
+      "reason": "需规则统一后的固定快照及价值/搜索实验；未将普通单测冒充实验"
+    }
+  ],
+  "complete": false,
+  "architecture": [
+    {
+      "id": "A02",
+      "status": "进行中",
+      "tests": [
+        "test_model_store.py",
+        "test_flows.py",
+        "test_monster_models.py"
+      ],
+      "scope": "JSON 声明/引用/作用域/快照验证；完整选择与依赖仍待实现"
+    },
+    {
+      "id": "A04",
+      "status": "进行中",
+      "tests": [
+        "test_flows.py::test_hp_loss_hooks_run_before_the_maximum_is_set_and_only_once",
+        "test_model_store.py::test_obtain_uses_one_hook_order_and_never_mutates_other_branches",
+        "test_unified_decision.py::test_reward_and_comparison_tools_preserve_unknown_owned_card_hooks",
+        "test_unified_decision.py::test_card_choice_accounts_for_declared_resource_hooks_once",
+        "test_calibration.py::test_reviewed_labels_cannot_enable_unmodeled_owned_hooks"
+      ],
+      "scope": "公共命令和核心顺序；全部生命周期及变形/奖励/附魔未完成"
+    },
+    {
+      "id": "A06",
+      "status": "进行中",
+      "tests": [
+        "test_flows.py",
+        "test_event_forecasts.py"
+      ],
+      "scope": "仅五个事件；后续战斗与奖励保留观察边界；无实机验证"
+    },
+    {
+      "id": "A08",
+      "status": "进行中",
+      "tests": [
+        "test_selections.py",
+        "CommandTests: async selector origin/callback isolation"
+      ],
+      "scope": "实际调用来源与候选约束、五个选择后续合同（含 Cook）；Smith 复用选择合同，截断/未知候选不输出完整收益、多选组合、逐次观察、取消及预览；转化入口可用但效果/附魔等预测未完成；未部署实测"
+    },
+    {
+      "id": "A09",
+      "status": "进行中",
+      "tests": [
+        "test_monster_models.py",
+        "test_monster_simulation.py",
+        "test_monster_graphs.py",
+        "test_combat_strategy.py"
+      ],
+      "scope": "119 个怪物结构迁移与数据驱动预测；逐项语义及复杂动作仍待完成"
+    },
+    {
+      "id": "A10",
+      "status": "进行中",
+      "tests": [
+        "test_selections.py",
+        "test_combat_batches.py",
+        "test_effect_profiles.py",
+        "test_unified_decision.py",
+        "test_potion_value.py",
+        "test_model_store.py::test_unknown_purchase_step_stops_payment_and_stock_continuation",
+        "test_unified_decision.py::test_reward_and_comparison_tools_preserve_unknown_owned_card_hooks",
+        "test_unified_decision.py::test_card_choice_accounts_for_declared_resource_hooks_once",
+        "test_calibration.py::test_reviewed_labels_cannot_enable_unmodeled_owned_hooks"
+      ],
+      "scope": "默认牌组、批次、药水、实体资料不再以描述生成分数；储备区间来自配置；未知命令中断购买续算。完整模型和全部场景仍未完成"
+    }
+  ]
+}

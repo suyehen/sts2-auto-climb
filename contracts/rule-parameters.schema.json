@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:autoslay:rule-parameters:1",
+  "title": "Independent compiled-rule numeric parameters (partial source extraction)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source_fingerprint", "behavior_sha256", "contract_sha256", "entries"],
+  "properties": {
+    "schema_version": { "const": "autoslay-rule-parameters/1" },
+    "source_fingerprint": { "$ref": "#/$defs/hash" },
+    "behavior_sha256": { "$ref": "#/$defs/hash" },
+    "contract_sha256": { "$ref": "#/$defs/hash" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "kind", "value", "source_path", "source_sha256", "line"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["decimal", "int32"] },
+          "value": { "type": "number" },
+          "source_path": { "type": "string", "minLength": 1 },
+          "source_sha256": { "$ref": "#/$defs/hash" },
+          "line": { "type": "integer", "minimum": 1 }
+        },
+        "allOf": [{
+          "if": { "properties": { "kind": { "const": "int32" } } },
+          "then": { "properties": { "value": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 } } }
+        }]
+      }
+    }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" } }
+}

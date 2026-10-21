@@ -107,7 +107,8 @@ def assess(report,snapshot,policy=None):
             return reject('selection_execution_identity_unavailable','wait')
         from .local_combat import select_combat_selection
         selected=select_combat_selection(snapshot)
-        if not selected:return reject('combat_selection_not_ready','wait')
+        if not selected:
+            return reject('combat_selection_not_ready','wait') if (s.get('card_selection') or {}).get('decision_ready') is False else reject('combat_selection_semantics_unmodeled')
         result.update(eligible=True,mode='local_deterministic',rule_id=selected['rule_id'],reason=selected['reason'],
             selected_steps=selected['steps'],evidence=selected['evidence'],decision_basis=selected['decision_basis'])
         return result
@@ -150,7 +151,8 @@ def assess(report,snapshot,policy=None):
             result['score_review']=dict(leading_score=scores[0] if scores else None,runner_up_score=scores[1] if len(scores)>1 else None,
                 automatic_gap_selection=True,reason='操作批次按统一资源价值比较；接近分数由本地取舍，校准不是行动前置条件。')
             return result
-        return reject(reasons[0] if reasons else 'combat_batch_analysis_required','wait')
+        reason=reasons[0] if reasons else 'combat_batch_analysis_required'
+        return reject(reason) if reason=='combat_batch_unmodeled_actions' else reject(reason,'wait')
     rules=[('eliminate_certain_death','event',event_survival),
            ('open_card_reward','rewards',open_card_reward)]
     for identity,phase,rule in rules:

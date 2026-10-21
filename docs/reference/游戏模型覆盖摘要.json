@@ -1,0 +1,147 @@
+{
+  "schema_version": "game-model-coverage/1",
+  "module_version": "3.0.0",
+  "game_version": "0.111.0",
+  "game_assembly_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "complete_inventory": false,
+  "inventory_scope": "catalog + source_inventory + behavior + declared model references; missing model categories remain",
+  "counts": {
+    "defined": 436,
+    "missing_mechanic": 997
+  },
+  "entity_count": 1433,
+  "categories": {
+    "card": {
+      "total": 596,
+      "catalog": 596,
+      "declared": 224,
+      "source_reviewed": 0,
+      "effects_complete": 0,
+      "interaction_verified": 0
+    },
+    "encounter": {
+      "total": 2,
+      "catalog": 0,
+      "declared": 0,
+      "source_reviewed": 0,
+      "effects_complete": 0,
+      "interaction_verified": 0
+    },
+    "event": {
+      "total": 68,
+      "catalog": 0,
+      "declared": 5,
+      "source_reviewed": 5,
+      "effects_complete": 2,
+      "interaction_verified": 0
+    },
+    "intent": {
+      "total": 14,
+      "catalog": 0,
+      "declared": 0,
+      "source_reviewed": 0,
+      "effects_complete": 0,
+      "interaction_verified": 0
+    },
+    "monster": {
+      "total": 119,
+      "catalog": 0,
+      "declared": 119,
+      "source_reviewed": 0,
+      "effects_complete": 0,
+      "interaction_verified": 0
+    },
+    "potion": {
+      "total": 66,
+      "catalog": 66,
+      "declared": 39,
+      "source_reviewed": 0,
+      "effects_complete": 0,
+      "interaction_verified": 0
+    },
+    "power": {
+      "total": 268,
+      "catalog": 0,
+      "declared": 0,
+      "source_reviewed": 0,
+      "effects_complete": 0,
+      "interaction_verified": 0
+    },
+    "relic": {
+      "total": 300,
+      "catalog": 299,
+      "declared": 49,
+      "source_reviewed": 1,
+      "effects_complete": 1,
+      "interaction_verified": 0
+    }
+  },
+  "rule_fingerprint": "41c837dd1f942958b86fb58da3f3198358171b42d116d51291ae6a1ad8c188e0",
+  "execution_source": "models_json_and_core_commands",
+  "full_support": false,
+  "selection_contract_count": 5,
+  "selection_contracts": {
+    "SELECTION.REST_SITE_SMITH": {
+      "source": {
+        "model_id": null,
+        "model_type": "MegaCrit.Sts2.Core.Entities.RestSite.SmithRestSiteOption",
+        "callback": "OnSelect",
+        "option_key": null
+      },
+      "semantic_review": "source_reviewed",
+      "interaction_verified": false,
+      "scope": "observed selector continuation only; not a complete source entity definition"
+    },
+    "SELECTION.SAPPHIRE_SEED_EAT": {
+      "source": {
+        "model_id": "EVENT.SAPPHIRE_SEED",
+        "model_type": "MegaCrit.Sts2.Core.Models.Events.SapphireSeed",
+        "callback": "Eat",
+        "option_key": "SAPPHIRE_SEED.pages.INITIAL.options.EAT"
+      },
+      "semantic_review": "source_reviewed",
+      "interaction_verified": false,
+      "scope": "observed selector continuation only; not a complete source entity definition"
+    },
+    "SELECTION.ZEN_WEAVER_EMOTIONAL_AWARENESS": {
+      "source": {
+        "model_id": "EVENT.ZEN_WEAVER",
+        "model_type": "MegaCrit.Sts2.Core.Models.Events.ZenWeaver",
+        "callback": "EmotionalAwareness",
+        "option_key": "ZEN_WEAVER.pages.INITIAL.options.EMOTIONAL_AWARENESS"
+      },
+      "semantic_review": "source_reviewed",
+      "interaction_verified": false,
+      "scope": "observed selector continuation only; not a complete source entity definition"
+    },
+    "SELECTION.ZEN_WEAVER_ARACHNID_ACUPUNCTURE": {
+      "source": {
+        "model_id": "EVENT.ZEN_WEAVER",
+        "model_type": "MegaCrit.Sts2.Core.Models.Events.ZenWeaver",
+        "callback": "ArachnidAcupuncture",
+        "option_key": "ZEN_WEAVER.pages.INITIAL.options.ARACHNID_ACUPUNCTURE"
+      },
+      "semantic_review": "source_reviewed",
+      "interaction_verified": false,
+      "scope": "observed selector continuation only; not a complete source entity definition"
+    },
+    "SELECTION.REST_SITE_COOK": {
+      "source": {
+        "model_id": null,
+        "model_type": "MegaCrit.Sts2.Core.Entities.RestSite.CookRestSiteOption",
+        "callback": "OnSelect",
+        "option_key": null
+      },
+      "semantic_review": "source_reviewed",
+      "interaction_verified": false,
+      "scope": "observed selector continuation only; not a complete source entity definition"
+    }
+  },
+  "limitations": [
+    "source inventory IDs are provisional until ModelDb export",
+    "current inventory omits some model categories; runtime ModelDb model_inventory export is pending",
+    "source-reviewed declaration is not proof of all hook interactions",
+    "migrated definitions require semantic review; no unreachable/deprecated classification inferred"
+  ],
+  "knowledge_revision": "a0b07f2e6549192429e70080272336e26d9ecfa16b931f47d0d7ae5f747a07b0"
+}

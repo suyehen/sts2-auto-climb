@@ -24,6 +24,10 @@ def apply_strike(snapshot, action):
     player['hand'].remove(card)
     player['discard'].append(card)
     player['energy'] -= 1
+    if 'combat_counters' in player:
+        counts=player['combat_counters']
+        counts['cards_played']+=1;counts['combat_cards_played']+=1
+        if card.get('type')=='Attack':counts['attacks_played']+=1
     snapshot['state']['enemies'][0]['hp'] -= 6
     snapshot['state']['legal_actions'] = [a for a in snapshot['state']['legal_actions'] if a['action_id'] != action]
     snapshot['state_version'] += 1
@@ -93,6 +97,11 @@ def test_entire_turn_uses_one_model_request(tmp_path):
                 calls.append(packet)
                 return choice_payload(s), {}
         agent, s, _, _ = make_agent(tmp_path, factory=lambda *_: Provider())
+        # A real bridge observes these counters after each card. The simulator
+        # must not invent equality between an observed count and missing history.
+        s['state']['player']['combat_counters']={k:0 for k in ('cards_played','combat_cards_played',
+            'attacks_played','skills_played','cards_exhausted','turn_cards_exhausted','turn_cards_drawn')}
+        for card in s['state']['player']['hand']:card['type']='Attack'
         agent.analyze=lambda snap:dict(source=source(snap),phase='combat',analysis_id='test',combat=dict(candidates=[dict(steps=[step.model_dump() for step in plan_for(snap).steps])]))
         s['state']['card_selection'] = dict(screen_id=None, screen_type=None,
             decision_ready=False, cancelable=False, cards=[], controls=[])

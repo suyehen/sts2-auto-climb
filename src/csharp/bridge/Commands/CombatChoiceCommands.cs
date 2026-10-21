@@ -52,6 +52,8 @@ public static partial class Bridge
         string choiceId;
         string screenType;
         bool preview;
+        object selectionToken;
+        string interaction;
         Action<CardModel> select;
         Func<CardModel, bool> available;
         MegaCrit.Sts2.Core.Nodes.GodotExtensions.NButton confirm;
@@ -63,7 +65,9 @@ public static partial class Bridge
         {
             prefs = ReadUiField<CardSelectorPrefs>(gridScreen, "_prefs");
             selected = ReadUiField<HashSet<CardModel>>(gridScreen, "_selectedCards");
-            choiceId = Id(ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(gridScreen, "_completionSource"));
+            selectionToken = ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(gridScreen, "_completionSource");
+            choiceId = Id(selectionToken);
+            interaction = "toggle";
             screenType = gridScreen.GetType().Name;
             preview = false;
             var grid = ReadUiField<NCardGrid>(gridScreen, "_grid");
@@ -86,7 +90,9 @@ public static partial class Bridge
             selected = ReadUiField<List<CardModel>>(hand, "_selectedCards");
             var filter = ReadUiField<Func<CardModel, bool>?>(hand, "_currentSelectionFilter");
             candidates = player!.PlayerCombatState!.Hand.Cards.Where(c => filter?.Invoke(c) ?? true).ToArray();
-            choiceId = Id(ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(hand, "_selectionCompletionSource"));
+            selectionToken = ReadUiField<TaskCompletionSource<IEnumerable<CardModel>>>(hand, "_selectionCompletionSource");
+            choiceId = Id(selectionToken);
+            interaction = "select_only";
             screenType = "NPlayerHand." + hand.CurrentMode;
             preview = ReadUiField<Control>(hand, "_upgradePreviewContainer").Visible;
             available = card => !selected.Contains(card) && hand.ActiveHolders.Any(h => h.CardNode?.Model == card
@@ -105,7 +111,7 @@ public static partial class Bridge
         {
             var enabled = available(card);
             var actionId = "combat_select_" + choiceId + "_" + Id(card);
-            cards.Add(new { card = Card(card), selected = selected.Contains(card), available = enabled,
+            cards.Add(new { card = Card(card), eligible = true, selected = selected.Contains(card), available = enabled,
                 action_id = enabled ? actionId : null });
             if (enabled && bind) CombatChoiceBindings[actionId] = new("select_combat_card", choiceId, before, () => select(card), card);
             currentCombatChoiceReady |= enabled;
@@ -119,7 +125,9 @@ public static partial class Bridge
         currentCombatChoiceId = choiceId;
         currentCombatChoiceFingerprint = before;
         return new(choiceId, screenType, prefs.Prompt.GetFormattedText(), minSelect, prefs.MaxSelect,
-            prefs.Cancelable, preview, currentCombatChoiceReady, cards.ToArray(), controls.ToArray());
+            prefs.Cancelable, preview, currentCombatChoiceReady, cards.ToArray(), controls.ToArray(),
+            Semantics: SelectionSemantics(selectionToken), RequireManualConfirmation: prefs.RequireManualConfirmation,
+            Interaction: interaction);
     }
 
     private static LegalAction[] CombatChoiceActions() => CombatChoiceBindings.Select(p =>
@@ -146,7 +154,7 @@ public static partial class Bridge
                 && !holder.IsQueuedForDeletion() && ReadUiField<bool>(holder, "_isClickable")
                 && Time.GetTicksMsec() >= openedTicks + selectionDelay;
             var actionId = "combat_select_" + choiceId + "_" + Id(card);
-            cards.Add(new { card = Card(card), selected = false, available = enabled, action_id = enabled ? actionId : null });
+            cards.Add(new { card = Card(card), eligible = true, selected = false, available = enabled, action_id = enabled ? actionId : null });
             if (enabled && bind) CombatChoiceBindings[actionId] = new("select_combat_card", choiceId, "generated", () => {
                 // Invoke the game's choice handler; it performs synchronization and resolves the source task.
                 var method = typeof(NChooseACardSelectionScreen).GetMethod("SelectHolder", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -164,7 +172,8 @@ public static partial class Bridge
         currentCombatChoiceFingerprint = "generated";
         return new(choiceId, screen.GetType().Name, "Choose one generated card", canSkip ? 0 : 1, 1,
             canSkip, false, currentCombatChoiceReady, cards.ToArray(),
-            [new { type = "skip_combat_choice", available = canSkip, action_id = canSkip ? skipId : null }]);
+            [new { type = "skip_combat_choice", available = canSkip, action_id = canSkip ? skipId : null }],
+            Semantics: SelectionSemantics(completion), Interaction: "select_only");
     }
 
     private static bool YieldCombatChoice()

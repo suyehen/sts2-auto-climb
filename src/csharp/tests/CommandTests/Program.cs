@@ -3,6 +3,71 @@ using AutoSlayBridge;
 static void Check(bool condition, string name) { if (!condition) throw new Exception(name); Console.WriteLine("PASS " + name); }
 static ActionRequest Request(string id = "one") => new(id, "run", "epoch", 42, "play_c1", "enemy");
 
+var selectionObservation = new SelectionObservation();
+var eventSource = new SelectionSource("EVENT.TEST", "Events.Test", "event-instance", "Choose", "TEST.options.CHOOSE");
+var selectionToken = new object();
+Task delayedSelection;
+var resumeSelection = new TaskCompletionSource();
+using (selectionObservation.EnterSource(eventSource))
+using (selectionObservation.EnterCommand("CardSelectCmd.FromDeckForRemoval", "remove"))
+using (selectionObservation.EnterCommand("CardSelectCmd.FromDeckGeneric", null))
+{
+    delayedSelection = Task.Run(async () => { await resumeSelection.Task; selectionObservation.Capture(selectionToken); });
+}
+resumeSelection.SetResult();
+await delayedSelection;
+var observedSelection = selectionObservation.Read(selectionToken)!;
+Check(observedSelection.Operation == "remove" && observedSelection.Source == eventSource
+    && observedSelection.ApiPath.SequenceEqual(new[] { "CardSelectCmd.FromDeckForRemoval", "CardSelectCmd.FromDeckGeneric" }),
+    "async selector retains actual specific command and source through generic helper after parent scope returns");
+observedSelection.ApiPath[0] = "changed";
+Check(selectionObservation.Read(selectionToken)!.ApiPath[0] == "CardSelectCmd.FromDeckForRemoval",
+    "returned selection metadata cannot change the stored observation");
+var nextSelectionToken = new object();
+selectionObservation.Capture(nextSelectionToken);
+Check(selectionObservation.Read(nextSelectionToken) == null,
+    "new completion token cannot inherit a previous selection origin");
+selectionObservation.Capture(selectionToken);
+Check(selectionObservation.Read(selectionToken) == null,
+    "capturing a reused token outside a source context clears stale provenance");
+var parallelSelections = await Task.WhenAll(Enumerable.Range(0, 4).Select(async i => {
+    var token = new object();
+    using (selectionObservation.EnterSource(eventSource with { InstanceId = "source-" + i }))
+    using (selectionObservation.EnterCommand("CardSelectCmd.FromHandForDiscard", "discard"))
+    {
+        await Task.Yield();
+        selectionObservation.Capture(token);
+    }
+    return selectionObservation.Read(token)!;
+}));
+Check(parallelSelections.Select(c => c.Source!.InstanceId).Distinct().Count() == 4,
+    "concurrent selector origins stay isolated in their own async contexts");
+using (selectionObservation.EnterSource(eventSource))
+using (selectionObservation.EnterCommand("EventModel.SelectCardsToAddToDeckFromGrid", "add", eventSource with { Callback = "Helper" }))
+{
+    var token = new object(); selectionObservation.Capture(token);
+    Check(selectionObservation.Read(token)!.Source!.Callback == "Choose",
+        "common helper preserves exact parent event callback and option key");
+}
+try { using var scope = selectionObservation.EnterCommand("throwing", "remove"); throw new InvalidOperationException(); }
+catch (InvalidOperationException) { }
+var afterException = new object(); selectionObservation.Capture(afterException);
+Check(selectionObservation.Read(afterException) == null, "exception restores selection observation scope");
+using (selectionObservation.EnterSource(eventSource with { Callback = "EventOption.Chosen" }))
+{
+    using (selectionObservation.EnterCallback(eventSource with { Callback = "BeforeChosenCallback", OptionKey = null }))
+        Check(selectionObservation.CurrentSource!.Callback == "BeforeChosenCallback", "pre-choice selector is attributed to its actual callback");
+    using (selectionObservation.EnterCallback(eventSource with { Callback = "ActualChoice", OptionKey = null }))
+    using (selectionObservation.EnterCallback(eventSource with { Callback = "NestedHelper", OptionKey = null }))
+        Check(selectionObservation.CurrentSource!.Callback == "ActualChoice" && selectionObservation.CurrentSource.OptionKey == eventSource.OptionKey,
+            "actual event callback and option key survive nested helpers without inheriting pre-choice provenance");
+}
+
+var counterJson = System.Text.Json.JsonSerializer.Serialize(RuntimeFields.ReadRelicCounters(new CounterProbe()));
+Check(counterJson.Contains("\"_attacksPlayed\":12") && !counterJson.Contains("SecretFuture")
+    && counterJson.Contains("\"_activatedThisCombat\":true")
+    && !counterJson.Contains("Rng"), "relic progress exports exact primitive counters and one-shot flags without getters or future fields");
+
 var mapObservation = new PublicMapObservation<string>();
 var mapRun = new object();
 mapObservation.Observe(mapRun, 0, 1, ["public-node"]);
@@ -189,6 +254,15 @@ Check(!RecoveryRules.CanCloseMap(recovery with { QueueIdle = false }), "busy gam
 sealed class RuntimeProbe
 {
     public bool Charged { get; } = true;
+    public object Rng = new();
+    public int DangerousGetter => throw new InvalidOperationException("must not invoke");
+}
+
+sealed class CounterProbe
+{
+    public int _attacksPlayed = 12;
+    public bool _activatedThisCombat = true;
+    public int SecretFuture = 99;
     public object Rng = new();
     public int DangerousGetter => throw new InvalidOperationException("must not invoke");
 }

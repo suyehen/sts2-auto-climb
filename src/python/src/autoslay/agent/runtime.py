@@ -61,7 +61,9 @@ class Agent:
         self.audit = Audit(self.journal/'audit', archive=record)
         self.trace_id = None
         self.audit_snapshot = None
-        self.deterministic = deterministic or DeterministicExecutor()
+        self.deterministic = deterministic or DeterministicExecutor(
+            fetch=lambda: self.fetch(), submit=lambda request: self.submit(request),
+            status=lambda request_id: self.action_status(request_id), record=record)
         self.task, self.generation, self.running = None, 0, False
         self.phase, self.error, self.last, self.recent = 'paused', None, None, []
         self.model_wait = None

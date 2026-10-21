@@ -23,7 +23,7 @@ from autoslay.decision.unified import analyze_decision as unified_analysis, eval
 from autoslay.calibration import store as calibration
 from autoslay.telemetry import decisions
 from autoslay.telemetry import runs
-from autoslay.knowledge_base.rulebook import Rulebook
+from autoslay.rules.registry import audit as audit_rules
 from autoslay.knowledge_base.events import observe as observe_event
 from autoslay.knowledge_base.updates import CatalogSynchronizer,rollback
 
@@ -200,8 +200,8 @@ async def refresh_encyclopedia() -> dict:
 @mcp.tool()
 @scoped
 def audit_knowledge_rules() -> dict:
-    """Report complete catalog coverage and executable rule compatibility; never approves rules."""
-    return Rulebook().audit()
+    """Report native mechanic definitions and missing implementations across the catalog."""
+    return audit_rules()
 
 
 @mcp.tool()

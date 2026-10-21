@@ -4,6 +4,7 @@
     <Compile Include="../../bridge/Commands/ActionCatalog.cs" Link="ActionCatalog.cs" />
     <EmbeddedResource Include="../../../../data/knowledge/rules/actions.json" LogicalName="AutoSlay.ActionCatalog.json" />
     <Compile Include="../../bridge/Knowledge/RuntimeFields.cs" Link="RuntimeFields.cs" />
+    <Compile Include="../../bridge/Knowledge/SelectionObservation.cs" Link="SelectionObservation.cs" />
     <Compile Include="../../bridge/Commands/CommandLedger.cs" Link="CommandLedger.cs" />
     <Compile Include="../../bridge/Commands/RewardProgress.cs" Link="RewardProgress.cs" />
     <Compile Include="../../bridge/Commands/MenuRules.cs" Link="MenuRules.cs" />

@@ -1,7 +1,8 @@
 from copy import deepcopy
 from autoslay.knowledge_base.behavior import load
 from autoslay.knowledge_base.templates import index
-from autoslay.evaluation.event_adapters import evaluate_source_event,terminal_effects
+from autoslay.evaluation.event_sequences import evaluate_event_sequence
+from autoslay.knowledge_base.event_model import terminal_resource_evidence
 from autoslay.evaluation.event_sequences import evaluate_graph
 from autoslay.evaluation.run import RunContext,RunPolicy
 from autoslay.calibration.events import compare,summarize
@@ -17,7 +18,7 @@ def fixture(identity,stage,keys,variables=None):
 
 def evaluate(event,hp=40,maximum=80):
     deck=[dict(entity_id='CARD.STRIKE_IRONCLAD',instance_id='strike',upgrade_level=0)]
-    return evaluate_source_event(event,deck,RunContext(hp,maximum,0),index()[0],RunPolicy(),'0.111.0')
+    return evaluate_event_sequence(event,deck,RunContext(hp,maximum,0),index()[0],RunPolicy(),'0.111.0')
 
 
 def test_unknown_future_choice_prevents_claim_of_optimum():
@@ -47,7 +48,8 @@ def test_tablet_random_upgrade_consumes_current_pool_then_reobserves():
     row=next(r for r in result['candidates'] if r['option_id']=='Decipher')
     branch=row['branches'][0]; assert branch['probability']==1
     assert branch['immediate']['max_hp_after']==77 and branch['immediate']['deck_after'][0]['upgrade_level']==1
-    assert branch['continuation']['candidates'][1]['branches'][0]['immediate']['deck_after'][0]['upgrade_level']==1
+    again=next(c for c in branch['continuation']['candidates'] if c['option_id']=='Decipher')
+    assert again['branches'][0]['immediate']['deck_after'][0]['upgrade_level']==1
     assert event==before and not result['execution_authorized']
 
 
@@ -57,7 +59,7 @@ def test_tablet_lethal_cost_and_multi_card_probabilities():
     row=next(r for r in result['candidates'] if r['option_id']=='Decipher')
     assert row['fatal_probability']==1
     deck=[dict(entity_id='CARD.STRIKE_IRONCLAD',instance_id='s',upgrade_level=0),dict(entity_id='CARD.DEFEND_IRONCLAD',instance_id='d',upgrade_level=0)]
-    result=evaluate_source_event(event,deck,RunContext(40,80,0),index()[0],RunPolicy(),'0.111.0')
+    result=evaluate_event_sequence(event,deck,RunContext(40,80,0),index()[0],RunPolicy(),'0.111.0')
     row=next(r for r in result['candidates'] if r['option_id']=='Decipher')
     assert [b['probability'] for b in row['branches']]==[.5,.5]
 
@@ -65,10 +67,10 @@ def test_tablet_lethal_cost_and_multi_card_probabilities():
 def test_terminal_does_not_ignore_hidden_effect_call_or_dynamic_variable():
     entry=next(e for e in load()['entries'] if e['entity_id']=='EVENT.THE_LANTERN_KEY')
     option=next(o for o in entry['options'] if o.get('handler')=='ReturnTheKey')
-    assert terminal_effects(option,entry['event_model'],{})==[dict(kind='gain_gold',amount=100)]
+    assert terminal_resource_evidence(option,entry['event_model'],{})==[dict(kind='gain_gold',amount=100)]
     model=deepcopy(entry['event_model']); model['methods']['ReturnTheKey']['evidence']+=';UnknownReward();'
     import pytest
-    with pytest.raises(ValueError): terminal_effects(option,model,{})
+    with pytest.raises(ValueError): terminal_resource_evidence(option,model,{})
 
 
 def test_random_residual_is_not_a_rule_failure_and_no_weight_update():
